@@ -74,6 +74,7 @@ def list_projects():
     out = []
     with h._read_lock():
         messages = h._messages()
+    states = {s["id"]: s["state"] for s in h.summary()["projects"]}
     for p in h.list_projects():
         cur = current_phase(p)
         out.append({
@@ -88,6 +89,7 @@ def list_projects():
             "phases": _phases(p),
             "user_messages": [m for m in messages if m["to_project"] == "user" and m["from_project"] == p["id"] and m["status"] != "done"],
             "reports": [m for m in messages if m["to_project"] in (p["id"], "all") and m["kind"] == "report" and m["status"] == "unread"],
+            "state": states[p["id"]],
         })
     return overview_order(out)
 

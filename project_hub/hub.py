@@ -676,6 +676,7 @@ class Hub:
             projects = overview_order(self._projects())
             messages = self._messages()
             events = self._events()
+            leases = self._leases()
         state = self.summary_state()
         last_seen = state.get("last_seen")
         copied = state.get("copied", {})
@@ -696,13 +697,13 @@ class Hub:
         active, rest = [], []
         for p in projects:
             entry = self._project_summary(p, messages, [e for e in events if e["project_id"] == p["id"]], start, until,
-                                          copied.get(p["id"]))
+                                          copied.get(p["id"]), leases)
             (active if entry["has_activity"] else rest).append(entry)
         return {"since": _iso(start), "until": _iso(until), "last_seen": last_seen, "log_started_at": log_started,
                 "note": note, "projects": active + rest}
 
     @staticmethod
-    def _project_summary(p, messages, all_events, start, until, copied_at):
+    def _project_summary(p, messages, all_events, start, until, copied_at, leases=()):
         pid = p["id"]
         mine = [m for m in messages if m["to_project"] in (pid, "all") or (m["to_project"] == "user" and m["from_project"] == pid)]
         waiting = [{"phase_id": ph["id"], "phase": ph["name"], "gate": ph["gate"], "reason": ph.get("gate_reason", "")}
@@ -729,6 +730,10 @@ class Hub:
             if count_waiting:
                 gate_phases |= {g["phase"] for g in waiting}
             w["gates"] = len(gate_phases)
+            # gate type is the phase's current one; a renamed or deleted phase falls back to review
+            kinds = {ph["name"]: ph.get("gate", "none") for ph in p["phases"]}
+            w["gate_lines"] = [(name, "prueba manual" if kinds.get(name) == "manual_test" else "review")
+                               for name in sorted(gate_phases, key=str)]
             w["text"] = Hub._chat_text(pid, f"Periodo: {_local(w_start)} - {_local(until)}", w)
             return w
 
@@ -762,22 +767,57 @@ class Hub:
             "counts": {"gates": len(waiting), "reports": len(reports), "decisions": len(decisions),
                        "items_opened": len(items_opened), "items_closed": len(items_closed), "phase_changes": len(phase_changes)},
             "copy": {"since": _iso(copy_since), "new": new, "chat_text": c["text"] if new else None},
+            "state": Hub._copy_state(p, messages, leases, new, waiting, user_messages),
         }
+
+    @staticmethod
+    def _copy_state(p, messages, leases, new, waiting, user_messages):
+        """Is copying now worthwhile? working (amber) > waiting (green) > ready (green) > quiet (grey). Not period-bound."""
+        pid = p["id"]
+        by_id = {m["id"]: m for m in messages}
+        # work = (title, purpose, since): task leases held by this project, and read-not-done tasks sent to it
+        work = []
+        for l in leases:
+            if l["project_id"] == pid and l["resource"].startswith("task:"):
+                m = by_id.get(l["resource"][5:])
+                work.append((m["title"] if m else l["purpose"], l["purpose"], l["acquired_at"]))
+        leased = {l["resource"][5:] for l in leases if l["project_id"] == pid and l["resource"].startswith("task:")}
+        work += [(m["title"], "", m["created_at"]) for m in messages
+                 if m["to_project"] == pid and m["kind"] == "task" and m["status"] == "read" and m["id"] not in leased]
+        if work:
+            cur = current_phase(p)
+            gates = [g for g in waiting if next(ph for ph in p["phases"] if ph["id"] == g["phase_id"])["status"] == "in_progress"
+                     or (cur and g["phase_id"] == cur["id"])]
+            reports = [m for m in messages if m["kind"] == "report" and m["from_project"] == pid]
+            words = ("esper", "wait", "aprobación", "puerta", "gate")
+            reason = next((purpose for _, purpose, _ in work if any(w in purpose.lower() for w in words)), None)
+            if reason is None and gates:
+                reason = gates[0]["phase"]
+            if reason is None and user_messages:
+                reason = user_messages[0]["title"]
+            if reason is None:
+                since = min(w[2] for w in work)
+                reason = next((r["title"] for r in reports if r["created_at"] > since), None)
+            if reason is not None:
+                return {"kind": "waiting", "label": "Listo para copiar", "detail": f"Esperando a Danny: {_short(reason, 80)}"}
+            return {"kind": "working", "label": "Trabajando", "detail": f"Trabajando en: {_short(work[0][0], 80)}"}
+        if new:
+            return {"kind": "ready", "label": "Listo para copiar", "detail": None}
+        return {"kind": "quiet", "label": "Sin novedades", "detail": None}
 
     @staticmethod
     def _chat_text(pid, period_line, w):
         done = [c["phase"] for c in w["phase_changes"] if c["text"].endswith("→ done")]
-        reports, decisions, gates = w["reports"], w["decisions"], w["gates"]
+        reports, decisions = w["reports"], w["decisions"]
         lines = [period_line]
+        lines += [f"Gate esperando a Danny: {_short(name, 70)} ({kind})" for name, kind in w["gate_lines"]]
         if reports:
-            lines.append(_plural(len(reports), "informe nuevo", "informes nuevos")
-                         + (": " + "; ".join(_short(r["title"], 80) for r in reports) if len(reports) <= 2 else ""))
+            titles = [_short(r["title"], 70) for r in reversed(reports)]  # newest first
+            lines.append("Reports nuevos: " + " · ".join(titles[:6]) + (f" y {len(titles) - 6} más" if len(titles) > 6 else ""))
         if done:
             lines.append(_plural(len(done), "fase terminada", "fases terminadas") + (": " + ", ".join(done) if len(done) <= 2 else ""))
         if decisions:
             lines.append(_plural(len(decisions), "decisión de los agentes", "decisiones de los agentes"))
-        if gates:
-            lines.append(_plural(gates, "gate esperando a Danny", "gates esperando a Danny"))
         if len(lines) == 1:
             lines.append("Sin actividad nueva en este periodo.")
         lines.append(f"Revisa el proyecto {pid} en project-hub (get_project y read_inbox) y prepara los siguientes pasos.")

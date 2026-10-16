@@ -174,6 +174,8 @@ Every change made through project-hub (phases, gates, items, decisions, messages
 
 Each project also has a "copied for the chat" marker (`POST /api/summary/copied` with `{"project_id", "at"}`, kept in `summary_state.json` under `copied`). Per project, `copy` in the summary holds `since` (the marker, else the summary start), `new` (things since then) and a `chat_text` that is null when nothing is new; `counts` sums the summary period.
 
+Each project in the summary and in `GET /api/projects` also has `state` `{kind, label, detail}`: `working` (an active `task:<id>` lease or a read task, not waiting for Danny), `waiting` (that work waits on a gate, a message to Danny, a later report or a lease purpose with "esper/wait/gate/puerta/aprobación"), `ready` (new things since the last copy) or `quiet`, in that precedence. The copied text lists each waiting gate, the newest report titles (max 6) and ends with the "Revisa el proyecto ..." line.
+
 ## Phase gates
 
 A gate on a phase limits how far sessions work on their own:
