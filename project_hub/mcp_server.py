@@ -141,7 +141,8 @@ def log_decision(project_id: str, decision: str, reason: str) -> str:
 
 @tool
 def post_message(to_project: str, kind: str, title: str, body: str, from_project: str = "user") -> str:
-    """Post to a project inbox (to_project may be "all"). kind: message, task, report. from_project: a project id or "user"."""
+    """Post to a project inbox (to_project may be "all", or "user" for a message to Danny). kind: message, task, report.
+    from_project: a project id or "user"."""
     m = hub.post_message(to_project, kind, title, body, from_project)
     return f"Posted {m['kind']} {m['id']} to {m['to_project']}"
 
@@ -158,6 +159,23 @@ def mark_message(message_id: str, status: str) -> str:
     """Set a message status: unread, read, done."""
     m = hub.mark_message(message_id, status)
     return f"Message {m['id']} is now {m['status']}"
+
+
+ACTIVITY_CAP = 100
+
+
+@tool
+def get_activity(project_id: str | None = None, since: str | None = None) -> str:
+    """Activity log, oldest first, newest last: one line per change (time | project | type | by: text).
+    project_id (optional) filters one project; since (optional, ISO timestamp) keeps events at or after it.
+    Shows the last 100 events; older ones are left out with a note."""
+    events = hub.activity(project_id, since)
+    lines = [f"{e['at']} | {e['project_id']} | {e['type']} | {e['by']}: "
+             + (f"{e.get('phase') or e.get('title')}: " if e.get("phase") or e.get("title") else "") + e["text"]
+             for e in events[-ACTIVITY_CAP:]]
+    if len(events) > ACTIVITY_CAP:
+        lines.insert(0, f"(showing the last {ACTIVITY_CAP} of {len(events)} events; pass since to narrow)")
+    return "\n".join(lines) or "(no activity)"
 
 
 def _lease(l):

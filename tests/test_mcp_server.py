@@ -7,7 +7,7 @@ from mcp.client.stdio import stdio_client
 
 NAMES = {"list_projects", "get_project", "create_project", "update_project", "add_phase", "set_phase_status", "update_phase", "delete_phase",
          "add_item", "update_item", "log_decision", "post_message", "read_inbox", "mark_message",
-         "claim_resource", "release_resource", "list_resources", "set_gate"}
+         "claim_resource", "release_resource", "list_resources", "set_gate", "get_activity"}
 
 
 def run_session(tmp_path, steps):
@@ -132,3 +132,30 @@ def test_gate_round_trip(tmp_path):
     assert f"  [{i1}] todo: Two [gate: review, not approved, set by agent] check the API" in out["get"]
     assert "Autonomous work allowed up to phase 1 (One)" in out["get"]
     print(*out.values(), sep="\n")
+
+
+def test_activity_round_trip(tmp_path):
+    async def steps(s):
+        async def call(tool, /, **args):
+            return (await s.call_tool(tool, args)).content[0].text
+
+        await call("create_project", id="demo", name="Demo", description="d", phases=["One"])
+        ph = json.loads((tmp_path / "projects" / "demo.json").read_text(encoding="utf-8"))["phases"][0]["id"]
+        await call("update_project", project_id="demo", next_step="go")
+        await call("add_phase", project_id="demo", name="Two")
+        await call("update_phase", project_id="demo", phase_id=ph, name="Uno")
+        await call("set_phase_status", project_id="demo", phase_id=ph, status="done")
+        await call("set_gate", project_id="demo", phase_id=ph, gate="review", reason="look")
+        await call("add_item", project_id="demo", type="bug", title="Crash")
+        await call("log_decision", project_id="demo", decision="Use X", reason="r")
+        await call("post_message", to_project="demo", kind="report", title="Done", body="b", from_project="demo")
+        await call("claim_resource", resource="gpu", project_id="demo", purpose="p")
+        return await call("get_activity", project_id="demo")
+
+    out = run_session(tmp_path, steps)
+    evs = [json.loads(line) for line in (tmp_path / "activity" / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [(e["type"], e["by"]) for e in evs] == [
+        ("project_created", "agent"), ("project_updated", "agent"), ("phase_added", "agent"), ("phase_updated", "agent"),
+        ("phase_status", "agent"), ("gate_set", "agent"), ("item_added", "agent"), ("decision", "agent"),
+        ("message_posted", "demo")]
+    assert len(out.split("\n")) == 9 and out.split("\n")[4].endswith("| demo | phase_status | agent: Uno: todo → done")

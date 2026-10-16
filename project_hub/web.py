@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from . import hub as hub_module  # module reference so a faked hub._utcnow applies here too
 from .biblia import GATE_DEFAULTS, autonomy_line, current_phase, waiting
-from .hub import PROJECT_STATUSES as STATUS_ORDER, Hub, HubError  # active, paused, parked, done
+from .hub import Hub, HubError, overview_order
 
 app = FastAPI(title="project-hub")
 _hub: Hub | None = None  # tests may replace this with Hub(tmp_path)
@@ -74,9 +74,7 @@ def list_projects():
             "phases_total": len(p["phases"]),
             "unread_count": len(h.read_inbox(p["id"])),
         })
-    out.sort(key=lambda r: r["updated_at"], reverse=True)  # stable, so this survives the status sort below
-    out.sort(key=lambda r: STATUS_ORDER.index(r["status"]))
-    return out
+    return overview_order(out)
 
 
 @app.get("/api/unread")
@@ -96,10 +94,10 @@ def get_project(project_id: str):
     return project
 
 
-# the dashboard is Danny: phase and gate changes here are by="user"
+# the dashboard is Danny: every change here is by="dashboard", which gates treat like by="user"
 @app.post("/api/projects/{project_id}/phases/{phase_id}")
 def set_phase(project_id: str, phase_id: str, body: PhaseIn):
-    return hub().set_phase_status(project_id, phase_id, body.status, body.notes, by="user")
+    return hub().set_phase_status(project_id, phase_id, body.status, body.notes, by="dashboard")
 
 
 class GateIn(BaseModel):
@@ -109,12 +107,12 @@ class GateIn(BaseModel):
 
 @app.post("/api/projects/{project_id}/phases/{phase_id}/gate")
 def set_gate(project_id: str, phase_id: str, body: GateIn):
-    return hub().set_gate(project_id, phase_id, body.gate, body.reason, by="user")
+    return hub().set_gate(project_id, phase_id, body.gate, body.reason, by="dashboard")
 
 
 @app.post("/api/projects/{project_id}/phases/{phase_id}/gate/approve")
 def approve_gate(project_id: str, phase_id: str):
-    return hub().approve_gate(project_id, phase_id)
+    return hub().approve_gate(project_id, phase_id, by="dashboard")
 
 
 @app.get("/api/waiting")
@@ -124,12 +122,12 @@ def list_waiting():
 
 @app.post("/api/projects/{project_id}/items")
 def add_item(project_id: str, body: ItemIn):
-    return hub().add_item(project_id, body.type, body.title, body.details)
+    return hub().add_item(project_id, body.type, body.title, body.details, by="dashboard")
 
 
 @app.patch("/api/projects/{project_id}/items/{item_id}")
 def update_item(project_id: str, item_id: str, body: ItemPatch):
-    return hub().update_item(project_id, item_id, **body.model_dump(exclude_none=True))
+    return hub().update_item(project_id, item_id, **body.model_dump(exclude_none=True), by="dashboard")
 
 
 @app.post("/api/messages")
@@ -139,7 +137,7 @@ def post_message(body: MessageIn):
 
 @app.patch("/api/messages/{message_id}")
 def mark_message(message_id: str, body: MessagePatch):
-    return hub().mark_message(message_id, body.status)
+    return hub().mark_message(message_id, body.status, by="dashboard")
 
 
 class ReleaseIn(BaseModel):
@@ -156,6 +154,20 @@ def list_resources():
 @app.post("/api/resources/release")
 def force_release(body: ReleaseIn):
     return hub().force_release(body.resource)
+
+
+class SeenIn(BaseModel):
+    at: str | None = None
+
+
+@app.get("/api/summary")
+def get_summary(since: str | None = None, hours: int | None = None):
+    return hub().summary(since=since, hours=hours)
+
+
+@app.post("/api/summary/seen")
+def summary_seen(body: SeenIn | None = None):
+    return hub().mark_summary_seen(body.at if body else None)
 
 
 @app.get("/")

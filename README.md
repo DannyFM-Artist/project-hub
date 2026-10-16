@@ -14,6 +14,8 @@ Plus `project-hub session-start`, a Claude Code SessionStart hook that prints th
 <data>/
   projects/<project_id>.json   one pretty-printed JSON file per project (stable key order)
   inbox/messages.jsonl         one message per line
+  activity/events.jsonl        activity log: one line per change (time, project, type, by, short text); versioned
+  summary_state.json           when the dashboard summary was last marked as seen
   BIBLIA.md                    auto-regenerated after every write; paste it into any AI chat for full context
 ```
 
@@ -154,14 +156,21 @@ The screenshot-taking scripts overwrite the PNGs in `mockups/`; discard those ch
 - `add_item(project_id, type, title, details?)` - idea / future_request / bug.
 - `update_item(project_id, item_id, status?, type?, title?, details?)` - edit or move an item.
 - `log_decision(project_id, decision, reason)` - append to the decision log.
-- `post_message(to_project, kind, title, body, from_project?)` - message / task / report; `to_project` may be `all`.
+- `post_message(to_project, kind, title, body, from_project?)` - message / task / report; `to_project` may be `all`, or `user` for a message to Danny.
 - `read_inbox(project_id, unread_only=true)` - messages for a project (including `all`).
+- `get_activity(project_id?, since?)` - the activity log as short lines, newest last (last 100 events, with a note when more exist).
 - `mark_message(message_id, status)` - unread / read / done.
 - `claim_resource(resource, project_id, purpose, ttl_minutes=30)` - reserve a shared resource: granted, renewed (same project) or busy (shows the holder). Never waits.
 - `release_resource(resource, project_id)` - release a resource this project holds.
 - `list_resources()` - all active leases.
 
 Text limits on every write (MCP and dashboard): project description 200 characters, next_step 160, phase name 60, phase notes 240, item title 100. A longer text is refused with a message asking for a shorter one; data already stored is left as is.
+
+## Activity log and summary
+
+Every change made through project-hub (phases, gates, items, decisions, messages, project fields; not resource leases) appends one line to `activity/events.jsonl` with `by` = `agent` (MCP), `dashboard` (web) or, for a posted message, its sender. The log has no history before it was first written.
+
+`GET /api/summary` (optional `since=<ISO>` or `hours=<n>`; default: since the last time it was marked seen, else the last 24 h) lists per project what is waiting for Danny, new reports, phase changes, decisions, items and a short Spanish `chat_text` to paste into that project's chat. Reports, decisions and new items come from their own timestamps, so they appear even for periods before the log started; phase changes and closed items need the log. `POST /api/summary/seen` stores the last-seen time.
 
 ## Phase gates
 
