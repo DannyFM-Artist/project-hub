@@ -106,6 +106,8 @@ Set `repo_path` (absolute) when you create a project; session-start matches the 
 - Update this project in project-hub as you go, not only at the end: after each completed phase or significant step, update phase status, items, decisions and next_step right away.
 - Mark an inbox message "done" only when the work it asks for is actually finished; "read" means seen, not done.
 - At the end of the session, post a report message summarizing what changed.
+- Before using a shared resource (GPU-heavy runs, physical sensors, shared repos such as dannyfm-ui, files outside this repo), claim it in project-hub with claim_resource; release it as soon as you are done. If it is busy, do not use it: work on something else and retry later. Tests must bind to free ports chosen by the OS, never to fixed ports.
+- Keep hub text short and readable at a glance: no commit hashes, file:line citations or logs in descriptions, notes or titles; details belong in the repo.
 ```
 
 Updating as you go means a session cut off by a usage limit doesn't lose the project's state.
@@ -126,9 +128,27 @@ Opens at http://127.0.0.1:8765 (bound to 127.0.0.1 only). Set `PROJECT_HUB_DATA`
 - `update_project(project_id, status?, description?, next_step?, repo_path?)` - change project fields.
 - `add_phase(project_id, name, position?)` - add a phase.
 - `set_phase_status(project_id, phase_id, status, notes?)` - todo / in_progress / done.
+- `update_phase(project_id, phase_id, name?, notes?)` - rename a phase or replace its notes.
+- `delete_phase(project_id, phase_id)` - remove a phase.
 - `add_item(project_id, type, title, details?)` - idea / future_request / bug.
 - `update_item(project_id, item_id, status?, type?, title?, details?)` - edit or move an item.
 - `log_decision(project_id, decision, reason)` - append to the decision log.
 - `post_message(to_project, kind, title, body, from_project?)` - message / task / report; `to_project` may be `all`.
 - `read_inbox(project_id, unread_only=true)` - messages for a project (including `all`).
 - `mark_message(message_id, status)` - unread / read / done.
+- `claim_resource(resource, project_id, purpose, ttl_minutes=30)` - reserve a shared resource: granted, renewed (same project) or busy (shows the holder). Never waits.
+- `release_resource(resource, project_id)` - release a resource this project holds.
+- `list_resources()` - all active leases.
+
+Text limits on every write (MCP and dashboard): project description 200 characters, next_step 160, phase name 60, phase notes 240, item title 100. A longer text is refused with a message asking for a shorter one; data already stored is left as is.
+
+## Resource reservations
+
+Several Claude Code sessions can work on different projects at once. A lease in `<data>/resources/leases.json` tells the others a shared resource is in use. Leases are exclusive and expire after `ttl_minutes` (an expired lease counts as free); claiming again from the same project renews it. The dashboard overview lists active leases with a force-release button for stale ones.
+
+Resource names are free-form, trimmed and lowercased. Convention:
+
+- `gpu` - GPU-heavy runs
+- `device:<name>` - physical devices, e.g. `device:orbbec-femto-mega`
+- `repo:<name>` - shared repos, e.g. `repo:dannyfm-ui`
+- `path:<absolute path>` - files or folders outside the claiming repo

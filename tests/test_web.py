@@ -113,3 +113,29 @@ def test_errors(env):
 def test_index(env):
     r = env[1].get("/")
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+
+
+def test_resources_routes(env):
+    h, c = env
+    assert c.get("/api/resources").json() == []
+    h.claim_resource("gpu", "alpha", "training", ttl_minutes=30)
+    rows = c.get("/api/resources").json()
+    assert len(rows) == 1
+    row = rows[0]
+    assert {k: row[k] for k in ("resource", "project_id", "purpose")} == {"resource": "gpu", "project_id": "alpha", "purpose": "training"}
+    assert {"acquired_at", "expires_at"} <= row.keys()
+    assert type(row["seconds_left"]) is int and 1790 <= row["seconds_left"] <= 1800
+    r = c.post("/api/resources/release", json={"resource": "GPU"})
+    assert r.status_code == 200 and r.json()["project_id"] == "alpha"
+    assert c.get("/api/resources").json() == []
+    r = c.post("/api/resources/release", json={"resource": "gpu"})
+    assert r.status_code == 404 and r.json()["error"].startswith("unknown resource")
+    assert c.post("/api/resources/release", json={"resource": " "}).status_code == 400
+
+
+def test_over_limit_item_title_is_400(env):
+    h, c = env
+    r = c.post("/api/projects/alpha/items", json={"type": "bug", "title": "x" * 101})
+    assert r.status_code == 400
+    assert "101" in r.json()["error"] and "limit is 100" in r.json()["error"]
+    assert h.get_project("alpha")["items"] == []

@@ -1,5 +1,6 @@
 """Local dashboard backend: JSON API over Hub plus the static page."""
 
+from datetime import datetime
 from pathlib import Path
 
 import uvicorn
@@ -7,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
+from . import hub as hub_module  # module reference so a faked hub._utcnow applies here too
 from .biblia import current_phase
 from .hub import PROJECT_STATUSES as STATUS_ORDER, Hub, HubError  # active, paused, parked, done
 
@@ -115,6 +117,22 @@ def post_message(body: MessageIn):
 @app.patch("/api/messages/{message_id}")
 def mark_message(message_id: str, body: MessagePatch):
     return hub().mark_message(message_id, body.status)
+
+
+class ReleaseIn(BaseModel):
+    resource: str
+
+
+@app.get("/api/resources")
+def list_resources():
+    now = hub_module._utcnow()
+    return [{**l, "seconds_left": max(0, int((datetime.fromisoformat(l["expires_at"]) - now).total_seconds()))}
+            for l in hub().list_resources()]
+
+
+@app.post("/api/resources/release")
+def force_release(body: ReleaseIn):
+    return hub().force_release(body.resource)
 
 
 @app.get("/")

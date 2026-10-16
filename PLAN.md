@@ -94,6 +94,24 @@ Errors: HubError -> `{"error": msg}`, 404 if msg starts with "unknown ", else 40
 - PATCH /api/messages/{message_id} {status} -> message
 - GET / -> static/index.html
 
+## Resource leases (contract, 2026-10-16)
+
+Data: `<data>/resources/leases.json`, a JSON list (pretty, sorted keys, sorted by resource) of
+`{resource, project_id, purpose, acquired_at, expires_at}` (ISO 8601 UTC, seconds). Same lock + atomic write as everything else; BIBLIA regenerated after every lease write.
+Resource names: `resource.strip().lower()`; empty -> HubError. Convention: `gpu`, `device:<name>`, `repo:<name>`, `path:<absolute path>`.
+Exclusive. A lease with expires_at <= now is free; expired leases are dropped on the next lease write (reads just filter them out). Time comes from a module-level `_utcnow() -> datetime` in hub.py so tests can fake it.
+
+Hub methods:
+- `claim_resource(resource, project_id, purpose, ttl_minutes=30) -> {"status": "granted"|"renewed"|"busy", "lease": {...}}`. project_id must exist; ttl_minutes int 1..1440 (bool rejected); purpose str. Free/expired -> granted (new acquired_at). Held by same project -> renewed (keeps acquired_at, new purpose + expires_at). Held by another -> busy, lease = the holder's lease, nothing written. Never waits.
+- `release_resource(resource, project_id) -> lease`. Not held -> HubError "resource 'x' is not claimed"; held by another -> HubError naming the holder.
+- `list_resources() -> [lease]` active only, sorted by resource.
+- `force_release(resource) -> lease` (dashboard). Not held -> HubError starting "unknown resource".
+
+MCP tools: `claim_resource`, `release_resource`, `list_resources` (text; busy is a normal result line naming holder, purpose, expires_at, not "Error:").
+API: `GET /api/resources` -> `[{resource, project_id, purpose, acquired_at, expires_at, seconds_left}]` (seconds_left computed server-side, int >= 0); `POST /api/resources/release {resource}` -> force_release (404 if not held).
+BIBLIA.md: "## Active resources" table (resource, project, purpose, expires) after the index table, "(none)" when empty. `biblia.render` gains a `leases=()` parameter.
+Dashboard: overview gets a "resources" pane under projects (resource, project, purpose, time left, force release with confirm), refreshed by the existing 5 s poll; host text in the status bar uses `location.host`, not a hard-coded port.
+
 ## Progress log
 - 2026-10-16: plan written.
 - 2026-10-16: phase 1 done (26 tests pass, verified by director). Reserved project ids "all"/"user"; missing-id errors start with "unknown "; update_project(repo_path="") clears it; find_project_for_path returns get_project shape. Phase 1 review, phases 2, 3-backend, 4 and dashboard mockups running in parallel.
@@ -106,6 +124,7 @@ Errors: HubError -> `{"error": msg}`, 404 if msg starts with "unknown ", else 40
 - 2026-10-16: overview sorted by status then updated_at desc (server side); phase column shows current phase position (current_phase_pos/total); repo already in project header before "next" (verified, unchanged). 42 tests pass; click checks + shots.py all PASS; screenshots retaken with repo paths and phase notes.
 - 2026-10-16: Danny's handover marks the dashboard approved (mockup B). README's suggested CLAUDE.md rule replaced with the "update as you go" rule. All four phases done. Remaining steps are setup on Danny's side (GitHub repos, Claude configs, Tailscale, real projects, dashboard autostart).
 - 2026-10-16 (Danny approved each): code repo initialised (first commit 57bd7fd on main, no remote yet); ~/project-hub-data created with git init + .gitignore, nothing committed; Startup-folder shortcut runs `project-hub dashboard` minimized at login (running now); Claude Desktop (Store config path) mcpServers.project-hub added; `claude mcp add --scope user project-hub` (connected); SessionStart hook appended in ~/.claude/settings.json. Backups of both JSON configs in the session scratchpad.
+- 2026-10-16: resource leases (contract above) in hub/biblia/MCP/API + overview "resources" pane; status bar uses location.host. Long-text layout: fixed-layout tables, wrapping/breaking everywhere, overview description clamp 2 lines, phase notes clamp 4 lines with click/Enter expand, full description in project header. New MCP tools update_phase/delete_phase; length limits (description 200, next_step 160, phase name 60, notes 240, item title 100) enforced in Hub. README rules added. Click tests use an OS-chosen free port (scratchpad hubserver.py). 85 tests pass; ui_test, shots, longtext_check, res_check all FAILED: []. Real dashboard restarted on the new code. Not committed.
 
 ## Spec
 

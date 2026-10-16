@@ -1,4 +1,4 @@
-"""Data layer: projects (one JSON file each), inbox (JSONL) and BIBLIA.md, all under one file lock."""
+"""Data layer: projects (one JSON file each), inbox (JSONL), resource leases and BIBLIA.md, all under one file lock."""
 
 import contextlib
 import json
@@ -6,7 +6,7 @@ import os
 import re
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from filelock import FileLock
@@ -19,6 +19,7 @@ ITEM_TYPES = ("idea", "future_request", "bug")
 ITEM_STATUSES = ("open", "planned", "done", "discarded")
 MESSAGE_KINDS = ("message", "task", "report")
 MESSAGE_STATUSES = ("unread", "read", "done")
+LIMITS = {"description": 200, "next_step": 160, "phase name": 60, "notes": 240, "title": 100}  # max characters
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]*")
 
 
@@ -43,8 +44,17 @@ def data_dir() -> Path:
 _default_data_dir = data_dir
 
 
+def _utcnow():
+    return datetime.now(timezone.utc)
+
+
 def _now():
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return _utcnow().isoformat(timespec="seconds")
+
+
+def _resource_name(resource):
+    _check_text(resource, "resource", required=True)
+    return resource.strip().lower()
 
 
 def _new_id(existing):
@@ -62,6 +72,11 @@ def _check_enum(value, allowed, what):
 def _check_text(value, what, required=False):
     if not isinstance(value, str) or (required and not value.strip()):
         raise HubError(f"{what} must be a {'non-empty ' if required else ''}string")
+
+
+def _check_len(value, what, limit):
+    if len(value) > limit:
+        raise HubError(f"{what} is {len(value)} characters; the limit is {limit}. Please shorten it.")
 
 
 def _check_repo_path(repo_path):
@@ -154,6 +169,23 @@ class Hub:
             return []
         return [json.loads(line) for line in self._inbox.read_text(encoding="utf-8").split("\n") if line.strip()]  # not splitlines(): U+2028 etc. are valid inside a JSON line
 
+    @property
+    def _leases_path(self):
+        return self.dir / "resources" / "leases.json"
+
+    def _leases(self):
+        """Active leases, sorted by resource; a lease with expires_at <= now is free."""
+        if not self._leases_path.is_file():
+            return []
+        now = _utcnow()
+        leases = json.loads(self._leases_path.read_text(encoding="utf-8"))
+        return [l for l in leases if datetime.fromisoformat(l["expires_at"]) > now]
+
+    def _save_leases(self, leases):
+        # leases come from _leases(), so expired ones are dropped here
+        _write_atomic(self._leases_path, _dump(sorted(leases, key=lambda l: l["resource"])))
+        self.regenerate_biblia()
+
     def _save(self, project):
         project["updated_at"] = _now()
         _write_atomic(self._project_path(project["id"]), _dump(project))
@@ -187,12 +219,14 @@ class Hub:
             raise HubError(f"project id {id!r} is reserved for the inbox")
         _check_text(name, "name", required=True)
         _check_text(description, "description")
+        _check_len(description, "description", LIMITS["description"])
         repo_path = _check_repo_path(repo_path)
         phases = phases or []
         if not isinstance(phases, list):
             raise HubError("phases must be a list of names")
         for phase_name in phases:
             _check_text(phase_name, "phase name", required=True)
+            _check_len(phase_name, "phase name", LIMITS["phase name"])
         with self._write_lock():
             if self._project_path(id).exists():
                 raise HubError(f"project {id!r} already exists")
@@ -217,8 +251,10 @@ class Hub:
             _check_enum(status, PROJECT_STATUSES, "project status")
         if description is not None:
             _check_text(description, "description")
+            _check_len(description, "description", LIMITS["description"])
         if next_step is not None:
             _check_text(next_step, "next_step")
+            _check_len(next_step, "next_step", LIMITS["next_step"])
         new_repo = _check_repo_path(repo_path)
 
         def change(p):
@@ -238,6 +274,7 @@ class Hub:
 
     def add_phase(self, project_id, name, position: int | None = None) -> dict:
         _check_text(name, "phase name", required=True)
+        _check_len(name, "phase name", LIMITS["phase name"])
 
         def change(p):
             if position is not None and not (type(position) is int and 0 <= position <= len(p["phases"])):
@@ -252,6 +289,7 @@ class Hub:
         _check_enum(status, PHASE_STATUSES, "phase status")
         if notes is not None:
             _check_text(notes, "notes")
+            _check_len(notes, "notes", LIMITS["notes"])
 
         def change(p):
             phase = _find(p["phases"], phase_id, "phase")
@@ -262,11 +300,40 @@ class Hub:
 
         return self._modify(project_id, change)
 
+    def update_phase(self, project_id, phase_id, *, name=None, notes=None) -> dict:
+        if name is None and notes is None:
+            raise HubError("nothing to update: pass name and/or notes")
+        if name is not None:
+            _check_text(name, "phase name", required=True)
+            _check_len(name, "phase name", LIMITS["phase name"])
+        if notes is not None:
+            _check_text(notes, "notes")
+            _check_len(notes, "notes", LIMITS["notes"])
+
+        def change(p):
+            phase = _find(p["phases"], phase_id, "phase")
+            if name is not None:
+                phase["name"] = name
+            if notes is not None:
+                phase["notes"] = notes
+            return phase
+
+        return self._modify(project_id, change)
+
+    def delete_phase(self, project_id, phase_id) -> dict:
+        def change(p):
+            phase = _find(p["phases"], phase_id, "phase")
+            p["phases"].remove(phase)
+            return phase
+
+        return self._modify(project_id, change)
+
     # --- items -------------------------------------------------------------
 
     def add_item(self, project_id, type, title, details="") -> dict:
         _check_enum(type, ITEM_TYPES, "item type")
         _check_text(title, "title", required=True)
+        _check_len(title, "title", LIMITS["title"])
         _check_text(details, "details")
 
         def change(p):
@@ -284,6 +351,7 @@ class Hub:
             _check_enum(type, ITEM_TYPES, "item type")
         if title is not None:
             _check_text(title, "title", required=True)
+            _check_len(title, "title", LIMITS["title"])
         if details is not None:
             _check_text(details, "details")
 
@@ -353,11 +421,63 @@ class Hub:
             self.regenerate_biblia()
             return dict(message)
 
+    # --- resource leases ---------------------------------------------------
+
+    def claim_resource(self, resource, project_id, purpose, ttl_minutes=30) -> dict:
+        """Exclusive lease. Returns {"status": "granted"|"renewed"|"busy", "lease"}; busy writes nothing. Never waits."""
+        resource = _resource_name(resource)
+        _check_text(purpose, "purpose")
+        if type(ttl_minutes) is not int or not 1 <= ttl_minutes <= 1440:
+            raise HubError(f"ttl_minutes must be an integer from 1 to 1440, got {ttl_minutes!r}")
+        with self._write_lock():
+            self._load(project_id)
+            leases = self._leases()
+            lease = next((l for l in leases if l["resource"] == resource), None)
+            if lease and lease["project_id"] != project_id:
+                return {"status": "busy", "lease": dict(lease)}
+            now = _utcnow()
+            expires_at = (now + timedelta(minutes=ttl_minutes)).isoformat(timespec="seconds")
+            if lease:
+                status = "renewed"
+                lease.update(purpose=purpose, expires_at=expires_at)
+            else:
+                status = "granted"
+                lease = {"resource": resource, "project_id": project_id, "purpose": purpose,
+                         "acquired_at": now.isoformat(timespec="seconds"), "expires_at": expires_at}
+                leases.append(lease)
+            self._save_leases(leases)
+            return {"status": status, "lease": dict(lease)}
+
+    def release_resource(self, resource, project_id) -> dict:
+        self._load(project_id)
+        return self._release(resource, project_id)
+
+    def force_release(self, resource) -> dict:
+        """Release whoever holds it (dashboard)."""
+        return self._release(resource, None)
+
+    def _release(self, resource, project_id):
+        resource = _resource_name(resource)
+        with self._write_lock():
+            leases = self._leases()
+            lease = next((l for l in leases if l["resource"] == resource), None)
+            if lease is None:
+                raise HubError(f"resource {resource!r} is not claimed" if project_id else f"unknown resource {resource!r} (not claimed)")
+            if project_id is not None and lease["project_id"] != project_id:
+                raise HubError(f"resource {resource!r} is held by {lease['project_id']!r}, not {project_id!r}")
+            leases.remove(lease)
+            self._save_leases(leases)
+            return dict(lease)
+
+    def list_resources(self) -> list[dict]:
+        with self._read_lock():
+            return self._leases()
+
     # --- misc --------------------------------------------------------------
 
     def regenerate_biblia(self) -> None:
         with self._write_lock():
-            _write_atomic(self.dir / "BIBLIA.md", render(self._projects(), self._messages(), _now()))
+            _write_atomic(self.dir / "BIBLIA.md", render(self._projects(), self._messages(), _now(), self._leases()))
 
     def find_project_for_path(self, path) -> dict | None:
         """Project whose repo_path equals or contains path (longest repo_path wins), as get_project returns it."""

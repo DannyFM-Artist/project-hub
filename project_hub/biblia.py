@@ -26,7 +26,7 @@ def _block(text):
     return str(text or "").replace("\r", "").replace("\n", "\n  ")
 
 
-def render(projects, messages, generated_at):
+def render(projects, messages, generated_at, leases=()):
     out = [
         "# BIBLIA - project-hub",
         "",
@@ -48,6 +48,13 @@ def render(projects, messages, generated_at):
         )
     if not projects:
         out.append("| (no projects) | | | | | |")
+
+    out += ["", "## Active resources", ""]
+    if leases:
+        out += ["| Resource | Project | Purpose | Expires |", "|---|---|---|---|"]
+        out += [f"| {_cell(l['resource'])} | {l['project_id']} | {_cell(l['purpose']) or '-'} | {l['expires_at']} |" for l in leases]
+    else:
+        out.append("(none)")
 
     for p in projects:
         cur = current_phase(p)
