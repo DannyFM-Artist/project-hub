@@ -1008,6 +1008,7 @@ function sumProject(p) {
 }
 function renderSummary() {
   renderSummaryHead();
+  if (!S.sumD) return;
   // a box per project with something new since its last copy (or copied in this visit, to show "copiado"); "últimas 24 h" shows every active one
   const d = S.sumD, boxed = (p) => p.has_activity && (S.sumHours || (p.copy && p.copy.new > 0) || S.copiedNow.has(p.id));
   const quiet = d.projects.filter((p) => !boxed(p));
@@ -1126,7 +1127,7 @@ function route() {
   const wasSum = S.sum;
   S.bell = false;
   S.sum = location.hash === "#resumen";
-  if (S.sum) { if (!wasSum) { S.sumD = null; S.sumHours = 0; S.pid = null; S.focusNext = true; S.suOpen = new Set(); S.copiedNow = new Set(); } showSummary(); return; }
+  if (S.sum) { if (!wasSum) { S.sumD = null; S.sumHours = 0; S.pid = null; S.focusNext = true; S.suOpen = new Set(); S.copiedNow = new Set(); fill($("#su-body")); } showSummary(); return; } // no stale boxes from the last visit
   const pid = m ? decodeURIComponent(m[1]) : null;
   if (pid !== S.pid || wasSum) {
     S.pid = pid; S.sel = null; S.gd = {}; S.d = null; S.key = ""; S.confirm.clear(); S.pend = {};
