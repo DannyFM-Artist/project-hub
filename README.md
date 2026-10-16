@@ -58,6 +58,20 @@ Edit `claude_desktop_config.json`:
 }
 ```
 
+### Letting Danny approve gates from the Desktop chat (`PROJECT_HUB_ROLE=chat`)
+
+With the env var `PROJECT_HUB_ROLE=chat` the MCP server registers two extra tools: `approve_gate(project_id, phase_id, danny_words)` (approves an unapproved review gate) and `complete_manual_phase(project_id, phase_id, danny_words)` (marks a manual_test phase done). `danny_words` is required (max 300 characters): Danny's literal words authorising the action. They are stored on the phase (`gate_approved_by: "chat"`, `gate_approved_words`, `gate_approved_at`), written to the activity log, and shown in the dashboard as "aprobado vía chat: «...»".
+
+Only the Claude Desktop entry gets this variable. The Claude Code registration must never have it; without it the tools do not exist and agents stay refused on gated phases.
+
+```json
+"project-hub": {
+  "command": "project-hub",
+  "args": ["mcp"],
+  "env": { "PROJECT_HUB_DATA": "C:/Users/you/project-hub-data", "PROJECT_HUB_ROLE": "chat" }
+}
+```
+
 Desktop may not see your shell `PATH`; if the server fails to start, set `"command"` to the full path, e.g. `"C:/Users/you/AppData/Local/Programs/Python/Python313/Scripts/project-hub.exe"`. Restart Claude Desktop after editing.
 
 ## Claude Code (MCP server, user scope)
@@ -112,6 +126,7 @@ Set `repo_path` (absolute) when you create a project; session-start matches the 
 - Keep hub text short and readable at a glance: no commit hashes, file:line citations or logs in descriptions, notes or titles; details belong in the repo.
 - Before starting a phase, check its gate in project-hub. If it has an unapproved review gate or a manual_test gate, do not start it: post a report message describing what is ready for review or what needs testing, and stop.
 - If you judge that the next phase needs a manual review or a test by Danny (real hardware, visual approval, anything you cannot verify yourself), add a gate with set_gate and a short reason.
+- Si Danny te dice explícitamente que aprueba un gate o que ha hecho una prueba manual, usa approve_gate o complete_manual_phase con sus palabras exactas; nunca por iniciativa propia.
 ```
 
 Updating as you go means a session cut off by a usage limit doesn't lose the project's state.

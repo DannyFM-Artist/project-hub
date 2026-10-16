@@ -239,6 +239,7 @@ h1.lead:focus { outline: none; }
 .phases .row.sel .nm { color: var(--TEXT); }
 .phases .row.sel .st.quiet { color: var(--TEXT_DIM); }
 .phases .gc { display: flex; align-items: baseline; justify-content: flex-end; gap: var(--Space-SM); flex-wrap: wrap; }
+.phases .gc .chat { flex-basis: 100%; text-align: right; color: var(--OK); font-size: var(--Type-SMALL); overflow-wrap: anywhere; }
 .phases .doneline { display: block; padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--DIVIDER); }
 .phases .doneline button { background: none; border: none; padding: var(--Space-XS) 0; cursor: pointer; color: var(--OK); font-weight: 600; }
 .phases .doneline button:hover { text-decoration: underline; }
@@ -794,13 +795,15 @@ function renderPhases(p, f) {
     : h("p", { class: "empty" }, "Sin fases todavía. Añádelas desde Claude con add_phase."));
 }
 function phaseRow(p, f, x, i, sel) {
-  const isCur = i === f.ci, gated = x.gate && x.gate !== "none";
+  const isCur = i === f.ci, gated = x.gate && x.gate !== "none", w = x.gate_approved_words || "";
+  // approved (review) or completed (manual_test) by Danny from his Claude Desktop chat, in his own words
+  const chat = x.gate_approved_by === "chat" ? `aprobado vía chat: «${w.length > 60 ? w.slice(0, 60) + "…" : w}»` : null;
   const ck = "ph|" + p.id + ":g:" + x.id, pk = p.id + ":" + x.id, pending = S.pend[pk];
   const word = x.status === "done" ? h("span", { class: "st done" }, "✓ hecha")
     : isCur ? h("span", { class: "st cur" }, x.status === "in_progress" ? "▶ en curso" : "▶ siguiente")
     : h("span", { class: "st todo" }, PSTATE[x.status]);
   const gate = !gated ? null : x.blocking ? [h("span", { class: "st gate" }, GATE[x.gate]), toggleBtn(ck, x.gate === "review" ? "Aprobar" : "Marcar como hecha", "btn primary small")]
-    : h("span", { class: "st quiet" }, GATE[x.gate] + " ✓");
+    : [h("span", { class: "st quiet" }, GATE[x.gate] + " ✓"), chat ? h("span", { class: "chat", title: x.gate_approved_words }, chat) : null];
   const kids = [
     h("span", { class: "n" }, nn(i)),
     h("div", {}, h("button", { class: "nm", type: "button", "data-fk": "ph" + x.id, "aria-pressed": String(sel), onclick: () => selectPhase(p.id, x.id) }, x.name),
@@ -812,7 +815,7 @@ function phaseRow(p, f, x, i, sel) {
     kids.push(h("div", { class: "detail" },
       h("div", { class: "notes" }, x.notes ? x.notes : h("span", { class: "dim" }, "Sin notas para esta fase.")),
       gated ? h("div", { class: "gr" }, h("span", { class: "lbl" }, "Gate " + GATE[x.gate]), x.gate_reason || "", x.gate_set_by ? " · puesto por " + x.gate_set_by : "",
-        x.gate === "review" ? (x.gate_approved ? " · aprobado" : " · sin aprobar") : (x.status === "done" ? " · hecho" : " · sin hacer")) : null,
+        chat ? h("span", { title: w }, " · " + chat) : x.gate === "review" ? (x.gate_approved ? " · aprobado" : " · sin aprobar") : (x.status === "done" ? " · hecho" : " · sin hacer")) : null,
       h("div", { class: "stline" }, h("label", { class: "lbl", for: "st-" + x.id }, "Estado"),
         h("select", { id: "st-" + x.id, "data-fk": "st" + x.id, onchange: (e) => setStatus(p.id, x, e.target.value) },
           PHASE_ST.map((v) => h("option", { value: v, selected: v === (pending || x.status) }, PSTATE[v]))),

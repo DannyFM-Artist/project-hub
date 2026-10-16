@@ -21,7 +21,7 @@ MESSAGE_KINDS = ("message", "task", "report")
 MESSAGE_STATUSES = ("unread", "read", "done")
 GATES = ("none", "review", "manual_test")  # strictness order
 GATE_BY = ("agent", "user", "dashboard")  # "user" and "dashboard" are both Danny
-LIMITS = {"description": 200, "next_step": 160, "phase name": 60, "notes": 240, "title": 100, "gate_reason": 160}  # max characters
+LIMITS = {"description": 200, "next_step": 160, "phase name": 60, "notes": 240, "title": 100, "gate_reason": 160, "danny_words": 300}  # max characters
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]*")
 
 
@@ -464,6 +464,31 @@ class Hub:
             return phase
 
         return self._modify(project_id, change, by)
+
+    def _chat_action(self, project_id, phase_id, words, kind, change_phase):
+        """Danny's chat approval: his literal words are required, stored on the phase and in the activity log."""
+        _check_text(words, "danny_words", required=True)
+        words = words.strip()
+        _check_len(words, "danny_words", LIMITS["danny_words"])
+
+        def change(p, log):
+            phase = _find(p["phases"], phase_id, "phase")
+            if phase.get("gate", "none") != kind or phase.get("gate_approved") or (kind == "manual_test" and phase["status"] == "done"):
+                raise HubError(f"phase {phase['name']!r} has no {'unapproved review gate to approve' if kind == 'review' else 'pending manual_test to complete'}")
+            change_phase(phase)
+            phase.update(gate_approved_by="chat", gate_approved_words=words, gate_approved_at=_now())
+            log("gate_approved" if kind == "review" else "phase_status",
+                f"aprobado vía chat: «{words}»" if kind == "review" else f"→ done, aprobado vía chat: «{words}»",
+                phase=phase["name"], words=words)
+            return phase
+
+        return self._modify(project_id, change, "chat")
+
+    def approve_gate_chat(self, project_id, phase_id, danny_words) -> dict:
+        return self._chat_action(project_id, phase_id, danny_words, "review", lambda ph: ph.update(gate_approved=True))
+
+    def complete_manual_phase(self, project_id, phase_id, danny_words) -> dict:
+        return self._chat_action(project_id, phase_id, danny_words, "manual_test", lambda ph: ph.update(status="done"))
 
     # --- items -------------------------------------------------------------
 
