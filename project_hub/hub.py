@@ -21,7 +21,8 @@ MESSAGE_KINDS = ("message", "task", "report")
 MESSAGE_STATUSES = ("unread", "read", "done")
 RESOLVE_ACTIONS = ("sigue", "hecho", "vuelve a cerrar")  # Danny's words for resolve_gate, from his chat
 WAITING_WORDS = ("esper", "wait", "aprobación", "puerta", "gate")  # a lease purpose or report saying it waits for Danny
-STATE_RANK = {"waiting": 0, "working": 1, "ready": 2, "quiet": 3}  # copy-state priority, red first
+STATE_RANK = {"waiting": 0, "working": 1, "ready": 2, "quiet": 3, "stopped": 4}  # copy-state priority, red first
+STOP_REPORT = "Parado: estado para retomar"  # title of the report hub-sync posts when a project is stopped
 LIMITS = {"description": 200, "next_step": 160, "phase name": 60, "notes": 240, "title": 100, "gate_reason": 160, "danny_words": 300}  # max characters
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]*")
 
@@ -844,8 +845,14 @@ class Hub:
     @staticmethod
     def _copy_state(p, messages, leases, new, user_messages):
         """One state per project, by priority: waiting (red: code is stopped for Danny) > working (amber)
-        > ready (green: something new to copy) > quiet (grey). Not period-bound."""
+        > ready (green: something new to copy) > quiet (grey). Not period-bound.
+        A paused/parked/done project is "stopped" (grey) instead, linking its latest "Parado" report."""
         pid = p["id"]
+        if p.get("status") in ("paused", "parked", "done"):
+            stops = [m for m in messages if m["kind"] == "report" and m["from_project"] == pid
+                     and m["title"].startswith(STOP_REPORT)]
+            last = max(stops, key=lambda m: m["created_at"]) if stops else None
+            return {"kind": "stopped", "label": "Parado", "detail": None, "report_id": last["id"] if last else None}
 
         def says_waiting(text):
             return any(w in text.lower() for w in WAITING_WORDS)

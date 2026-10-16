@@ -80,7 +80,7 @@ try:
         row = lambda pid: f'#ov-body .row[data-pid="{pid}"]'
         kinds = {pid: pg.get_attribute(row(pid) + " .stc .pstate", "data-kind") for pid in ("st-work", "st-wait", "led-mapper")}
         check("overview: the state replaces the status column, lifecycle as a small label",
-              kinds == {"st-work": "working", "st-wait": "waiting", "led-mapper": "quiet"} and pg.inner_text(row("led-mapper") + " .stc .life") == "TERMINADO", kinds)
+              kinds == {"st-work": "working", "st-wait": "waiting", "led-mapper": "stopped"} and pg.inner_text(row("led-mapper") + " .stc .life") == "TERMINADO", kinds)
         check("overview: red and amber show their text in the row", "Need your call on the licence" in pg.inner_text(row("st-wait") + " .why-st")
               and "Build the st-work thing" in pg.inner_text(row("st-work") + " .why-st") and pg.locator(row("led-mapper") + " .why-st").count() == 0)
         order = pg.eval_on_selector_all("#ov-body .row", "e => e.map(x => x.querySelector('.stc .pstate').dataset.kind)")

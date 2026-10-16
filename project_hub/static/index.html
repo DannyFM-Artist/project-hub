@@ -307,6 +307,8 @@ input:focus-visible, textarea:focus-visible { outline: none; border-color: var(-
 .pstate[data-kind=working] b, .why-st[data-kind=working] { color: var(--WARN); }
 .pstate[data-kind=ready] b { color: var(--OK); }
 .pstate[data-kind=quiet] b { color: var(--TEXT_DIM); font-weight: 400; }
+.pstate[data-kind=stopped] b { color: var(--TEXT_DIM); }
+.stop-l { white-space: nowrap; font-size: var(--Type-SMALL); color: var(--TEXT_DIM); }
 .pstate .dt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .pstate.head { font-size: var(--Type-BODY); max-width: 46ch; }
 .life { color: var(--TEXT_MUTED); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; }
@@ -577,10 +579,13 @@ const byUrgency = (rows) => [...rows].sort((a, b) => isWaiting(a.p) - isWaiting(
 const uniqueReports = (rows) => new Set(rows.flatMap((r) => r.f.reports.map((m) => m.id))).size;
 
 /* one state per project, shown everywhere: waiting red, working amber, ready green, quiet grey */
-const STATE_C = { waiting: "WAITING", working: "WARN", ready: "OK", quiet: "IDLE" };
+const STATE_C = { waiting: "WAITING", working: "WARN", ready: "OK", quiet: "IDLE", stopped: "IDLE" };
 const stateDot = (st) => h("span", { class: "dot", style: `background:var(--${STATE_C[st.kind] || "IDLE"})` });
-const stateBadge = (st, cls) => h("span", { class: "pstate" + (cls ? " " + cls : ""), "data-kind": st ? st.kind : "", title: st && st.detail ? st.detail : null },
-  st ? [stateDot(st), h("b", {}, st.label + (st.kind === "waiting" && st.detail ? ":" : "")), st.detail ? h("span", { class: "dt" }, st.detail) : null] : null);
+// a stopped (paused/parked/done) project links its latest "Parado: estado para retomar" report
+const stopLink = (pid, st) => st && st.kind === "stopped" && st.report_id && pid
+  ? h("a", { class: "stop-l", href: `#p/${enc(pid)}/m/${enc(st.report_id)}`, "data-fk": "stop" + pid }, "ver report «Parado»") : null;
+const stateBadge = (st, cls, pid) => h("span", { class: "pstate" + (cls ? " " + cls : ""), "data-kind": st ? st.kind : "", title: st && st.detail ? st.detail : null },
+  st ? [stateDot(st), h("b", {}, st.label + (st.kind === "waiting" && st.detail ? ":" : "")), st.detail ? h("span", { class: "dt" }, st.detail) : null, stopLink(pid, st)] : null);
 
 /* ---------- render ---------- */
 function paint(fn, focusK) {
@@ -620,7 +625,7 @@ function renderBar() {
     const hot = byUrgency(rows).filter((r) => r.f.actions.length);
     fill($("#bellpanel"), h("div", { class: "bh" }, h("b", {}, "Para ti · " + nAct), h("span", { class: "muted small" }, "lo que te espera; se resuelve en el chat de cada proyecto")),
       hot.length ? hot.map(({ p, f }) => h("div", { class: "grp", "data-pid": p.id },
-        h("div", { class: "gh" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "bg" + p.id }, p.name), h("span", {}, "· " + f.actions.length), stateBadge(p.state, "small")),
+        h("div", { class: "gh" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "bg" + p.id }, p.name), h("span", {}, "· " + f.actions.length), stateBadge(p.state, "small", p.id)),
         f.actions.map((a) => actionRow(p, a, "bell", false))))
         : h("p", { class: "empty" }, "Nada te espera."),
       h("div", { class: "foot" }, "Los reports sin leer no cuentan aquí: son información y están en cada proyecto."));
@@ -725,7 +730,7 @@ function renderOverview() {
   fill($("#ov-body"), vis.map((p, i) => {
     const f = facts(p);
     return h("div", { class: "row" + (S.ovMark && i === S.ovSel ? " sel" : ""), "data-pid": p.id, onclick: (e) => { S.ovSel = i; S.ovMark = true; if (!e.target.closest("a")) open(p.id); } },
-      h("div", { class: "stc" }, p.state ? h("span", { class: "pstate", "data-kind": p.state.kind }, stateDot(p.state), h("b", {}, p.state.label)) : null, lifeWord(p.status)),
+      h("div", { class: "stc" }, p.state ? h("span", { class: "pstate", "data-kind": p.state.kind }, stateDot(p.state), h("b", {}, p.state.label)) : null, lifeWord(p.status), stopLink(p.id, p.state)),
       h("div", { class: "nm" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "r" + p.id, title: p.description }, p.name),
         p.state && p.state.detail && (p.state.kind === "waiting" || p.state.kind === "working")
           ? h("span", { class: "why-st", "data-kind": p.state.kind, title: p.state.detail }, p.state.detail)
@@ -764,7 +769,7 @@ function renderProject() {
   const row = S.projects.find((p) => p.id === d.id) || {};
   const p = { ...row, ...d, phases: d.phases }, f = facts(p), total = f.phases.length;
   document.title = d.name + " · project-hub";
-  fill($("#phead"), h("h1", { tabindex: "-1" }, d.name), stateBadge(row.state, "head"), lifeWord(d.status), track(f), h("span", { class: "mono dim" }, `${f.done}/${total} hechas`),
+  fill($("#phead"), h("h1", { tabindex: "-1" }, d.name), stateBadge(row.state, "head", d.id), lifeWord(d.status), track(f), h("span", { class: "mono dim" }, `${f.done}/${total} hechas`),
     d.repo_path ? h("span", { class: "repo", title: "repo" }, d.repo_path) : null,
     h("a", { class: "back", href: "#overview", "data-fk": "back" }, "← Proyectos"));
   const sum = !total ? [h("b", {}, "Sin fases todavía")]
@@ -940,7 +945,7 @@ function syncSumStates() {
     const box = document.querySelector(`.su-proj[data-id="${CSS.escape(p.id)}"]`);
     if (!box) continue;
     const st = stateOf(p.id), btn = box.querySelector("[data-copy]"), label = copyLabel(p, st);
-    box.querySelector(".pstate").replaceWith(stateBadge(st));
+    box.querySelector(".pstate").replaceWith(stateBadge(st, "", p.id));
     if (btn.textContent !== label) btn.textContent = label;
   }
 }
@@ -973,7 +978,7 @@ function sumProject(p) {
     h("div", { class: "rlh su-head" },
       tog(p.id, [h("b", {}, p.name), c.phase ? ` · ${c.n}/${c.total} ${c.phase}` : null, counts.flatMap((x) => [" · ", x])]),
       h("span", { class: "su-cs" + (cp.new && p.copied_at ? " new" : "") }, copyState(p)),
-      stateBadge(stateOf(p.id)),
+      stateBadge(stateOf(p.id), "", p.id),
       h("button", { class: "btn small", type: "button", "data-copy": p.id, "data-fk": "cp" + p.id, disabled: !cp.new, onclick: () => copyProject(p) }, copyLabel(p, stateOf(p.id)))),
     S.suOpen.has(p.id) ? h("div", { class: "su-in" },
       h("p", { class: "su-n" }, c.phase ? `${c.phase} · ` : "", "siguiente paso: ", c.next_step || "—"),
@@ -1102,7 +1107,7 @@ addEventListener("keydown", (e) => {
 
 /* ---------- routing ---------- */
 function route() {
-  const m = location.hash.match(/^#p\/(.+)$/);
+  const m = location.hash.match(/^#p\/([^/]+)(?:\/m\/(.+))?$/); // #p/<id>, or #p/<id>/m/<message id> to open with that message selected
   const wasSum = S.sum;
   S.bell = false;
   S.sum = location.hash === "#resumen";
@@ -1117,6 +1122,7 @@ function route() {
     syncExp();
     window.scrollTo(0, 0);
   }
+  if (m && m[2]) { S.sel = { kind: "msg", id: decodeURIComponent(m[2]) }; S.repOpen.add("pv|" + pid); } // an unread report lives in the folded reports line, a read one in the inbox
   refresh(true);
 }
 addEventListener("hashchange", route);

@@ -128,6 +128,7 @@ Set `repo_path` (absolute) when you create a project; session-start matches the 
 - If the next phase needs Danny (a review, real hardware, a decision, an action only he can do), add a gate with set_gate and a reason that says exactly what he must do.
 - Never resolve gates.
 - Si Danny te dice explícitamente «sigue», «hecho» o «vuelve a cerrar» sobre un gate, usa resolve_gate con esa acción y sus palabras exactas; nunca por iniciativa propia.
+- Si Danny te pide parar el proyecto, usa update_project con status paused; si te pide reanudarlo, con status active.
 ```
 
 Updating as you go means a session cut off by a usage limit doesn't lose the project's state.
@@ -220,7 +221,9 @@ Each project in the summary and in `GET /api/projects` also has one `state` `{ki
 3. `ready` ("Novedades para copiar", green): something new since the last copy.
 4. `quiet` ("Sin novedades", grey).
 
-`GET /api/projects` rows also carry `state_rank` (0 waiting … 3 quiet) and list waiting projects first. The copied text has one line `Espera a Danny: <phase> — <reason>` per waiting gate, the newest report titles (max 6) and ends with the "Revisa el proyecto ..." line.
+A project whose status is `paused`, `parked` or `done` shows `stopped` ("Parado", grey) instead, with `report_id` = its latest "Parado: estado para retomar" report, which the dashboard links (`#p/<id>/m/<report id>`).
+
+`GET /api/projects` rows also carry `state_rank` (0 waiting … 3 quiet, 4 stopped) and list waiting projects first. The copied text has one line `Espera a Danny: <phase> — <reason>` per waiting gate, the newest report titles (max 6) and ends with the "Revisa el proyecto ..." line.
 
 ## Phase gates
 

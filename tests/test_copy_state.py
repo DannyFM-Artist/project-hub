@@ -140,3 +140,19 @@ def test_api_projects_rows_carry_state_and_red_first(tmp_path, monkeypatch, cloc
     assert [(r["id"], r["state"]["kind"], r["state_rank"]) for r in rows][0] == ("p", "waiting", 0)
     summary_state = next(p for p in h.summary()["projects"] if p["id"] == "p")["state"]
     assert rows[0]["state"] == summary_state
+
+
+def test_stopped_project_is_grey_and_links_latest_parado_report(hub, clock):
+    mid = mk(hub)
+    hub.claim_resource(f"task:{mid}", "p", "building", ttl_minutes=60)  # working, but the stop wins
+    hub.update_project("p", status="paused")
+    assert state(hub) == {"kind": "stopped", "label": "Parado", "detail": None, "report_id": None}
+    hub.post_message("p", "report", "Parado: estado para retomar", "old", from_project="p")
+    clock[0] += timedelta(minutes=1)
+    last = hub.post_message("p", "report", "Parado: estado para retomar", "new", from_project="p")["id"]
+    assert state(hub)["report_id"] == last
+    for status in ("parked", "done"):
+        hub.update_project("p", status=status)
+        assert state(hub)["kind"] == "stopped"
+    hub.update_project("p", status="active")
+    assert state(hub)["kind"] == "working"
