@@ -31,7 +31,8 @@ def check(name, ok, extra=""):
     print(("PASS " if ok else "FAIL ") + name, extra); ok or fails.append(name)
 def expected_bell():
     waiting = sum(1 for p in hub.list_projects() for x in p["phases"] if x.get("gate_state") == "waiting" and x["status"] != "done")
-    return waiting + sum(1 for m in hub._messages() if m["to_project"] == "user" and m["status"] != "done")
+    with hub._read_lock():  # the server may be rewriting messages.jsonl
+        return waiting + sum(1 for m in hub._messages() if m["to_project"] == "user" and m["status"] != "done")
 try:
     with sync_playwright() as p:
         b = p.chromium.launch(channel="chrome")
