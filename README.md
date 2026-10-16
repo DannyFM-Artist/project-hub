@@ -118,7 +118,25 @@ Updating as you go means a session cut off by a usage limit doesn't lose the pro
 project-hub dashboard
 ```
 
-Opens at http://127.0.0.1:8765 (bound to 127.0.0.1 only). Set `PROJECT_HUB_DATA` in the shell first (same absolute path).
+Opens at http://127.0.0.1:8765 (bound to 127.0.0.1 only). Uses `~/project-hub-data` unless `PROJECT_HUB_DATA` is set.
+
+## Browser checks
+
+`tests/browser/` holds click checks that drive the dashboard in real Chrome with Playwright. They are separate from `pytest` (which never collects them). Each script seeds a throwaway data folder in your temp directory, starts its own dashboard on a free port chosen by the OS (so it runs while the real dashboard is up on 8765) and prints `PASS`/`FAIL` lines ending in `FAILED: []` when everything passes. They need Google Chrome installed, plus Playwright in a separate virtual environment:
+
+```
+python -m venv .venv-browser
+.venv-browser\Scripts\pip install playwright -e .
+.venv-browser\Scripts\python tests\browser\clicks.py
+```
+
+- `clicks.py` - every dashboard action by mouse and keyboard, polling, offline banner, focus, target sizes, headings
+- `shots.py` - overview order, phase position, repo in header; retakes `mockups/impl-B-overview.png` and `impl-B-project.png`
+- `unread_align_check.py` - unique unread count and phase label alignment
+- `longtext_check.py` - very long text at 1280/1440/1920 px: no horizontal scroll, clamps, expand
+- `res_check.py` - resources pane against the real API, force release
+
+The screenshot-taking scripts overwrite the PNGs in `mockups/`; discard those changes with `git checkout -- mockups/` if nothing visual changed.
 
 ## MCP tools
 
