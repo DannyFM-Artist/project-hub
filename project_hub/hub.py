@@ -11,7 +11,7 @@ from pathlib import Path
 
 from filelock import FileLock
 
-from .biblia import GATE_DEFAULTS, blocking, current_phase, render, unread_for
+from .biblia import blocking, current_phase, render, stopping_gates, unread_for
 
 PROJECT_STATUSES = ("active", "paused", "parked", "done")
 PHASE_STATUSES = ("todo", "in_progress", "done")
@@ -19,8 +19,9 @@ ITEM_TYPES = ("idea", "future_request", "bug")
 ITEM_STATUSES = ("open", "planned", "done", "discarded")
 MESSAGE_KINDS = ("message", "task", "report")
 MESSAGE_STATUSES = ("unread", "read", "done")
-GATES = ("none", "review", "manual_test")  # strictness order
-GATE_BY = ("agent", "user", "dashboard")  # "user" and "dashboard" are both Danny
+RESOLVE_ACTIONS = ("sigue", "hecho", "vuelve a cerrar")  # Danny's words for resolve_gate, from his chat
+WAITING_WORDS = ("esper", "wait", "aprobación", "puerta", "gate")  # a lease purpose or report saying it waits for Danny
+STATE_RANK = {"waiting": 0, "working": 1, "ready": 2, "quiet": 3}  # copy-state priority, red first
 LIMITS = {"description": 200, "next_step": 160, "phase name": 60, "notes": 240, "title": 100, "gate_reason": 160, "danny_words": 300}  # max characters
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]*")
 
@@ -153,6 +154,53 @@ def _plural(n, one, many):
     return f"{n} {one if n == 1 else many}"
 
 
+OLD_GATE_KEYS = ("gate", "gate_approved", "gate_approved_by", "gate_approved_words", "gate_approved_at")
+NO_RESOLUTION = {"gate_resolved_action": None, "gate_resolved_words": None, "gate_resolved_at": None}
+
+
+def _sync_legacy(ph):
+    # shortcut: legacy gate/gate_approved kept for MCP servers still on the old code; drop once every session has restarted
+    ph.update(gate="review", gate_approved=ph["gate_state"] == "continue")
+
+
+def _migrate_phase(ph):
+    """Bring a phase written by older code to the single "espera a Danny" gate, in place. True if it changed.
+    review -> waiting (approved: continue, "sigue"); manual_test and anything else -> waiting, except one completed
+    through complete_manual_phase (continue, "hecho"). e8e8c5e chat approvals become gate_resolved_*."""
+    before = dict(ph)
+    gate, approved, state = ph.get("gate") or "none", bool(ph.get("gate_approved")), ph.get("gate_state")
+    via_chat = ph.get("gate_approved_by") == "chat"
+    if state is None and gate == "none":  # no gate: drop the legacy-only keys
+        for k in OLD_GATE_KEYS + ("gate_reason", "gate_set_by"):
+            ph.pop(k, None)
+        return ph != before
+    hecho = gate == "manual_test" and via_chat and ph["status"] == "done"
+    if state is None:
+        new_state = "continue" if (gate == "review" and approved) or hecho else "waiting"
+    elif "gate_approved" in ph and approved != (state == "continue"):
+        # shortcut: a legacy approval that disagrees was written by a session still on the old code, and wins; drop with _sync_legacy
+        new_state = "continue" if approved else "waiting"
+    else:
+        new_state = state
+    if new_state != state:
+        ph.update(NO_RESOLUTION)
+        if new_state == "continue":
+            ph.update(gate_resolved_action="hecho" if hecho else "sigue",
+                      gate_resolved_words=ph.get("gate_approved_words") if via_chat else None,
+                      gate_resolved_at=ph.get("gate_approved_at") if via_chat else None)
+    set_by = ph.get("gate_set_by")
+    ph.update(gate_state=new_state, gate_reason=ph.get("gate_reason") or "",
+              gate_set_by="chat" if set_by in ("user", "dashboard") else set_by or "agent")
+    for k in OLD_GATE_KEYS[2:]:
+        ph.pop(k, None)
+    _sync_legacy(ph)
+    return ph != before
+
+
+def _migrate_project(project):
+    return any([_migrate_phase(ph) for ph in project.get("phases", [])])  # a list, so every phase is migrated
+
+
 def overview_order(rows):
     """Dashboard overview order: status order, most recently updated first within a status."""
     rows = sorted(rows, key=lambda r: r["updated_at"], reverse=True)  # stable, so this survives the status sort below
@@ -198,13 +246,18 @@ class Hub:
         path = self._project_path(project_id)
         if not path.is_file():
             raise HubError(f"unknown project {project_id!r}")
-        return json.loads(path.read_text(encoding="utf-8"))
+        project = json.loads(path.read_text(encoding="utf-8"))
+        _migrate_project(project)  # persisted on the next write
+        return project
 
     def _projects(self):
         folder = self.dir / "projects"
         if not folder.is_dir():
             return []
-        return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(folder.glob("*.json"))]
+        projects = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(folder.glob("*.json"))]
+        for project in projects:
+            _migrate_project(project)
+        return projects
 
     def _messages(self):
         if not self._inbox.is_file():
@@ -359,21 +412,17 @@ class Hub:
         return self._modify(project_id, change, by)
 
     def set_phase_status(self, project_id, phase_id, status, notes=None, *, by="agent") -> dict:
-        """by="agent" is refused to in_progress/done on an unapproved review or a manual_test gate; by="user"/"dashboard" never."""
+        """Refused to in_progress/done while the phase's gate waits for Danny, for every caller (the dashboard too)."""
         _check_enum(status, PHASE_STATUSES, "phase status")
-        _check_enum(by, GATE_BY, "by")
         if notes is not None:
             _check_text(notes, "notes")
             _check_len(notes, "notes", LIMITS["notes"])
 
         def change(p, log):
             phase = _find(p["phases"], phase_id, "phase")
-            gate = phase.get("gate", "none")
-            if by == "agent" and status in ("in_progress", "done") and (
-                    gate == "manual_test" or (gate == "review" and not phase.get("gate_approved"))):
-                state, todo = ("review, not approved", "what is ready for review") if gate == "review" else ("manual_test", "what needs testing")
-                raise HubError(f"phase {phase['name']!r} is gated ({state}): {phase.get('gate_reason', '')}. "
-                               f"Post a report message describing {todo}, then stop.")
+            if status in ("in_progress", "done") and phase.get("gate_state") == "waiting":
+                raise HubError(f"phase {phase['name']!r} waits for Danny: {phase['gate_reason']}. "
+                               "Post a report message describing what Danny must do, then stop.")
             if status != phase["status"]:
                 log("phase_status", f"{phase['status']} → {status}", phase=phase["name"])
             elif notes is not None and notes != phase["notes"]:
@@ -412,83 +461,81 @@ class Hub:
     def delete_phase(self, project_id, phase_id, *, by="agent") -> dict:
         def change(p, log):
             phase = _find(p["phases"], phase_id, "phase")
-            if phase.get("gate", "none") != "none":  # so agents cannot remove a gate by deleting its phase
-                raise HubError(f"phase {phase['name']!r} has a {phase['gate']} gate and cannot be deleted; "
-                               "only Danny removes gates, in the dashboard")
+            if phase.get("gate_state"):  # so nobody removes a gate by deleting its phase
+                raise HubError(f"phase {phase['name']!r} has a gate and cannot be deleted; "
+                               "only Danny resolves gates, from his chat")
             p["phases"].remove(phase)
             log("phase_deleted", phase["name"], phase=phase["name"])
             return phase
 
         return self._modify(project_id, change, by)
 
-    def set_gate(self, project_id, phase_id, gate, reason="", *, by="agent") -> dict:
-        """by="agent" may only add or tighten a gate (none < review < manual_test), with a reason.
-        by="user"/"dashboard" (Danny) may set any gate, stored as gate_set_by "user"; "none" clears it.
-        A change of gate type resets the approval."""
-        _check_enum(gate, GATES, "gate")
-        _check_enum(by, GATE_BY, "by")
-        _check_text(reason, "gate reason", required=by == "agent")
+    def set_gate(self, project_id, phase_id, reason, *, by="agent") -> dict:
+        """Add a waiting gate, or put a continued gate back to waiting, with what Danny must review or do.
+        On a waiting gate only the reason changes. Nobody removes a gate; only Danny resolves it (resolve_gate).
+        by: "agent", or "chat" for the Claude Desktop chat (PROJECT_HUB_ROLE=chat); stored as gate_set_by."""
+        _check_enum(by, ("agent", "chat"), "by")
+        _check_text(reason, "gate reason", required=True)
         _check_len(reason, "gate reason", LIMITS["gate_reason"])
 
         def change(p, log):
             phase = _find(p["phases"], phase_id, "phase")
-            current = phase.get("gate", "none")
-            if by == "agent" and GATES.index(gate) <= GATES.index(current):
-                raise HubError(f"phase {phase['name']!r} already has gate {current!r}; agents can only add or tighten "
-                               "gates (none < review < manual_test). Only Danny removes, loosens or approves gates, in the dashboard.")
-            if current == "none" and gate != "none":
-                log("gate_set", f"{gate}: {reason}" if reason else gate, phase=phase["name"])
-            elif gate == "none" and current != "none":
-                log("gate_removed", f"{current} → none", phase=phase["name"])
-            elif gate != current:
-                log("gate_changed", f"{current} → {gate}", phase=phase["name"])
-            elif gate != "none" and reason != phase.get("gate_reason", ""):
-                log("gate_changed", f"{gate}: reason updated", phase=phase["name"])
-            if gate == "none":
-                phase.update(GATE_DEFAULTS)
+            if phase.get("gate_state") == "waiting":
+                if reason != phase["gate_reason"]:
+                    log("gate_changed", f"reason updated: {reason}", phase=phase["name"])
+                phase["gate_reason"] = reason
             else:
-                phase.update(gate=gate, gate_reason=reason, gate_set_by="agent" if by == "agent" else "user",
-                             gate_approved=phase.get("gate_approved", False) and gate == current)
+                log("gate_set", reason, phase=phase["name"])
+                phase.update(gate_state="waiting", gate_reason=reason, gate_set_by=by, **NO_RESOLUTION)
+            _sync_legacy(phase)
             return phase
 
         return self._modify(project_id, change, by)
 
-    def approve_gate(self, project_id, phase_id, *, by="dashboard") -> dict:
-        """Dashboard only: approve an unapproved review gate."""
-        def change(p, log):
-            phase = _find(p["phases"], phase_id, "phase")
-            if phase.get("gate", "none") != "review" or phase.get("gate_approved"):
-                raise HubError(f"phase {phase['name']!r} has no unapproved review gate to approve")
-            phase["gate_approved"] = True
-            log("gate_approved", "review approved", phase=phase["name"])
-            return phase
-
-        return self._modify(project_id, change, by)
-
-    def _chat_action(self, project_id, phase_id, words, kind, change_phase):
-        """Danny's chat approval: his literal words are required, stored on the phase and in the activity log."""
-        _check_text(words, "danny_words", required=True)
-        words = words.strip()
+    def resolve_gate(self, project_id, phase_id, action, danny_words) -> dict:
+        """Danny's decision, from his Claude Desktop chat only. "sigue": waiting -> continue. "hecho": waiting ->
+        continue and the phase done. "vuelve a cerrar": continue -> waiting, and a phase done by "hecho" back to todo.
+        danny_words (his literal words) are required and stored with the action and time on the phase and in the log."""
+        _check_enum(action, RESOLVE_ACTIONS, "action")
+        _check_text(danny_words, "danny_words", required=True)
+        words = danny_words.strip()
         _check_len(words, "danny_words", LIMITS["danny_words"])
+        need, new_state = ("continue", "waiting") if action == "vuelve a cerrar" else ("waiting", "continue")
 
         def change(p, log):
             phase = _find(p["phases"], phase_id, "phase")
-            if phase.get("gate", "none") != kind or phase.get("gate_approved") or (kind == "manual_test" and phase["status"] == "done"):
-                raise HubError(f"phase {phase['name']!r} has no {'unapproved review gate to approve' if kind == 'review' else 'pending manual_test to complete'}")
-            change_phase(phase)
-            phase.update(gate_approved_by="chat", gate_approved_words=words, gate_approved_at=_now())
-            log("gate_approved" if kind == "review" else "phase_status",
-                f"aprobado vía chat: «{words}»" if kind == "review" else f"→ done, aprobado vía chat: «{words}»",
-                phase=phase["name"], words=words)
+            state = phase.get("gate_state")
+            if state != need:
+                raise HubError(f"phase {phase['name']!r} {'has no gate' if state is None else f'has a gate in state {state}'}; "
+                               f"{action!r} needs a gate in state {need}")
+            old = phase["status"]
+            if action == "hecho":
+                phase["status"] = "done"
+            elif action == "vuelve a cerrar" and old == "done" and phase.get("gate_resolved_action") == "hecho":
+                phase["status"] = "todo"
+            phase.update(gate_state=new_state, gate_resolved_action=action, gate_resolved_words=words, gate_resolved_at=_now())
+            _sync_legacy(phase)
+            log("gate_resolved", f"resuelto vía chat ({action}): «{words}»", phase=phase["name"], words=words, action=action)
+            if phase["status"] != old:
+                log("phase_status", f"{old} → {phase['status']}", phase=phase["name"])
             return phase
 
         return self._modify(project_id, change, "chat")
 
-    def approve_gate_chat(self, project_id, phase_id, danny_words) -> dict:
-        return self._chat_action(project_id, phase_id, danny_words, "review", lambda ph: ph.update(gate_approved=True))
-
-    def complete_manual_phase(self, project_id, phase_id, danny_words) -> dict:
-        return self._chat_action(project_id, phase_id, danny_words, "manual_test", lambda ph: ph.update(status="done"))
+    def migrate_gates(self) -> dict:
+        """Rewrite every project file once in the single-gate format, under the lock; updated_at is left alone."""
+        with self._write_lock():
+            folder = self.dir / "projects"
+            paths = sorted(folder.glob("*.json")) if folder.is_dir() else []
+            migrated = 0
+            for path in paths:
+                project = json.loads(path.read_text(encoding="utf-8"))
+                if _migrate_project(project):
+                    _write_atomic(path, _dump(project))
+                    migrated += 1
+            if migrated:
+                self.regenerate_biblia()
+            return {"projects": len(paths), "migrated": migrated}
 
     # --- items -------------------------------------------------------------
 
@@ -731,7 +778,7 @@ class Hub:
     def _project_summary(p, messages, all_events, start, until, copied_at, leases=()):
         pid = p["id"]
         mine = [m for m in messages if m["to_project"] in (pid, "all") or (m["to_project"] == "user" and m["from_project"] == pid)]
-        waiting = [{"phase_id": ph["id"], "phase": ph["name"], "gate": ph["gate"], "reason": ph.get("gate_reason", "")}
+        waiting = [{"phase_id": ph["id"], "phase": ph["name"], "reason": ph.get("gate_reason", ""), "set_by": ph.get("gate_set_by")}
                    for ph in p["phases"] if blocking(ph)]
         user_messages = [{k: m[k] for k in ("id", "title", "from_project", "created_at")}
                          for m in mine if m["to_project"] == "user" and m["status"] != "done"]
@@ -755,10 +802,9 @@ class Hub:
             if count_waiting:
                 gate_phases |= {g["phase"] for g in waiting}
             w["gates"] = len(gate_phases)
-            # gate type is the phase's current one; a renamed or deleted phase falls back to review
-            kinds = {ph["name"]: ph.get("gate", "none") for ph in p["phases"]}
-            w["gate_lines"] = [(name, "prueba manual" if kinds.get(name) == "manual_test" else "review")
-                               for name in sorted(gate_phases, key=str)]
+            # the reason is the phase's current one; a renamed phase has none
+            reasons = {ph["name"]: ph.get("gate_reason", "") for ph in p["phases"]}
+            w["gate_lines"] = [(name, reasons.get(name, "")) for name in sorted(gate_phases, key=str)]
             w["text"] = Hub._chat_text(pid, f"Periodo: {_local(w_start)} - {_local(until)}", w)
             return w
 
@@ -767,7 +813,7 @@ class Hub:
         items_opened, items_closed, events = w["items_opened"], w["items_closed"], w["events"]
         # blocked: work that cannot go on without someone else - an in_progress phase stopped at its gate,
         # or a message from another project (an agent) to this one that is not done yet
-        blocked = [f"fase '{ph['name']}' en curso, espera gate {ph['gate']}" for ph in p["phases"]
+        blocked = [f"fase '{ph['name']}' en curso, espera a Danny" for ph in p["phases"]
                    if ph["status"] == "in_progress" and blocking(ph)]
         blocked += [f"mensaje de {m['from_project']}: {_short(m['title'], 80)}" for m in messages
                     if m["to_project"] == pid and m["kind"] == "message" and m["from_project"] not in ("user", pid) and m["status"] != "done"]
@@ -792,42 +838,39 @@ class Hub:
             "counts": {"gates": len(waiting), "reports": len(reports), "decisions": len(decisions),
                        "items_opened": len(items_opened), "items_closed": len(items_closed), "phase_changes": len(phase_changes)},
             "copy": {"since": _iso(copy_since), "new": new, "chat_text": c["text"] if new else None},
-            "state": Hub._copy_state(p, messages, leases, new, waiting, user_messages),
+            "state": Hub._copy_state(p, messages, leases, new, user_messages),
         }
 
     @staticmethod
-    def _copy_state(p, messages, leases, new, waiting, user_messages):
-        """Is copying now worthwhile? working (amber) > waiting (green) > ready (green) > quiet (grey). Not period-bound."""
+    def _copy_state(p, messages, leases, new, user_messages):
+        """One state per project, by priority: waiting (red: code is stopped for Danny) > working (amber)
+        > ready (green: something new to copy) > quiet (grey). Not period-bound."""
         pid = p["id"]
+
+        def says_waiting(text):
+            return any(w in text.lower() for w in WAITING_WORDS)
+
+        tasks = [l for l in leases if l["project_id"] == pid and l["resource"].startswith("task:")]
+        reasons = [ph.get("gate_reason") or ph["name"] for ph in stopping_gates(p)]
+        reasons += [m["title"] for m in user_messages]
+        reasons += [l["purpose"] for l in tasks if says_waiting(l["purpose"])]
+        if tasks:
+            since = min(l["acquired_at"] for l in tasks)
+            reasons += [m["title"] for m in messages if m["kind"] == "report" and m["from_project"] == pid
+                        and m["created_at"] > since and says_waiting(f"{m['title']} {m['body']}")]
+        if reasons:
+            more = f" +{len(reasons) - 1}" if len(reasons) > 1 else ""
+            return {"kind": "waiting", "label": "Te espera", "detail": _short(reasons[0], 80) + more}
+        # work: task leases held by this project (none waits, or we returned above), and read-not-done tasks sent to it
         by_id = {m["id"]: m for m in messages}
-        # work = (title, purpose, since): task leases held by this project, and read-not-done tasks sent to it
-        work = []
-        for l in leases:
-            if l["project_id"] == pid and l["resource"].startswith("task:"):
-                m = by_id.get(l["resource"][5:])
-                work.append((m["title"] if m else l["purpose"], l["purpose"], l["acquired_at"]))
-        leased = {l["resource"][5:] for l in leases if l["project_id"] == pid and l["resource"].startswith("task:")}
-        work += [(m["title"], "", m["created_at"]) for m in messages
+        work = [by_id[l["resource"][5:]]["title"] if l["resource"][5:] in by_id else l["purpose"] for l in tasks]
+        leased = {l["resource"][5:] for l in tasks}
+        work += [m["title"] for m in messages
                  if m["to_project"] == pid and m["kind"] == "task" and m["status"] == "read" and m["id"] not in leased]
         if work:
-            cur = current_phase(p)
-            gates = [g for g in waiting if next(ph for ph in p["phases"] if ph["id"] == g["phase_id"])["status"] == "in_progress"
-                     or (cur and g["phase_id"] == cur["id"])]
-            reports = [m for m in messages if m["kind"] == "report" and m["from_project"] == pid]
-            words = ("esper", "wait", "aprobación", "puerta", "gate")
-            reason = next((purpose for _, purpose, _ in work if any(w in purpose.lower() for w in words)), None)
-            if reason is None and gates:
-                reason = gates[0]["phase"]
-            if reason is None and user_messages:
-                reason = user_messages[0]["title"]
-            if reason is None:
-                since = min(w[2] for w in work)
-                reason = next((r["title"] for r in reports if r["created_at"] > since), None)
-            if reason is not None:
-                return {"kind": "waiting", "label": "Listo para copiar", "detail": f"Esperando a Danny: {_short(reason, 80)}"}
-            return {"kind": "working", "label": "Trabajando", "detail": f"Trabajando en: {_short(work[0][0], 80)}"}
+            return {"kind": "working", "label": "Trabajando", "detail": f"Trabajando en: {_short(work[0], 80)}"}
         if new:
-            return {"kind": "ready", "label": "Listo para copiar", "detail": None}
+            return {"kind": "ready", "label": "Novedades para copiar", "detail": None}
         return {"kind": "quiet", "label": "Sin novedades", "detail": None}
 
     @staticmethod
@@ -835,7 +878,8 @@ class Hub:
         done = [c["phase"] for c in w["phase_changes"] if c["text"].endswith("→ done")]
         reports, decisions = w["reports"], w["decisions"]
         lines = [period_line]
-        lines += [f"Gate esperando a Danny: {_short(name, 70)} ({kind})" for name, kind in w["gate_lines"]]
+        lines += [f"Espera a Danny: {_short(name, 70)} — {_short(reason, 70)}" if reason else f"Espera a Danny: {_short(name, 70)}"
+                  for name, reason in w["gate_lines"]]
         if reports:
             titles = [_short(r["title"], 70) for r in reversed(reports)]  # newest first
             lines.append("Reports nuevos: " + " · ".join(titles[:6]) + (f" y {len(titles) - 6} más" if len(titles) > 6 else ""))

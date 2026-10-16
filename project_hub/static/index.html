@@ -558,13 +558,14 @@ function syncBar() {
   $("#sync").title = `${location.host} · poll 5s` + (S.offline ? " · sin conexión" : "");
 }
 
+const waitsFor = (ph) => ph.gate_state === "waiting" && ph.status !== "done"; // done phases never block
 /* what waits for Danny: phases whose gate waits and open messages to "user"; reports are information only.
    Danny resolves all of it in each project's Claude Desktop chat; the dashboard only informs. */
 function facts(p) {
   const phases = p.phases || [];
   let ci = p.current_phase_pos ? p.current_phase_pos - 1 : -1;
   if (ci >= 0 && (!phases[ci] || phases[ci].status === "done")) ci = -1; // all phases done
-  const gates = phases.map((ph, i) => ({ ph, i })).filter((g) => g.ph.gate_state === "waiting");
+  const gates = phases.map((ph, i) => ({ ph, i })).filter((g) => waitsFor(g.ph));
   const actions = [...gates.map((g) => ({ kind: "gate", key: p.id + ":g:" + g.ph.id, ...g })),
     ...(p.user_messages || []).map((m) => ({ kind: "msg", key: p.id + ":m:" + m.id, m }))];
   return { phases, ci, cur: ci >= 0 ? phases[ci] : null, done: phases.filter((x) => x.status === "done").length, reports: p.reports || [], actions };
@@ -681,7 +682,7 @@ function reportLine(p, f, ctx, showProject) {
 }
 function track(f) {
   return h("span", { class: "track", role: "img", "aria-label": `${f.done} de ${f.phases.length} fases hechas` },
-    f.phases.map((x, i) => h("i", { class: x.status === "done" ? "d" : x.gate_state === "waiting" ? "g" : i === f.ci ? "c" : "" })));
+    f.phases.map((x, i) => h("i", { class: x.status === "done" ? "d" : waitsFor(x) ? "g" : i === f.ci ? "c" : "" })));
 }
 const lifeWord = (status) => h("span", { class: "life" }, PROJ[status] || status); // lifecycle: a small label next to the state
 
@@ -802,13 +803,14 @@ function renderPhases(p, f) {
     : h("p", { class: "empty" }, "Sin fases todavía. Añádelas desde Claude con add_phase."));
 }
 function phaseRow(p, f, x, i, sel) {
-  const isCur = i === f.ci, waits = x.gate_state === "waiting", w = x.gate_resolved_words || "";
-  const resolved = !waits && w ? `Resuelto vía chat: «${short(w, 60)}»` : null;
+  const isCur = i === f.ci, waits = waitsFor(x), w = x.gate_resolved_words || "";
+  // resolved in the chat with Danny's words; old dashboard approvals have no words
+  const resolved = x.gate_state === "continue" ? (w ? `Resuelto vía chat: «${short(w, 60)}»` : `Resuelto (${x.gate_resolved_action || "sigue"})`) : null;
   const word = x.status === "done" ? h("span", { class: "st done" }, "✓ hecha")
     : isCur ? h("span", { class: "st cur" }, x.status === "in_progress" ? "▶ en curso" : "▶ siguiente")
     : h("span", { class: "st todo" }, PSTATE[x.status]);
   const gate = waits ? h("span", { class: "st gate", title: x.gate_reason || null }, "espera a Danny")
-    : resolved ? h("span", { class: "chat", title: w }, resolved) : null;
+    : resolved ? h("span", { class: "chat", title: w || null }, resolved) : null;
   const kids = [
     h("span", { class: "n" }, nn(i)),
     h("div", {}, h("button", { class: "nm", type: "button", "data-fk": "ph" + x.id, "aria-pressed": String(sel), onclick: () => selectPhase(p.id, x.id) }, x.name),
@@ -820,7 +822,7 @@ function phaseRow(p, f, x, i, sel) {
       h("div", { class: "notes" }, x.notes ? x.notes : h("span", { class: "dim" }, "Sin notas para esta fase.")),
       waits ? h("div", { class: "gr wait" }, `Espera a Danny: ${x.gate_reason || "sin motivo"}`, x.gate_set_by ? h("span", { class: "muted" }, " · puesto por " + x.gate_set_by) : null,
         h("span", { class: "muted" }, ` · resuélvelo en el chat de ${p.name}`))
-        : resolved ? h("div", { class: "gr", title: w }, resolved, x.gate_resolved_action ? ` · ${x.gate_resolved_action}` : "", x.gate_resolved_at ? h("span", { class: "muted" }, " · " + fdt(x.gate_resolved_at)) : null) : null,
+        : resolved ? h("div", { class: "gr", title: w || null }, resolved, w && x.gate_resolved_action ? ` · ${x.gate_resolved_action}` : "", x.gate_resolved_at ? h("span", { class: "muted" }, " · " + fdt(x.gate_resolved_at)) : null) : null,
       h("div", { class: "stline" }, h("label", { class: "lbl", for: "st-" + x.id }, "Estado"),
         waits ? h("span", { class: "dim", id: "st-" + x.id }, PSTATE[x.status] + " · no se cambia aquí mientras espera a Danny")
           : h("select", { id: "st-" + x.id, "data-fk": "st" + x.id, onchange: (e) => setStatus(p.id, x, e.target.value) },
@@ -832,7 +834,7 @@ function phaseRow(p, f, x, i, sel) {
 function selectPhase(pid, id) { S.phSel[pid] = id; S.sel = { kind: "phase", id }; render("ph" + id); }
 // a phase whose gate waits for Danny has no status control: he decides in the project's chat
 function setStatus(pid, x, v) {
-  if (v === x.status || x.gate_state === "waiting") return;
+  if (v === x.status || waitsFor(x)) return;
   act(() => phaseStatus(pid, x.id, v), "Fase cambiada a " + PSTATE[v]);
 }
 

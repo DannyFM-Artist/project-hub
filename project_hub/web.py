@@ -10,8 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import hub as hub_module  # module reference so a faked hub._utcnow applies here too
-from .biblia import GATE_DEFAULTS, autonomy_line, blocking, current_phase, waiting
-from .hub import Hub, HubError, overview_order
+from .biblia import GATE_DEFAULTS, autonomy_line, current_phase, waiting
+from .hub import STATE_RANK, Hub, HubError, overview_order
 
 STATIC = Path(__file__).parent / "static"
 ICONS = STATIC / "icons"  # app icons and web manifest; regenerate the PNGs with tools/make_icons.py
@@ -64,8 +64,8 @@ class MessagePatch(BaseModel):
 
 
 def _phases(p):
-    """Phases with gate defaults and blocking: a gate that waits for Danny (review not approved, manual_test not done)."""
-    return [{**GATE_DEFAULTS, **ph, "blocking": blocking(ph)} for ph in p["phases"]]
+    # new gate fields only: the legacy gate/gate_approved keys are for old MCP servers, not the dashboard
+    return [{k: v for k, v in {**GATE_DEFAULTS, **ph}.items() if k not in ("gate", "gate_approved")} for ph in p["phases"]]
 
 
 @app.get("/api/projects")
@@ -90,8 +90,9 @@ def list_projects():
             "user_messages": [m for m in messages if m["to_project"] == "user" and m["from_project"] == p["id"] and m["status"] != "done"],
             "reports": [m for m in messages if m["to_project"] in (p["id"], "all") and m["kind"] == "report" and m["status"] == "unread"],
             "state": states[p["id"]],
+            "state_rank": STATE_RANK[states[p["id"]]["kind"]],  # 0 = waiting for Danny (red)
         })
-    return overview_order(out)
+    return sorted(overview_order(out), key=lambda r: r["state_rank"] != 0)  # red rows first, stable otherwise
 
 
 @app.get("/api/unread")
@@ -111,25 +112,11 @@ def get_project(project_id: str):
     return project
 
 
-# the dashboard is Danny: every change here is by="dashboard", which gates treat like by="user"
+# changes here are logged by="dashboard". The dashboard only informs about gates: it cannot set or resolve one,
+# and a status change on a phase whose gate waits for Danny is refused (400) like any other caller's.
 @app.post("/api/projects/{project_id}/phases/{phase_id}")
 def set_phase(project_id: str, phase_id: str, body: PhaseIn):
     return hub().set_phase_status(project_id, phase_id, body.status, body.notes, by="dashboard")
-
-
-class GateIn(BaseModel):
-    gate: str
-    reason: str = ""
-
-
-@app.post("/api/projects/{project_id}/phases/{phase_id}/gate")
-def set_gate(project_id: str, phase_id: str, body: GateIn):
-    return hub().set_gate(project_id, phase_id, body.gate, body.reason, by="dashboard")
-
-
-@app.post("/api/projects/{project_id}/phases/{phase_id}/gate/approve")
-def approve_gate(project_id: str, phase_id: str):
-    return hub().approve_gate(project_id, phase_id, by="dashboard")
 
 
 @app.get("/api/waiting")
