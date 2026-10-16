@@ -15,7 +15,7 @@ Plus `project-hub session-start`, a Claude Code SessionStart hook that prints th
   projects/<project_id>.json   one pretty-printed JSON file per project (stable key order)
   inbox/messages.jsonl         one message per line
   activity/events.jsonl        activity log: one line per change (time, project, type, by, short text); versioned
-  summary_state.json           when the dashboard summary was last marked as seen
+  summary_state.json           when the dashboard summary was last seen, and per project when it was last copied
   BIBLIA.md                    auto-regenerated after every write; paste it into any AI chat for full context
 ```
 
@@ -171,6 +171,8 @@ Text limits on every write (MCP and dashboard): project description 200 characte
 Every change made through project-hub (phases, gates, items, decisions, messages, project fields; not resource leases) appends one line to `activity/events.jsonl` with `by` = `agent` (MCP), `dashboard` (web) or, for a posted message, its sender. The log has no history before it was first written.
 
 `GET /api/summary` (optional `since=<ISO>` or `hours=<n>`; default: since the last time it was marked seen, else the last 24 h) lists per project what is waiting for Danny, new reports, phase changes, decisions, items and a short Spanish `chat_text` to paste into that project's chat. Reports, decisions and new items come from their own timestamps, so they appear even for periods before the log started; phase changes and closed items need the log. `POST /api/summary/seen` stores the last-seen time.
+
+Each project also has a "copied for the chat" marker (`POST /api/summary/copied` with `{"project_id", "at"}`, kept in `summary_state.json` under `copied`). Per project, `copy` in the summary holds `since` (the marker, else the summary start), `new` (things since then) and a `chat_text` that is null when nothing is new; `counts` sums the summary period.
 
 ## Phase gates
 

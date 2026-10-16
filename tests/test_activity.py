@@ -183,7 +183,7 @@ def test_summary_grouping_and_content(hub, clock):
     assert [p["id"] for p in s["projects"]] == ["alpha", "gamma", "beta"]
     a, g, b = s["projects"]
     assert set(a) == {"id", "name", "status", "has_activity", "current", "action", "reports", "phase_changes", "decisions",
-                      "items_opened", "items_closed", "blocked", "chat_text"}
+                      "items_opened", "items_closed", "blocked", "chat_text", "copied_at", "counts", "copy"}
     assert a["current"] == {"phase": "Two", "n": 2, "total": 3, "next_step": None}
     assert a["action"]["gates"] == [{"phase_id": ph["alpha"][1], "phase": "Two", "gate": "review", "reason": "look at the API"}]
     assert [m["title"] for m in a["action"]["user_messages"]] == ["Need a decision"]

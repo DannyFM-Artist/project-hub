@@ -174,6 +174,16 @@ def summary_seen(body: SeenIn | None = None):
     return hub().mark_summary_seen(body.at if body else None)
 
 
+class CopiedIn(BaseModel):
+    project_id: str
+    at: str | None = None
+
+
+@app.post("/api/summary/copied")
+def summary_copied(body: CopiedIn):
+    return hub().mark_copied(body.project_id, body.at)
+
+
 @app.get("/")
 def index():
     return FileResponse(STATIC / "index.html")
