@@ -160,6 +160,19 @@ The screenshot-taking scripts overwrite the PNGs in `mockups/`; discard those ch
 
 Text limits on every write (MCP and dashboard): project description 200 characters, next_step 160, phase name 60, phase notes 240, item title 100. A longer text is refused with a message asking for a shorter one; data already stored is left as is.
 
+## Autonomous work with /loop
+
+The user-level skill `~/.claude/skills/hub-sync/SKILL.md` (not part of this repo) does one round of hub-driven work in a registered repo: it reads the project id from the repo's CLAUDE.md, takes the oldest unread task or message (marks it read, does it, marks it done only when finished, posts a report), or else works on the in-progress or next allowed phase within its gates. With nothing to do it answers `hub-sync: nothing new`. Run it on a schedule from a Claude Code session in that repo:
+
+```
+/loop 5m /hub-sync
+```
+
+- It only fires while that Claude Code session is open and idle. Closing the terminal stops it; a run that comes due while Claude is busy happens once when it is idle again (no catch-up).
+- Recurring loops expire 7 days after they are created: they fire one last time and delete themselves. Run the command again to continue.
+- To stop it, ask Claude in the session: "cancel the hub-sync loop" (or "what scheduled tasks do I have?" to see it first). `Esc` only stops a self-paced `/loop` started without an interval.
+- The skill never approves, loosens or removes a gate; you do that in the dashboard.
+
 ## Resource reservations
 
 Several Claude Code sessions can work on different projects at once. A lease in `<data>/resources/leases.json` tells the others a shared resource is in use. Leases are exclusive and expire after `ttl_minutes` (an expired lease counts as free); claiming again from the same project renews it. The dashboard overview lists active leases with a force-release button for stale ones.
