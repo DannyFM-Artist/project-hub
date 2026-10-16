@@ -296,6 +296,13 @@ input:focus-visible, textarea:focus-visible { outline: none; border-color: var(-
 .su-c.hot { color: var(--WARN); font-weight: 600; }
 .su-cs { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); white-space: nowrap; }
 .su-cs.new { color: var(--TEXT); }
+.su-st { display: inline-flex; align-items: baseline; gap: var(--Space-XS); min-width: 0; max-width: 46ch; font-size: var(--Type-SMALL); color: var(--TEXT_DIM); }
+.su-st:empty { display: none; }
+.su-st b { font-weight: 600; color: var(--TEXT); white-space: nowrap; }
+.su-st[data-kind=working] b { color: var(--WARN); }
+.su-st .dt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ptab .pst { margin-left: var(--Space-SM); }
+.ptab .pst .dot { margin-right: 0; }
 .su-in { border-top: 1px solid var(--BORDER); padding-bottom: var(--Space-SM); }
 .su-sec { padding: 0 var(--Space-MD); }
 .su-rows { padding: 0 0 var(--Space-SM) calc(14px + var(--Space-XS)); }
@@ -522,7 +529,7 @@ async function refresh(force) {
     if (S.pid && !d) return;
     if (!force && key === S.key) return;
     S.key = key;
-    if (S.sum) { paint(renderBar); return; } // the summary itself is never re-rendered by polling; only the top bar
+    if (S.sum) { paint(renderBar); syncSumStates(); return; } // the summary itself is never re-rendered by polling; only the top bar and the state badges
     render();
   } catch (e) {
     if (S.pid && /^unknown /.test(e.message)) { toast(e.message, "err"); S.pid = null; S.last = null; location.hash = "#overview"; return; }
@@ -710,7 +717,9 @@ function renderOverview() {
     const f = facts(p);
     return h("div", { class: "row" + (S.ovMark && i === S.ovSel ? " sel" : ""), "data-pid": p.id, onclick: (e) => { S.ovSel = i; S.ovMark = true; if (!e.target.closest("a")) open(p.id); } },
       stateWord(p.status),
-      h("div", { class: "nm" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "r" + p.id }, p.name), h("span", { class: "sub", title: p.description }, p.description)),
+      h("div", { class: "nm" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "r" + p.id }, p.name),
+        p.state ? h("span", { class: "pst", role: "img", "data-kind": p.state.kind, "aria-label": p.state.label, title: p.state.label + (p.state.detail ? ": " + p.state.detail : "") }, stateDot(p.state)) : null,
+        h("span", { class: "sub", title: p.description }, p.description)),
       h("div", {}, track(f), " ", h("span", { class: "fr" }, `${f.done}/${f.phases.length}`)),
       h("div", { class: "cp wrap" }, f.cur ? [h("span", { class: "n" }, nn(f.ci) + " "), f.cur.name, " ", h("span", { class: "st cur" }, f.cur.status === "in_progress" ? "▶ en curso" : "▶ siguiente")]
         : h("span", { class: "muted" }, f.phases.length ? "todas hechas" : "sin fases")),
@@ -934,6 +943,28 @@ async function copyText(t) {
   let ok = false; try { ok = document.execCommand("copy"); } catch (e) { /* ignore */ }
   ta.remove(); return ok;
 }
+/* per-project state (server): ready / waiting = green, working = amber, quiet = grey */
+const STATE_C = { ready: "OK", waiting: "OK", working: "WARN", quiet: "IDLE" };
+const stateDot = (st) => h("span", { class: "dot", style: `background:var(--${STATE_C[st.kind] || "IDLE"})` });
+function stateOf(id) { // the polled projects list is the freshest source; the summary's own copy is the fallback
+  const r = S.projects.find((p) => p.id === id) || (S.sumD && S.sumD.projects.find((p) => p.id === id)) || {};
+  return r.state;
+}
+const stateBadge = (st) => h("span", { class: "su-st", "data-kind": st ? st.kind : "" },
+  st ? [stateDot(st), h("b", {}, st.label), st.detail ? h("span", { class: "dt", title: st.detail }, st.detail) : null] : null);
+const copyLabel = (p, st) => !(p.copy && p.copy.new) ? (p.copied_at ? "Nada nuevo desde la última copia" : "Nada nuevo que copiar")
+  : st && st.kind === "working" ? "Copiar igualmente" : "Copiar para el chat";
+// polling updates only the state badges and button texts, in place: boxes, expansion and focus stay as they are
+function syncSumStates() {
+  if (!S.sum || !S.sumD) return;
+  for (const p of S.sumD.projects) {
+    const box = document.querySelector(`.su-proj[data-id="${CSS.escape(p.id)}"]`);
+    if (!box) continue;
+    const st = stateOf(p.id), btn = box.querySelector("[data-copy]"), label = copyLabel(p, st);
+    box.querySelector(".su-st").replaceWith(stateBadge(st));
+    if (btn.textContent !== label) btn.textContent = label;
+  }
+}
 function copyState(p) {
   const cp = p.copy || { new: 0 };
   if (cp.new) return p.copied_at ? pl(cp.new, "novedad", "novedades") + " desde la última copia" : pl(cp.new, "novedad", "novedades");
@@ -962,8 +993,8 @@ function sumProject(p) {
     h("div", { class: "rlh su-head" },
       tog(p.id, [h("b", {}, p.name), c.phase ? ` · ${c.n}/${c.total} ${c.phase}` : null, counts.flatMap((x) => [" · ", x])]),
       h("span", { class: "su-cs" + (cp.new && p.copied_at ? " new" : "") }, copyState(p)),
-      cp.new ? h("button", { class: "btn small", type: "button", "data-copy": p.id, "data-fk": "cp" + p.id, onclick: () => copyProject(p) }, "Copiar para el chat")
-        : h("button", { class: "btn small", type: "button", "data-copy": p.id, disabled: true }, p.copied_at ? "Nada nuevo desde la última copia" : "Nada nuevo que copiar")),
+      stateBadge(stateOf(p.id)),
+      h("button", { class: "btn small", type: "button", "data-copy": p.id, "data-fk": "cp" + p.id, disabled: !cp.new, onclick: () => copyProject(p) }, copyLabel(p, stateOf(p.id)))),
     S.suOpen.has(p.id) ? h("div", { class: "su-in" },
       h("p", { class: "su-n" }, c.phase ? `${c.phase} · ` : "", "siguiente paso: ", c.next_step || "—"),
       sec("wait", "Esperan a Danny", [...a.gates.map((g) => L(h("span", { class: "su-k" }, GATE[g.gate] || g.gate), ` ${g.phase} `, h("small", {}, g.reason || ""))),
