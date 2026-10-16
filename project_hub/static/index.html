@@ -21,7 +21,8 @@
   --ACCENT: #88FE00; --ACCENT_HOVER: #A6FF3D; --ACCENT_PRESSED: #76DF00; --ACCENT_SOFT: #2A470D;
   --OK: #3FC78B; --WARN: #EA7F2A; --ERROR: #FF2E4D; --IDLE: #6C7173;
   /* hub extension tokens (dannyfm-ui rule R3: app-only tokens live in the app) */
-  --SELECTED: #213012;      /* blend(ACCENT_SOFT, SURFACE, 0.5): keeps WARN and TEXT_DIM above 4.5:1 on a selected row */
+  --SELECTED: #213012;
+  --WAITING: #FF5C72;       /* state "waiting": a red that keeps 4.5:1 on SURFACE and on SELECTED (ERROR #FF2E4D is 3.8:1 there) */      /* blend(ACCENT_SOFT, SURFACE, 0.5): keeps WARN and TEXT_DIM above 4.5:1 on a selected row */
   --TYPE_BUG: var(--ERROR); --TYPE_IDEA: #6CC4DC; --TYPE_REQUEST: #B7A1F2;
   /* Type / Space / Radius at interface scale 7/6 */
   --scale: 1.1667;
@@ -101,7 +102,7 @@ body[data-view=overview] #overview, body[data-view=project] #project, body[data-
 .eyebrow { margin: 0; color: var(--TEXT_MUTED); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; }
 .lead { margin: var(--Space-XXS) 0 0; font-size: var(--Type-H2); line-height: 1.35; font-weight: 400; overflow-wrap: anywhere; }
 .lead b { font-weight: 600; }
-.lead .warn { color: var(--WARN); font-weight: 600; } .lead .ok { color: var(--OK); font-weight: 600; }
+.lead .warn { color: var(--WARN); font-weight: 600; } .lead .wait { color: var(--WAITING); font-weight: 600; } .lead .ok { color: var(--OK); font-weight: 600; }
 h1.lead:focus { outline: none; }
 
 /* panel = dock surface with a PanelHeader */
@@ -127,7 +128,7 @@ h1.lead:focus { outline: none; }
 
 /* state words (widgets.StateLabel): coloured word, no box */
 .st { font: 600 var(--Type-SMALL) var(--Type-MONO); letter-spacing: .6px; text-transform: uppercase; white-space: nowrap; }
-.st.done { color: var(--OK); } .st.cur { color: var(--ACCENT); } .st.todo { color: var(--TEXT_DIM); } .st.gate { color: var(--WARN); }
+.st.done { color: var(--OK); } .st.cur { color: var(--ACCENT); } .st.todo { color: var(--TEXT_DIM); } .st.gate { color: var(--WAITING); }
 .st.quiet { color: var(--TEXT_MUTED); font-weight: 400; }
 .st.active { color: var(--OK); } .st.paused { color: var(--TEXT_DIM); } .st.parked, .st.pdone { color: var(--TEXT_MUTED); }
 .st.bug { color: var(--TYPE_BUG); } .st.idea { color: var(--TYPE_IDEA); } .st.future_request { color: var(--TYPE_REQUEST); }
@@ -204,7 +205,7 @@ h1.lead:focus { outline: none; }
 .tab .mono { color: inherit; }
 
 /* overview tables */
-.ptab .thead, .ptab .row { grid-template-columns: calc(78px * var(--scale)) minmax(0, 1.2fr) calc(190px * var(--scale)) minmax(0, 1.4fr) minmax(0, 1.4fr) calc(56px * var(--scale)) calc(64px * var(--scale)) calc(76px * var(--scale)); }
+.ptab .thead, .ptab .row { grid-template-columns: calc(118px * var(--scale)) minmax(0, 1.2fr) calc(190px * var(--scale)) minmax(0, 1.4fr) minmax(0, 1.4fr) calc(56px * var(--scale)) calc(64px * var(--scale)) calc(76px * var(--scale)); }
 .ptab .row { cursor: pointer; }
 .ptab .nm a { font-weight: 600; text-decoration: none; } .ptab .nm a:hover { text-decoration: underline; }
 .ptab .sub { display: block; color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -239,7 +240,7 @@ h1.lead:focus { outline: none; }
 .phases .row.sel .nm { color: var(--TEXT); }
 .phases .row.sel .st.quiet { color: var(--TEXT_DIM); }
 .phases .gc { display: flex; align-items: baseline; justify-content: flex-end; gap: var(--Space-SM); flex-wrap: wrap; }
-.phases .gc .chat { flex-basis: 100%; text-align: right; color: var(--OK); font-size: var(--Type-SMALL); overflow-wrap: anywhere; }
+.phases .gc .chat { flex-basis: 100%; text-align: right; color: var(--TEXT_DIM); font-size: var(--Type-SMALL); overflow-wrap: anywhere; }
 .phases .doneline { display: block; padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--DIVIDER); }
 .phases .doneline button { background: none; border: none; padding: var(--Space-XS) 0; cursor: pointer; color: var(--OK); font-weight: 600; }
 .phases .doneline button:hover { text-decoration: underline; }
@@ -297,13 +298,26 @@ input:focus-visible, textarea:focus-visible { outline: none; border-color: var(-
 .su-c.hot { color: var(--WARN); font-weight: 600; }
 .su-cs { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); white-space: nowrap; }
 .su-cs.new { color: var(--TEXT); }
-.su-st { display: inline-flex; align-items: baseline; gap: var(--Space-XS); min-width: 0; max-width: 46ch; font-size: var(--Type-SMALL); color: var(--TEXT_DIM); }
-.su-st:empty { display: none; }
-.su-st b { font-weight: 600; color: var(--TEXT); white-space: nowrap; }
-.su-st[data-kind=working] b { color: var(--WARN); }
-.su-st .dt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.ptab .pst { margin-left: var(--Space-SM); }
-.ptab .pst .dot { margin-right: 0; }
+/* project state (one per project, everywhere) */
+.pstate { display: inline-flex; align-items: baseline; gap: var(--Space-XS); min-width: 0; max-width: 46ch; font-size: var(--Type-SMALL); color: var(--TEXT_DIM); }
+.pstate:empty { display: none; }
+.pstate .dot { margin-right: 0; }
+.pstate b { font-weight: 600; color: var(--TEXT); white-space: nowrap; }
+.pstate[data-kind=waiting] b, .why-st[data-kind=waiting], .gr.wait { color: var(--WAITING); }
+.pstate[data-kind=working] b, .why-st[data-kind=working] { color: var(--WARN); }
+.pstate[data-kind=ready] b { color: var(--OK); }
+.pstate[data-kind=quiet] b { color: var(--TEXT_DIM); font-weight: 400; }
+.pstate .dt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pstate.head { font-size: var(--Type-BODY); max-width: 60ch; }
+.life { color: var(--TEXT_MUTED); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; }
+.ptab .stc { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ptab .stc .pstate { max-width: 100%; white-space: normal; }
+.ptab .why-st { display: block; font-size: var(--Type-SMALL); font-weight: 600; overflow-wrap: anywhere; }
+.act .where { color: var(--TEXT_DIM); font-size: var(--Type-SMALL); text-align: right; }
+.act .where:hover { color: var(--TEXT); }
+.link { background: none; border: 0; padding: 0; color: var(--TEXT_DIM); text-decoration: underline; cursor: pointer; font-size: inherit; }
+.link:hover { color: var(--TEXT); }
+.bellpanel .gh .pstate { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 400; }
 .su-in { border-top: 1px solid var(--BORDER); padding-bottom: var(--Space-SM); }
 .su-sec { padding: 0 var(--Space-MD); }
 .su-rows { padding: 0 0 var(--Space-SM) calc(14px + var(--Space-XS)); }
@@ -347,7 +361,7 @@ input:focus-visible, textarea:focus-visible { outline: none; border-color: var(-
   <p class="eyebrow" id="ov-eyebrow"></p>
   <h1 class="lead" id="ov-lead"></h1>
   <section class="panel foryou ovact" id="ov-act" aria-label="Para ti">
-    <div class="ph"><h2 id="ov-act-h">Para ti</h2><span class="meta">gates que esperan tu acción y mensajes para ti, lo más urgente primero</span></div>
+    <div class="ph"><h2 id="ov-act-h">Para ti</h2><span class="meta">gates que esperan a Danny y mensajes para ti; se resuelven en el chat de cada proyecto</span></div>
     <div id="ov-act-body"></div>
   </section>
   <section class="panel replines" id="ov-rep" aria-label="Reports sin leer" hidden>
@@ -464,9 +478,8 @@ const PHASE_ST = ["todo", "in_progress", "done"];
 const PSTATE = { todo: "pendiente", in_progress: "en curso", done: "hecha" };
 const KIND = { task: "tarea", message: "mensaje", report: "report" };
 const MSG_ST = { unread: "sin leer", read: "leído", done: "hecho" };
-const GATE = { review: "review", manual_test: "test manual" };
 const S = { projects: [], d: null, pid: null, last: null, res: [], filter: "all", ovSel: 0, sel: null, phSel: {}, tf: "all", closed: false,
-  ovMark: false, offline: false, sum: false, suOpen: new Set(), copiedNow: new Set(), key: "", gd: {}, confirm: new Set(), pend: {}, repOpen: new Set(), msgOpen: new Set(), doneOpen: {}, bell: false, focusNext: false };
+  ovMark: false, offline: false, sum: false, suOpen: new Set(), copiedNow: new Set(), key: "", confirm: new Set(), repOpen: new Set(), msgOpen: new Set(), doneOpen: {}, bell: false, focusNext: false };
 
 const pl = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
 const nn = (i) => String(i + 1).padStart(2, "0");
@@ -545,20 +558,27 @@ function syncBar() {
   $("#sync").title = `${location.host} · poll 5s` + (S.offline ? " · sin conexión" : "");
 }
 
-/* what needs Danny: blocking gates (server flag) and open messages to "user"; reports are information only */
+/* what waits for Danny: phases whose gate waits and open messages to "user"; reports are information only.
+   Danny resolves all of it in each project's Claude Desktop chat; the dashboard only informs. */
 function facts(p) {
   const phases = p.phases || [];
   let ci = p.current_phase_pos ? p.current_phase_pos - 1 : -1;
   if (ci >= 0 && (!phases[ci] || phases[ci].status === "done")) ci = -1; // all phases done
-  const gates = phases.map((ph, i) => ({ ph, i })).filter((g) => g.ph.blocking)
-    .sort((a, b) => (a.ph.gate === "review" ? 0 : 1) - (b.ph.gate === "review" ? 0 : 1) || a.i - b.i);
+  const gates = phases.map((ph, i) => ({ ph, i })).filter((g) => g.ph.gate_state === "waiting");
   const actions = [...gates.map((g) => ({ kind: "gate", key: p.id + ":g:" + g.ph.id, ...g })),
     ...(p.user_messages || []).map((m) => ({ kind: "msg", key: p.id + ":m:" + m.id, m }))];
   return { phases, ci, cur: ci >= 0 ? phases[ci] : null, done: phases.filter((x) => x.status === "done").length, reports: p.reports || [], actions };
 }
 const allFacts = () => S.projects.map((p, i) => ({ p, f: facts(p), i }));
-const byUrgency = (rows) => [...rows].sort((a, b) => b.f.actions.length - a.f.actions.length || b.f.reports.length - a.f.reports.length || a.i - b.i);
+const isWaiting = (p) => (p.state && p.state.kind === "waiting") ? 0 : 1;
+const byUrgency = (rows) => [...rows].sort((a, b) => isWaiting(a.p) - isWaiting(b.p) || b.f.actions.length - a.f.actions.length || b.f.reports.length - a.f.reports.length || a.i - b.i);
 const uniqueReports = (rows) => new Set(rows.flatMap((r) => r.f.reports.map((m) => m.id))).size;
+
+/* one state per project, shown everywhere: waiting red, working amber, ready green, quiet grey */
+const STATE_C = { waiting: "WAITING", working: "WARN", ready: "OK", quiet: "IDLE" };
+const stateDot = (st) => h("span", { class: "dot", style: `background:var(--${STATE_C[st.kind] || "IDLE"})` });
+const stateBadge = (st, cls) => h("span", { class: "pstate" + (cls ? " " + cls : ""), "data-kind": st ? st.kind : "", title: st && st.detail ? st.detail : null },
+  st ? [stateDot(st), h("b", {}, st.label), st.detail ? h("span", { class: "dt" }, st.detail) : null] : null);
 
 /* ---------- render ---------- */
 function paint(fn, focusK) {
@@ -596,20 +616,19 @@ function renderBar() {
   $("#bellpanel").hidden = !S.bell;
   if (S.bell) {
     const hot = byUrgency(rows).filter((r) => r.f.actions.length);
-    fill($("#bellpanel"), h("div", { class: "bh" }, h("b", {}, "Para ti · " + nAct), h("span", { class: "muted small" }, "gates y mensajes que esperan tu acción")),
+    fill($("#bellpanel"), h("div", { class: "bh" }, h("b", {}, "Para ti · " + nAct), h("span", { class: "muted small" }, "lo que te espera; se resuelve en el chat de cada proyecto")),
       hot.length ? hot.map(({ p, f }) => h("div", { class: "grp", "data-pid": p.id },
-        h("div", { class: "gh" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "bg" + p.id }, p.name), h("span", {}, "· " + f.actions.length)),
+        h("div", { class: "gh" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "bg" + p.id }, p.name), h("span", {}, "· " + f.actions.length), stateBadge(p.state, "small")),
         f.actions.map((a) => actionRow(p, a, "bell", false))))
-        : h("p", { class: "empty" }, "Nada espera tu acción."),
+        : h("p", { class: "empty" }, "Nada te espera."),
       h("div", { class: "foot" }, "Los reports sin leer no cuentan aquí: son información y están en cada proyecto."));
   }
 }
 
-/* ---------- gate and message actions, with their inline confirmation ---------- */
+/* ---------- inline confirmation (resources) ---------- */
 function toggleConfirm(ck) {
   if (S.confirm.has(ck)) { S.confirm.delete(ck); render("b|" + ck); } else { S.confirm.add(ck); render("n|" + ck); }
 }
-const toggleBtn = (ck, label, cls) => h("button", { class: cls, type: "button", "data-fk": "b|" + ck, "aria-expanded": String(S.confirm.has(ck)), onclick: () => toggleConfirm(ck) }, label);
 function confirmBox(ck, q, sub, yes, run, okText, onClose) {
   const err = h("span", { class: "ferr", role: "alert" });
   const close = () => { S.confirm.delete(ck); if (onClose) onClose(); };
@@ -623,39 +642,29 @@ function confirmBox(ck, q, sub, yes, run, okText, onClose) {
       h("button", { class: "btn ghost", type: "button", "data-fk": "n|" + ck, onclick: () => { close(); render("b|" + ck); } }, "Cancelar")),
     err);
 }
-const approve = (pid, ph) => api("POST", `/api/projects/${enc(pid)}/phases/${enc(ph.id)}/gate/approve`);
 const phaseStatus = (pid, phid, status) => api("POST", `/api/projects/${enc(pid)}/phases/${enc(phid)}`, { status });
-function gateConfirm(ck, p, ph) {
-  const review = ph.gate === "review";
-  return review
-    ? confirmBox(ck, `¿Aprobar el gate de «${ph.name}» en ${p.name}?`, "El trabajo autónomo podrá empezar esta fase.", "Sí, aprobar", () => approve(p.id, ph), "Gate aprobado")
-    : confirmBox(ck, `¿Marcar como hecha la fase «${ph.name}» en ${p.name}?`, "Confirma que has hecho la prueba manual.", "Sí, marcar como hecha", () => phaseStatus(p.id, ph.id, "done"), "Fase marcada como hecha");
-}
+const short = (t, n) => t.length > n ? t.slice(0, n) + "…" : t;
+/* "Para ti" / bell line: read-only; Danny resolves it in the project's chat */
 function actionRow(p, a, ctx, showProject) {
-  const ck = ctx + "|" + a.key, open = S.confirm.has(ck);
-  let word, title, why, btns, conf = null;
+  const ck = ctx + "|" + a.key;
+  let word, title, why;
   if (a.kind === "gate") {
-    word = h("span", { class: "st gate" }, GATE[a.ph.gate]);
+    word = h("span", { class: "st gate" }, "espera a Danny");
     title = h("div", { class: "ti wrap" }, h("span", { class: "n" }, nn(a.i)), a.ph.name);
-    why = a.ph.gate_reason ? h("div", { class: "why wrap" }, a.ph.gate_reason, a.ph.gate_set_by ? h("span", { class: "muted" }, " · puesto por " + a.ph.gate_set_by) : null) : null;
-    btns = [toggleBtn(ck, a.ph.gate === "review" ? "Aprobar" : "Marcar como hecha", "btn primary")];
-    if (open) conf = gateConfirm(ck, p, a.ph);
+    why = h("div", { class: "why wrap" }, a.ph.gate_reason || "", a.ph.gate_set_by ? h("span", { class: "muted" }, " · puesto por " + a.ph.gate_set_by) : null);
   } else {
     const m = a.m, mo = S.msgOpen.has(ck);
     word = h("span", { class: "st message" }, KIND[m.kind] || m.kind);
     title = h("div", { class: "ti wrap" }, m.title);
-    why = h("div", { class: "why wrap" }, `de ${m.from_project} · `, h("span", { class: "mono" }, ago(m.created_at)), mo ? h("div", { class: "body" }, m.body) : null);
-    btns = [h("button", { class: "btn ghost", type: "button", "data-fk": "v|" + ck, "aria-expanded": String(mo), onclick: () => { mo ? S.msgOpen.delete(ck) : S.msgOpen.add(ck); render("v|" + ck); } }, mo ? "Ocultar" : "Leer"),
-      toggleBtn(ck, "Marcar como hecho", "btn primary")];
-    if (open) conf = confirmBox(ck, `¿Marcar como hecho el mensaje «${m.title}» de ${p.name}?`, "Desaparece de tus acciones.", "Sí, marcar como hecho",
-      () => api("PATCH", `/api/messages/${enc(m.id)}`, { status: "done" }), "Mensaje marcado como hecho");
+    why = h("div", { class: "why wrap" }, `de ${m.from_project} · `, h("span", { class: "mono" }, ago(m.created_at)), " · ",
+      h("button", { class: "link", type: "button", "data-fk": "v|" + ck, "aria-expanded": String(mo), onclick: () => { mo ? S.msgOpen.delete(ck) : S.msgOpen.add(ck); render("v|" + ck); } }, mo ? "ocultar" : "leer"),
+      mo ? h("div", { class: "body" }, m.body) : null);
   }
   return h("div", { class: "row act", "data-ck": ck },
     word,
     showProject ? h("div", { class: "proj wrap" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "pa|" + ck }, p.name)) : null,
     h("div", { class: "what" }, title, why),
-    h("div", { class: "btns" }, btns),
-    conf);
+    h("a", { class: "where", href: "#p/" + enc(p.id), "data-fk": "w|" + ck }, "Resuélvelo en el chat de " + p.name));
 }
 /* reports: one collapsed line per project; "Marcar todos" marks each unread report read */
 function reportLine(p, f, ctx, showProject) {
@@ -672,10 +681,9 @@ function reportLine(p, f, ctx, showProject) {
 }
 function track(f) {
   return h("span", { class: "track", role: "img", "aria-label": `${f.done} de ${f.phases.length} fases hechas` },
-    f.phases.map((x, i) => h("i", { class: x.status === "done" ? "d" : x.blocking ? "g" : i === f.ci ? "c" : "" })));
+    f.phases.map((x, i) => h("i", { class: x.status === "done" ? "d" : x.gate_state === "waiting" ? "g" : i === f.ci ? "c" : "" })));
 }
-const stateWord = (status) => h("span", { class: "st " + (status === "done" ? "pdone" : status) },
-  h("span", { class: "dot", style: `background:var(--${status === "active" ? "OK" : "IDLE"})` }), PROJ[status] || status);
+const lifeWord = (status) => h("span", { class: "life" }, PROJ[status] || status); // lifecycle: a small label next to the state
 
 /* ---------- overview ---------- */
 const visibleProjects = () => byUrgency(allFacts()).filter((r) => S.filter === "all" || r.p.status === S.filter).map((r) => r.p);
@@ -683,13 +691,11 @@ function renderOverview() {
   const rows = allFacts(), urg = byUrgency(rows);
   const acts = urg.flatMap((r) => r.f.actions.map((a) => ({ ...r, a })));
   const nRep = uniqueReports(rows);
-  const rev = acts.filter((x) => x.a.kind === "gate" && x.a.ph.gate === "review").length;
-  const tst = acts.filter((x) => x.a.kind === "gate" && x.a.ph.gate === "manual_test").length;
-  const msg = acts.filter((x) => x.a.kind === "msg").length;
-  const what = [rev ? "aprobar " + pl(rev, "gate") : null, tst ? "probar " + pl(tst, "fase") : null, msg ? "atender " + pl(msg, "mensaje") : null].filter(Boolean);
+  const gts = acts.filter((x) => x.a.kind === "gate").length, msg = acts.length - gts;
+  const what = [gts ? pl(gts, "gate") : null, msg ? pl(msg, "mensaje") : null].filter(Boolean);
   const where = urg.filter((r) => r.f.actions.length).map((r) => `${r.f.actions.length} en ${r.p.name}`);
-  const lead = acts.length ? [h("span", { class: "warn" }, `Tienes ${pl(acts.length, "cosa", "cosas")} que hacer`), `: ${listJoin(what)} (${listJoin(where)})`]
-    : [h("span", { class: "ok" }, "Nada espera tu acción")];
+  const lead = acts.length ? [h("span", { class: "wait" }, `Te ${acts.length === 1 ? "espera" : "esperan"} ${pl(acts.length, "cosa", "cosas")}`), `: ${listJoin(what)} (${listJoin(where)}), en el chat de cada proyecto`]
+    : [h("span", { class: "ok" }, "Nada te espera")];
   lead.push(nRep ? `; además hay ${pl(nRep, "report sin leer", "reports sin leer")}, solo para leer.` : ".");
   const active = rows.filter((r) => r.p.status === "active").length;
   const date = new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
@@ -698,9 +704,9 @@ function renderOverview() {
 
   $("#ov-act").classList.toggle("hot", acts.length > 0);
   $("#ov-act-h").textContent = "Para ti · " + acts.length;
-  fill($("#ov-act-body"), acts.length ? [h("div", { class: "thead" }, h("span", {}, "Qué"), h("span", {}, "Proyecto"), h("span", {}, "Fase o mensaje"), h("span", { style: "text-align:right" }, "Acción")),
+  fill($("#ov-act-body"), acts.length ? [h("div", { class: "thead" }, h("span", {}, "Qué"), h("span", {}, "Proyecto"), h("span", {}, "Fase o mensaje"), h("span", { style: "text-align:right" }, "Dónde")),
     acts.map((x) => actionRow(x.p, x.a, "ov", true))]
-    : h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Nada espera tu acción."));
+    : h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Nada te espera."));
 
   $("#ov-rep").hidden = !nRep;
   $("#ov-rep-h").textContent = "Reports sin leer · " + nRep;
@@ -717,10 +723,11 @@ function renderOverview() {
   fill($("#ov-body"), vis.map((p, i) => {
     const f = facts(p);
     return h("div", { class: "row" + (S.ovMark && i === S.ovSel ? " sel" : ""), "data-pid": p.id, onclick: (e) => { S.ovSel = i; S.ovMark = true; if (!e.target.closest("a")) open(p.id); } },
-      stateWord(p.status),
-      h("div", { class: "nm" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "r" + p.id }, p.name),
-        p.state ? h("span", { class: "pst", role: "img", "data-kind": p.state.kind, "aria-label": p.state.label, title: p.state.label + (p.state.detail ? ": " + p.state.detail : "") }, stateDot(p.state)) : null,
-        h("span", { class: "sub", title: p.description }, p.description)),
+      h("div", { class: "stc" }, p.state ? h("span", { class: "pstate", "data-kind": p.state.kind }, stateDot(p.state), h("b", {}, p.state.label)) : null, lifeWord(p.status)),
+      h("div", { class: "nm" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "r" + p.id, title: p.description }, p.name),
+        p.state && p.state.detail && (p.state.kind === "waiting" || p.state.kind === "working")
+          ? h("span", { class: "why-st", "data-kind": p.state.kind, title: p.state.detail }, p.state.detail)
+          : h("span", { class: "sub", title: p.description }, p.description)),
       h("div", {}, track(f), " ", h("span", { class: "fr" }, `${f.done}/${f.phases.length}`)),
       h("div", { class: "cp wrap" }, f.cur ? [h("span", { class: "n" }, nn(f.ci) + " "), f.cur.name, " ", h("span", { class: "st cur" }, f.cur.status === "in_progress" ? "▶ en curso" : "▶ siguiente")]
         : h("span", { class: "muted" }, f.phases.length ? "todas hechas" : "sin fases")),
@@ -755,13 +762,13 @@ function renderProject() {
   const row = S.projects.find((p) => p.id === d.id) || {};
   const p = { ...row, ...d, phases: d.phases }, f = facts(p), total = f.phases.length;
   document.title = d.name + " · project-hub";
-  fill($("#phead"), h("h1", { tabindex: "-1" }, d.name), stateWord(d.status), track(f), h("span", { class: "mono dim" }, `${f.done}/${total} hechas`),
+  fill($("#phead"), h("h1", { tabindex: "-1" }, d.name), stateBadge(row.state, "head"), lifeWord(d.status), track(f), h("span", { class: "mono dim" }, `${f.done}/${total} hechas`),
     d.repo_path ? h("span", { class: "repo", title: "repo" }, d.repo_path) : null,
     h("a", { class: "back", href: "#overview", "data-fk": "back" }, "← Proyectos"));
   const sum = !total ? [h("b", {}, "Sin fases todavía")]
     : !f.cur ? [h("b", {}, `Las ${total} fases están hechas`)]
     : [h("b", {}, `Fase ${f.ci + 1} de ${total}`), f.cur.status === "in_progress" ? " en curso: " : ", la siguiente: ", h("b", {}, `«${f.cur.name}»`)];
-  sum.push(f.actions.length ? [": ", h("span", { class: "warn" }, `${pl(f.actions.length, "cosa espera", "cosas esperan")} tu acción`)] : ["; ", h("span", { class: "ok" }, "nada espera tu acción")]);
+  sum.push(f.actions.length ? [": ", h("span", { class: "wait" }, `${pl(f.actions.length, "cosa te espera", "cosas te esperan")} en el chat`)] : ["; ", h("span", { class: "ok" }, "nada te espera")]);
   sum.push(f.reports.length ? `, y ${pl(f.reports.length, "report sin leer", "reports sin leer")}.` : ".");
   fill($("#pr-lead"), sum);
   fill($("#pr-next"), h("b", {}, "Siguiente paso: "), d.next_step || "sin definir");
@@ -770,7 +777,7 @@ function renderProject() {
 
   $("#pr-act").classList.toggle("hot", f.actions.length > 0);
   $("#pr-act-h").textContent = "Para ti · " + f.actions.length;
-  fill($("#pr-act-body"), f.actions.length ? f.actions.map((a) => actionRow(p, a, "pv", false)) : h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Nada espera tu acción en este proyecto."));
+  fill($("#pr-act-body"), f.actions.length ? f.actions.map((a) => actionRow(p, a, "pv", false)) : h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Nada te espera en este proyecto."));
   $("#pr-rep").hidden = !f.reports.length;
   fill($("#pr-rep"), f.reports.length ? reportLine(p, f, "pv", false) : null);
 
@@ -795,67 +802,38 @@ function renderPhases(p, f) {
     : h("p", { class: "empty" }, "Sin fases todavía. Añádelas desde Claude con add_phase."));
 }
 function phaseRow(p, f, x, i, sel) {
-  const isCur = i === f.ci, gated = x.gate && x.gate !== "none", w = x.gate_approved_words || "";
-  // approved (review) or completed (manual_test) by Danny from his Claude Desktop chat, in his own words
-  const chat = x.gate_approved_by === "chat" ? `aprobado vía chat: «${w.length > 60 ? w.slice(0, 60) + "…" : w}»` : null;
-  const ck = "ph|" + p.id + ":g:" + x.id, pk = p.id + ":" + x.id, pending = S.pend[pk];
+  const isCur = i === f.ci, waits = x.gate_state === "waiting", w = x.gate_resolved_words || "";
+  const resolved = !waits && w ? `Resuelto vía chat: «${short(w, 60)}»` : null;
   const word = x.status === "done" ? h("span", { class: "st done" }, "✓ hecha")
     : isCur ? h("span", { class: "st cur" }, x.status === "in_progress" ? "▶ en curso" : "▶ siguiente")
     : h("span", { class: "st todo" }, PSTATE[x.status]);
-  const gate = !gated ? null : x.blocking ? [h("span", { class: "st gate" }, GATE[x.gate]), toggleBtn(ck, x.gate === "review" ? "Aprobar" : "Marcar como hecha", "btn primary small")]
-    : [h("span", { class: "st quiet" }, GATE[x.gate] + " ✓"), chat ? h("span", { class: "chat", title: x.gate_approved_words }, chat) : null];
+  const gate = waits ? h("span", { class: "st gate", title: x.gate_reason || null }, "espera a Danny")
+    : resolved ? h("span", { class: "chat", title: w }, resolved) : null;
   const kids = [
     h("span", { class: "n" }, nn(i)),
     h("div", {}, h("button", { class: "nm", type: "button", "data-fk": "ph" + x.id, "aria-pressed": String(sel), onclick: () => selectPhase(p.id, x.id) }, x.name),
       !sel && x.notes ? h("div", { class: "nt", title: x.notes }, x.notes) : null),
     word,
     h("div", { class: "gc" }, gate)];
-  if (S.confirm.has(ck)) kids.push(gateConfirm(ck, p, x));
   if (sel) {
     kids.push(h("div", { class: "detail" },
       h("div", { class: "notes" }, x.notes ? x.notes : h("span", { class: "dim" }, "Sin notas para esta fase.")),
-      gated ? h("div", { class: "gr" }, h("span", { class: "lbl" }, "Gate " + GATE[x.gate]), x.gate_reason || "", x.gate_set_by ? " · puesto por " + x.gate_set_by : "",
-        chat ? h("span", { title: w }, " · " + chat) : x.gate === "review" ? (x.gate_approved ? " · aprobado" : " · sin aprobar") : (x.status === "done" ? " · hecho" : " · sin hacer")) : null,
+      waits ? h("div", { class: "gr wait" }, `Espera a Danny: ${x.gate_reason || "sin motivo"}`, x.gate_set_by ? h("span", { class: "muted" }, " · puesto por " + x.gate_set_by) : null,
+        h("span", { class: "muted" }, ` · resuélvelo en el chat de ${p.name}`))
+        : resolved ? h("div", { class: "gr", title: w }, resolved, x.gate_resolved_action ? ` · ${x.gate_resolved_action}` : "", x.gate_resolved_at ? h("span", { class: "muted" }, " · " + fdt(x.gate_resolved_at)) : null) : null,
       h("div", { class: "stline" }, h("label", { class: "lbl", for: "st-" + x.id }, "Estado"),
-        h("select", { id: "st-" + x.id, "data-fk": "st" + x.id, onchange: (e) => setStatus(p.id, x, e.target.value) },
-          PHASE_ST.map((v) => h("option", { value: v, selected: v === (pending || x.status) }, PSTATE[v]))),
-        pending ? h("span", { class: "st gate" }, "sin guardar") : null),
-      pending ? confirmBox("st|" + pk, `¿Cambiar «${x.name}» a hecha en ${p.name}?`,
-        `Esta fase tiene un gate ${GATE[x.gate]}${x.blocking ? " que espera tu acción" : ""}; marcarla hecha lo da por cumplido.`, "Sí, cambiar a hecha",
-        () => phaseStatus(p.id, x.id, "done"), "Fase cambiada a hecha", () => { delete S.pend[pk]; }) : null,
-      gateForm(p, x)));
+        waits ? h("span", { class: "dim", id: "st-" + x.id }, PSTATE[x.status] + " · no se cambia aquí mientras espera a Danny")
+          : h("select", { id: "st-" + x.id, "data-fk": "st" + x.id, onchange: (e) => setStatus(p.id, x, e.target.value) },
+            PHASE_ST.map((v) => h("option", { value: v, selected: v === x.status }, PSTATE[v]))))));
   }
   return h("div", { class: "row" + (sel ? " sel" : "") + (x.status === "done" ? " isdone" : ""), "data-id": x.id,
-    onclick: (e) => { if (!e.target.closest("button, select, input, a, .confirm, .detail")) selectPhase(p.id, x.id); } }, kids);
+    onclick: (e) => { if (!e.target.closest("button, select, input, a, .detail")) selectPhase(p.id, x.id); } }, kids);
 }
 function selectPhase(pid, id) { S.phSel[pid] = id; S.sel = { kind: "phase", id }; render("ph" + id); }
-// the one way a phase status changes: done on a gated phase always asks first (selector and space key)
+// a phase whose gate waits for Danny has no status control: he decides in the project's chat
 function setStatus(pid, x, v) {
-  const pk = pid + ":" + x.id;
-  if (v === x.status) { delete S.pend[pk]; S.confirm.delete("st|" + pk); render(); return; }
-  if (v === "done" && x.gate && x.gate !== "none") { S.pend[pk] = v; S.confirm.add("st|" + pk); render("n|st|" + pk); return; }
-  delete S.pend[pk]; S.confirm.delete("st|" + pk);
+  if (v === x.status || x.gate_state === "waiting") return;
   act(() => phaseStatus(pid, x.id, v), "Fase cambiada a " + PSTATE[v]);
-}
-function gateForm(p, x) {
-  const k = p.id + "/" + x.id, base = { gate: x.gate || "none", reason: x.gate_reason || "" };
-  const dr = S.gd[k] || base, edit = (f, v) => { S.gd[k] = { ...dr, [f]: v }; Object.assign(dr, S.gd[k]); }; // a draft exists only once the user typed, so polling never overwrites it
-  const err = h("span", { class: "ferr", role: "alert" });
-  const inp = h("input", { "data-fk": "gr" + x.id, id: "gr" + x.id, maxlength: "160", value: dr.reason, "aria-label": "Motivo del gate (máx. 160)", placeholder: "motivo (máx. 160)", oninput: (e) => edit("reason", e.target.value) });
-  const set = async () => {
-    err.textContent = "";
-    if (dr.gate !== "none" && !dr.reason.trim()) { err.textContent = "Falta el motivo."; inp.focus(); return; }
-    const ok = await act(() => api("POST", `/api/projects/${enc(p.id)}/phases/${enc(x.id)}/gate`, { gate: dr.gate, reason: dr.gate === "none" ? "" : dr.reason }),
-      dr.gate === "none" ? "Gate quitado" : "Gate guardado", err, () => { delete S.gd[k]; });
-    return ok;
-  };
-  return h("div", { class: "gf" },
-    h("label", { class: "lbl", for: "gs" + x.id }, "Gate"),
-    h("select", { "data-fk": "gs" + x.id, id: "gs" + x.id, onchange: (e) => edit("gate", e.target.value) },
-      [["none", "sin gate"], ["review", "review"], ["manual_test", "test manual"]].map(([v, l]) => h("option", { value: v, selected: dr.gate === v }, l))),
-    inp,
-    h("button", { class: "btn small", type: "button", "data-fk": "gset" + x.id, onclick: set }, "Guardar gate"),
-    err);
 }
 
 const isOpenItem = (i) => i.status === "open" || i.status === "planned";
@@ -946,15 +924,10 @@ async function copyText(t) {
   let ok = false; try { ok = document.execCommand("copy"); } catch (e) { /* ignore */ }
   ta.remove(); return ok;
 }
-/* per-project state (server): ready / waiting = green, working = amber, quiet = grey */
-const STATE_C = { ready: "OK", waiting: "OK", working: "WARN", quiet: "IDLE" };
-const stateDot = (st) => h("span", { class: "dot", style: `background:var(--${STATE_C[st.kind] || "IDLE"})` });
 function stateOf(id) { // the polled projects list is the freshest source; the summary's own copy is the fallback
   const r = S.projects.find((p) => p.id === id) || (S.sumD && S.sumD.projects.find((p) => p.id === id)) || {};
   return r.state;
 }
-const stateBadge = (st) => h("span", { class: "su-st", "data-kind": st ? st.kind : "" },
-  st ? [stateDot(st), h("b", {}, st.label), st.detail ? h("span", { class: "dt", title: st.detail }, st.detail) : null] : null);
 const copyLabel = (p, st) => !(p.copy && p.copy.new) ? (p.copied_at ? "Nada nuevo desde la última copia" : "Nada nuevo que copiar")
   : st && st.kind === "working" ? "Copiar igualmente" : "Copiar para el chat";
 // polling updates only the state badges and button texts, in place: boxes, expansion and focus stay as they are
@@ -964,7 +937,7 @@ function syncSumStates() {
     const box = document.querySelector(`.su-proj[data-id="${CSS.escape(p.id)}"]`);
     if (!box) continue;
     const st = stateOf(p.id), btn = box.querySelector("[data-copy]"), label = copyLabel(p, st);
-    box.querySelector(".su-st").replaceWith(stateBadge(st));
+    box.querySelector(".pstate").replaceWith(stateBadge(st));
     if (btn.textContent !== label) btn.textContent = label;
   }
 }
@@ -1001,7 +974,7 @@ function sumProject(p) {
       h("button", { class: "btn small", type: "button", "data-copy": p.id, "data-fk": "cp" + p.id, disabled: !cp.new, onclick: () => copyProject(p) }, copyLabel(p, stateOf(p.id)))),
     S.suOpen.has(p.id) ? h("div", { class: "su-in" },
       h("p", { class: "su-n" }, c.phase ? `${c.phase} · ` : "", "siguiente paso: ", c.next_step || "—"),
-      sec("wait", "Esperan a Danny", [...a.gates.map((g) => L(h("span", { class: "su-k" }, GATE[g.gate] || g.gate), ` ${g.phase} `, h("small", {}, g.reason || ""))),
+      sec("wait", "Esperan a Danny", [...a.gates.map((g) => L(h("span", { class: "su-k" }, "espera a Danny"), ` ${g.phase} `, h("small", {}, (g.reason || "") + (g.set_by ? " · puesto por " + g.set_by : "")))),
         ...a.user_messages.map((m) => L(h("span", { class: "su-k" }, "mensaje"), ` ${m.title} `, h("small", {}, `${m.from_project} · ${fdt(m.created_at)}`)))]),
       sec("reports", "Reports", p.reports.map((r) => h("details", { class: "su-l" }, h("summary", {}, r.title, h("small", {}, `${r.from_project} · ${fdt(r.created_at)}`)), h("pre", {}, r.body)))),
       sec("dec", "Decisiones", p.decisions.map((x) => L(x.decision, x.reason ? h("small", {}, `porque ${x.reason}`) : null))),
@@ -1114,7 +1087,7 @@ function key(k, target) {
 addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     if (S.bell) { setBell(false); return; }
-    if (S.confirm.size) { for (const k of S.confirm) if (k.startsWith("st|")) delete S.pend[k.slice(3)]; S.confirm.clear(); S.sum ? null : render(); }
+    if (S.confirm.size) { S.confirm.clear(); S.sum ? null : render(); }
     return;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1133,7 +1106,7 @@ function route() {
   if (S.sum) { if (!wasSum) { S.sumD = null; S.sumHours = 0; S.pid = null; S.focusNext = true; S.suOpen = new Set(); S.copiedNow = new Set(); fill($("#su-body")); } showSummary(); return; } // no stale boxes from the last visit
   const pid = m ? decodeURIComponent(m[1]) : null;
   if (pid !== S.pid || wasSum) {
-    S.pid = pid; S.sel = null; S.gd = {}; S.d = null; S.key = ""; S.confirm.clear(); S.pend = {};
+    S.pid = pid; S.sel = null; S.d = null; S.key = ""; S.confirm.clear();
     if (pid) S.last = pid;
     else { const i = visibleProjects().findIndex((x) => x.id === S.last); if (i >= 0) { S.ovSel = i; S.ovMark = true; } }
     S.focusNext = true;
