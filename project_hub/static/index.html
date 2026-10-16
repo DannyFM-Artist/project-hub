@@ -518,6 +518,7 @@ function renderProject() {
         h("span", { class: "n" }, h("span", {}, String(i + 1).padStart(2, "0")), h("span", { class: "s" }, `${PH_SYM[p.status]} ${p.status.replace("_", " ")}`)),
         h("h4", {}, p.name), h("p", {}, p.notes || ""),
         p.gate && p.gate !== "none" ? [h("div", { class: `gt gate-${p.gate}` + (p.gate === "review" && p.gate_approved ? " ok" : "") }, GATE[p.gate], p.gate === "review" ? (p.gate_approved ? " · approved" : " · not approved") : null, h("small", {}, p.gate_set_by ? ` · set by ${p.gate_set_by}` : "")),
+          p.gate_approved_by === "chat" ? h("div", { class: "gt gate-" + p.gate + " ok", title: p.gate_approved_words }, "aprobado vía chat: «" + (p.gate_approved_words.length > 60 ? p.gate_approved_words.slice(0, 60) + "…" : p.gate_approved_words) + "»") : null,
           p.gate_reason ? h("p", { class: "gr" }, p.gate_reason) : null] : null),
       sel ? h("div", { class: "selst" }, "status:", PHASE_ST.map((s) => h("button", { type: "button", class: p.status === s ? "on" : "", onclick: () => setPhase(p.id, s) }, s))) : null,
       sel ? gateForm(p) : null);

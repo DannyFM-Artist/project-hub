@@ -95,6 +95,14 @@ try:
         hub.set_gate("gatedemo", ph["Ship"], "manual_test", "x" * 160, by="user")
         pg.goto(BASE + "/#overview"); pg.wait_for_selector("#wt-pane:not([hidden])")
         check("no horizontal scroll (overview, long reason)", pg.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"))
+        hub.create_project("chatdemo", "chatdemo", "chat approval", phases=["Rev"])
+        cid = hub.get_project("chatdemo")["phases"][0]["id"]
+        hub.set_gate("chatdemo", cid, "review", "check it")
+        hub.approve_gate_chat("chatdemo", cid, "sí, apruebo esta fase " + "y " * 50)
+        pg.goto(BASE + "/#p/chatdemo"); pg.wait_for_selector("#cues .cue")
+        card = pg.inner_text("#cues .cue")
+        check("badge shows aprobado vía chat", "aprobado vía chat: «sí, apruebo esta fase" in card and "…»" in card, card)
+        check("full words in tooltip", "y y y y" in (pg.get_attribute("#cues .cue [title]", "title") or ""))
         check("no console errors", not errors, errors)
         b.close()
 finally:
