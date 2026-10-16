@@ -7,13 +7,16 @@ name = "project-hub"
 version = "0.1.0"
 description = "Local project-tracking hub: data layer, MCP stdio server and web dashboard sharing one data folder."
 requires-python = ">=3.11"
-dependencies = ["mcp>=2", "fastapi", "uvicorn", "filelock"]
+dependencies = ["mcp>=2", "fastapi", "uvicorn", "filelock", "pystray", "Pillow"]
 
 [project.optional-dependencies]
 dev = ["pytest", "httpx"]
 
 [project.scripts]
 project-hub = "project_hub.cli:main"
+
+[project.gui-scripts]
+project-hub-tray = "project_hub.tray:main"
 
 [tool.setuptools]
 packages = ["project_hub"]

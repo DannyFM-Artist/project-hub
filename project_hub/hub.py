@@ -30,7 +30,7 @@ class HubError(ValueError):
     """Invalid id or value. Messages for missing ids start with "unknown "."""
 
 
-GITIGNORE_ENTRIES = (".lock", "*.tmp")  # the lock file and atomic-write temp files this module creates
+GITIGNORE_ENTRIES = (".lock", "*.tmp", "logs/")  # lock file, atomic-write temp files, tray dashboard logs
 
 
 def data_dir() -> Path:

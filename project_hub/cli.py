@@ -39,6 +39,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("mcp", help="run the MCP stdio server")
     sub.add_parser("dashboard", help="run the web dashboard on http://127.0.0.1:8765")
+    sub.add_parser("tray", help="run the dashboard as a Windows tray app (no console when started as project-hub-tray)")
     sub.add_parser("session-start", help="print project context for the current directory (SessionStart hook)")
     sub.add_parser("migrate-gates", help="rewrite every project file once in the single-gate format")
     command = parser.parse_args().command
@@ -51,6 +52,8 @@ def main() -> None:
         from .mcp_server import main as run
     elif command == "dashboard":
         from .web import main as run
+    elif command == "tray":
+        from .tray import main as run
     else:
         run = session_start
     run()

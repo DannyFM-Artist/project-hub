@@ -140,6 +140,25 @@ project-hub dashboard
 
 Opens at http://127.0.0.1:8765 (bound to 127.0.0.1 only). Uses `~/project-hub-data` unless `PROJECT_HUB_DATA` is set.
 
+### Tray app (no console window)
+
+```
+project-hub-tray      # windowless; "project-hub tray" from a console does the same
+```
+
+Starts the dashboard in a background thread and puts a brain icon in the Windows notification area (it may be under the ^ overflow). Menu: Abrir dashboard (also double-click), Reiniciar servidor, Abrir carpeta de datos, Salir. To stop the dashboard use tray > Salir; to restart it, tray > Reiniciar servidor. A second launch while something already answers on port 8765 only opens the browser.
+
+Logs (dashboard, uvicorn and uncaught errors) go to `<data>/logs/dashboard.log` (1 MB x 3, ignored by the data folder's git).
+
+To start it at login, preview and then install the Startup shortcut:
+
+```
+powershell -File tools/install_startup_shortcut.ps1          # dry run, prints what it would do
+powershell -File tools/install_startup_shortcut.ps1 -Apply   # writes "project-hub dashboard.lnk" in Startup
+```
+
+`project_hub/static/icons/app.ico` is built from the PNGs with `python tools/make_ico.py`.
+
 ## Browser checks
 
 `tests/browser/` holds click checks that drive the dashboard in real Chrome with Playwright. They are separate from `pytest` (which never collects them). Each script seeds a throwaway data folder in your temp directory, starts its own dashboard on a free port chosen by the OS (so it runs while the real dashboard is up on 8765) and prints `PASS`/`FAIL` lines ending in `FAILED: []` when everything passes. They need Google Chrome installed, plus Playwright in a separate virtual environment:

@@ -43,7 +43,7 @@ def test_data_dir_expands_user(monkeypatch):
 def test_gitignore_created_on_first_write(hub):
     assert not (hub.dir / ".gitignore").exists()
     hub.create_project("app", "App", "")
-    assert (hub.dir / ".gitignore").read_text(encoding="utf-8") == ".lock\n*.tmp\n"
+    assert (hub.dir / ".gitignore").read_text(encoding="utf-8") == ".lock\n*.tmp\nlogs/\n"
 
 
 def test_gitignore_merges_with_existing(tmp_path):
@@ -52,7 +52,7 @@ def test_gitignore_merges_with_existing(tmp_path):
     (folder / ".gitignore").write_text("# mine\n*.bak\n*.tmp", encoding="utf-8")  # no trailing newline
     Hub(folder).create_project("app", "App", "")
     Hub(folder).create_project("app2", "App 2", "")  # a second process-like instance adds nothing more
-    assert (folder / ".gitignore").read_text(encoding="utf-8") == "# mine\n*.bak\n*.tmp\n.lock\n"
+    assert (folder / ".gitignore").read_text(encoding="utf-8") == "# mine\n*.bak\n*.tmp\n.lock\nlogs/\n"
 
 
 def test_create_and_get(hub):
