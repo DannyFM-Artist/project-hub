@@ -40,20 +40,22 @@ with sync_playwright() as p:
     pg = b.new_page(viewport={"width": 1440, "height": 1000})
     pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     pg.on("pageerror", lambda e: errors.append(str(e)))
-    pg.goto(BASE + "/"); pg.wait_for_selector("tr.row")
+    dialogs = []
+    pg.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))  # the dashboard must never use alert/confirm
+    pg.goto(BASE + "/"); pg.wait_for_selector(".proj")
     # 1
-    pg.click("#ov-filter >> text=paused"); n1 = pg.locator("tr.row").count()
+    pg.click("#ov-filter >> text=paused"); n1 = pg.locator(".proj").count()
     pg.click("#ov-filter >> text=all")
-    names = pg.locator("tr.row td.name a").all_inner_texts()
+    names = pg.locator(".proj h2 a").all_inner_texts()
     pg.keyboard.press("ArrowDown"); pg.keyboard.press("ArrowDown"); pg.keyboard.press("Enter")
     pg.wait_for_selector("#phead h2")
     sel_name = pg.inner_text("#phead h2")
     ok1 = n1 == 1 and sel_name == names[2] and "#p/" in pg.url
     pg.reload(); pg.wait_for_selector("#phead h2"); ok1 &= pg.inner_text("#phead h2") == sel_name
-    pg.keyboard.press("1"); pg.wait_for_selector("tr.row")
+    pg.keyboard.press("1"); pg.wait_for_selector(".proj")
     time.sleep(.3)
-    focus_ov = pg.evaluate("!!(document.activeElement.closest('tr') && document.activeElement.closest('tr').classList.contains('sel'))")
-    pg.click("tr.row >> nth=0"); pg.wait_for_selector("#phead h2")
+    focus_ov = pg.evaluate("!!(document.activeElement.closest('.proj') && document.activeElement.closest('.proj').classList.contains('sel'))")
+    pg.click(".proj >> nth=0"); pg.wait_for_selector("#phead h2")
     ok1 &= pg.inner_text("#phead h2") == names[0]
     check("1 overview filter / keys / click / hash reload", ok1, names)
     pg.goto(BASE + "/#p/framegrade"); pg.wait_for_selector("#phead h2"); time.sleep(.3)
@@ -61,15 +63,15 @@ with sync_playwright() as p:
     check("2b focus on selected row on return to overview", focus_ov)
     # 2 phases
     ph = hub.get_project("framegrade")["phases"]
-    pg.click(f"[data-fk='ph{ph[3]['id']}']"); pg.click(".cue.sel .selst >> text=done")
-    pg.wait_for_function("document.querySelectorAll('.cue.done').length==3")
+    pg.click(f"[data-fk='ph{ph[3]['id']}']"); pg.click(".pe.sel .selst >> text=done")
+    pg.wait_for_function("document.querySelectorAll('.pe.st-done').length==3")
     c = hub.get_project("framegrade")["phases"][3]["status"] == "done"
     pg.click(f"[data-fk='ph{ph[4]['id']}']"); pg.evaluate("document.activeElement.blur()")
-    pg.keyboard.press(" "); pg.wait_for_function("document.querySelectorAll('.cue.in_progress').length==1")
+    pg.keyboard.press(" "); pg.wait_for_function("document.querySelectorAll('.pe.st-in_progress').length==2")
     c &= hub.get_project("framegrade")["phases"][4]["status"] == "in_progress"
     check("2 phase status by click and by space", c)
     # 3
-    pg.click("text=[a]dd"); pg.wait_for_selector("#f-item:not([hidden])")
+    pg.click("[data-fk=additem]"); pg.wait_for_selector("#f-item:not([hidden])")
     pg.click("#f-item button[type=submit]")
     err = pg.inner_text("#f-item .ferr"); still = pg.is_visible("#f-item")
     foc = pg.evaluate("document.activeElement.name") == "title"
@@ -84,7 +86,7 @@ with sync_playwright() as p:
     pg.select_option("#f-item [name=type]", "idea"); pg.fill("#f-item [name=title]", "Key item")
     pg.click("#f-item button[type=submit]"); pg.wait_for_selector("#f-item", state="hidden")
     check("3 add item (button, a key, inline error, focus, in-flight disabled)", ok and typed_a and items()["Key item"]["type"] == "idea", (err, still, foc, dis))
-    pg.click("text=[a]dd"); pg.fill("#f-item [name=title]", "xxxxx")
+    pg.click("[data-fk=additem]"); pg.fill("#f-item [name=title]", "xxxxx")
     pg.evaluate("document.querySelector('#f-item [name=type]').insertAdjacentHTML('beforeend','<option value=zzz>zzz</option>')")
     pg.select_option("#f-item [name=type]", "zzz")
     pg.click("#f-item button[type=submit]"); pg.wait_for_selector("#f-item .ferr:not(:empty)")
@@ -94,20 +96,21 @@ with sync_playwright() as p:
           and pg.evaluate("document.activeElement.name") == "type" and pg.locator(".toast.err").count() >= 1, (e2, pg.is_visible("#f-item"), pg.input_value("#f-item [name=title]"), pg.evaluate("document.activeElement.name+document.activeElement.tagName"), pg.locator(".toast.err").count()))
     pg.click("#f-item [data-cancel]"); pg.evaluate("document.querySelector('#f-item').reset()")
     # 4
-    def row(t): return pg.locator(".it", has_text=t)
-    row("Key item").locator(".itbtn").click()
+    def row(t): return pg.locator("#board li[data-id]", has_text=t)
+    row("Key item").locator("summary").click()
     row("Key item").get_by_label("Move to planned: Key item").click()
     time.sleep(.6); a = items()["Key item"]["status"] == "planned"
     pg.keyboard.press("ArrowRight"); time.sleep(.6); a &= items()["Key item"]["status"] == "done"
     pg.keyboard.press("ArrowLeft"); time.sleep(.6); a &= items()["Key item"]["status"] == "planned"
     row("Key item").get_by_label("Discard item: Key item").click(); time.sleep(.6); a &= items()["Key item"]["status"] == "discarded"
-    gone = pg.locator(".it", has_text="Key item").count() == 0
+    gone = pg.locator("#board li[data-id]", has_text="Key item").count() == 0
     pg.evaluate("document.activeElement.blur()")
-    pg.keyboard.press("x"); pg.wait_for_selector(".kc.dc"); shown = pg.locator(".kc.dc .it", has_text="Key item").count() == 1
-    pg.locator(".kc.dc .it", has_text="Key item").get_by_label("Restore to open: Key item").click(); time.sleep(.6); a &= items()["Key item"]["status"] == "open"
-    pg.locator(".it", has_text="Key item").locator(".itbtn").click()
+    pg.keyboard.press("x"); pg.wait_for_selector(".grp.idea .closed"); shown = pg.locator("#board li[data-id]", has_text="Key item").count() == 1
+    pg.click(".grp.idea .closed summary")
+    if not row("Key item").get_by_label("Restore to open: Key item").is_visible(): row("Key item").locator("summary").click()  # expand state is kept per item
+    row("Key item").get_by_label("Restore to open: Key item").click(); time.sleep(.6); a &= items()["Key item"]["status"] == "open"
     pg.keyboard.press("ArrowRight"); time.sleep(.6); a &= items()["Key item"]["status"] == "planned"
-    pg.click("#chips >> text=discarded"); pg.wait_for_selector(".kc.dc", state="detached")
+    pg.click("#chips >> text=discarded"); time.sleep(.3); shown &= pg.locator("#board li[data-id]", has_text="Old thing").count() == 0
     check("4 move by button/keys, discard, restore, show-discarded toggle", a and gone and shown)
     # 5
     pg.click("#msg-open"); pg.wait_for_selector("#f-msg:not([hidden])")
@@ -120,25 +123,26 @@ with sync_playwright() as p:
     mm = msgs()
     check("5 post message (button task to project, m key to all)", mm["Btn msg"]["kind"] == "task" and mm["Btn msg"]["to_project"] == "framegrade" and allm and allm[0]["to_project"] == "all")
     # 6
-    pg.locator(".m", has_text="Btn msg").get_by_role("button", name="Mark read").click(); time.sleep(.6)
+    pg.locator("#msgs li", has_text="Btn msg").locator("summary").click()
+    pg.locator("#msgs li", has_text="Btn msg").get_by_role("button", name="Mark read").click(); time.sleep(.6)
     ok6 = msgs()["Btn msg"]["status"] == "read"
-    pg.locator(".m", has_text="Btn msg").get_by_role("button", name="Mark done").click(); time.sleep(.6)
+    pg.locator("#msgs li", has_text="Btn msg").get_by_role("button", name="Mark done").click(); time.sleep(.6)
     ok6 &= msgs()["Btn msg"]["status"] == "done"
-    pg.locator(".m", has_text="All msg").locator(".k").click(); pg.evaluate("document.activeElement.blur()")
+    pg.locator("#msgs li", has_text="All msg").locator("summary").click(); pg.evaluate("document.activeElement.blur()")
     pg.keyboard.press("r"); time.sleep(.6); ok6 &= msgs()["All msg"]["status"] == "read"
     pg.keyboard.press("d"); time.sleep(.6); ok6 &= msgs()["All msg"]["status"] == "done"
     check("6 mark read/done by button and r/d", ok6)
     # 7
-    pg.click("#chips >> text=bug"); pg.evaluate("document.activeElement.blur()"); pg.keyboard.press("a")
+    pg.click("#chips >> text=Bugs"); pg.evaluate("document.activeElement.blur()"); pg.keyboard.press("a")
     pg.fill("#f-item [name=title]", "typing across poll"); pg.locator("#f-item [name=title]").focus()
     t0 = pg.inner_text("#sync"); time.sleep(6.5); t1 = pg.inner_text("#sync")
     ok7 = (t0 != t1) and pg.input_value("#f-item [name=title]") == "typing across poll" and pg.evaluate("document.activeElement.name") == "title" \
-        and pg.locator("#chips button.on").inner_text() == "bug" and pg.is_visible("#f-item")
+        and pg.locator("#chips button.on").inner_text() == "Bugs" and pg.is_visible("#f-item")
     pg.click("#f-item [data-cancel]")
-    pg.locator(".it").first.locator(".itbtn").click(); sid = pg.locator(".it.sel").get_attribute("data-id")
+    pg.locator("#board li[data-id]").first.locator("summary").click(); sid = pg.locator("#board li.sel").get_attribute("data-id")
     hub.add_item("framegrade", "bug", "external", ""); time.sleep(6.5)
-    ok7 &= pg.locator(".it.sel").get_attribute("data-id") == sid and pg.locator(".it", has_text="external").count() == 1 \
-        and pg.evaluate("document.activeElement.className") == "itbtn"
+    ok7 &= pg.locator("#board li.sel").get_attribute("data-id") == sid and pg.locator("#board li[data-id]", has_text="external").count() == 1 \
+        and pg.evaluate("document.activeElement.dataset.fk") == "i" + sid
     check("7 poll keeps form text, focus, selection, filter; picks up external change", ok7, (t0, t1))
     pg.click("#chips >> text=all")
     # 8
@@ -148,10 +152,9 @@ with sync_playwright() as p:
     check("8 shortcuts ignored while typing", v == "1m xrd2" and pg.is_visible("#f-item") and "#p/framegrade" in pg.url and not pg.is_visible("#f-msg"), v)
     pg.click("#f-item [data-cancel]")
     # target sizes and headings
-    small = pg.evaluate("""()=>[...document.querySelectorAll('button:not(.itbtn):not(.main):not(#msg-open):not(.k):not(.ia button),.tab')].filter(e=>e.offsetParent).map(e=>{const r=e.getBoundingClientRect();return [e.textContent.trim().slice(0,20),Math.round(r.width),Math.round(r.height)]}).filter(x=>x[1]<24||x[2]<24)""")
-    pg.locator(".it").first.locator(".itbtn").click()
-    small += pg.evaluate("""()=>[...document.querySelectorAll('.it.sel .ia button')].map(e=>{const r=e.getBoundingClientRect();return [e.title,Math.round(r.width),Math.round(r.height)]}).filter(x=>x[1]<24||x[2]<24)""")
-    check("A target size >=24px (.k message labels use a ::after overlay)", not small, small)
+    pg.locator("#board li[data-id]").first.locator("summary").click()  # expanded item shows its move buttons
+    small = pg.evaluate("""()=>[...document.querySelectorAll('button:not(.pmain),.tab')].filter(e=>e.offsetParent).map(e=>{const r=e.getBoundingClientRect();return [e.textContent.trim().slice(0,20),Math.round(r.width),Math.round(r.height)]}).filter(x=>x[1]<24||x[2]<24)""")
+    check("A target size >=24px", not small, small)
     heads = pg.evaluate("[...document.querySelectorAll('h1,#phead h2,#project h3')].map(e=>e.tagName+':'+e.firstChild.textContent.trim())")
     check("B headings h1/h2/h3", heads[:2] == ["H1:project-hub", "H2:framegrade"] and sum(x.startswith("H3") for x in heads) == 4, heads)
     # 9
@@ -165,6 +168,7 @@ with sync_playwright() as p:
     # the invalid-type 400 of check 3b is a deliberate error response
     real = [e for e in real if "400" not in e]
     check("10 no console errors", not real, real)
+    check("11 no window.alert/confirm/prompt", not dialogs, dialogs)
     b.close()
 srv.terminate()
 print("FAILED:", [n for n, ok in res if not ok])

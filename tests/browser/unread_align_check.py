@@ -1,4 +1,4 @@
-"""Check the two fixes in a real browser: unique top-bar unread count, phase labels aligned. Retakes the project screenshot."""
+"""Unique top-bar unread count, and the overview summary sentence counts each unread report once. Takes no screenshots."""
 import os, shutil, subprocess, sys, time, urllib.request
 import tempfile
 from pathlib import Path
@@ -8,7 +8,6 @@ from hubserver import BASE, PORT, SERVE
 
 S = Path(__file__).resolve().parent
 D = Path(tempfile.mkdtemp(prefix="hub-browser-"))  # never the real data folder
-SHOT = S.parents[1] / "mockups" / "impl-B-project.png"
 subprocess.check_call([sys.executable, str(S / "seed.py"), str(D)])
 from project_hub.hub import Hub
 hub = Hub(D)
@@ -36,15 +35,11 @@ try:
         top = pg.text_content("#unread").strip()
         print(f"top bar: {top!r}; unique unread = {unique}; old per-project sum = {per_project_sum}")
         if top != f"{unique} unread": fails.append("top-bar unread")
-        rows = pg.eval_on_selector_all(".cue", "els => els.map(e => [e.className, e.querySelector('h4').getBoundingClientRect().top, e.querySelector('.n').getBoundingClientRect().top])")
-        for r in rows: print("phase", r)
-        if len({round(r[1]) for r in rows}) != 1 or len({round(r[2]) for r in rows}) != 1: fails.append("phase label alignment")
-        pg.goto(BASE + "/#overview"); pg.wait_for_selector("tr.row"); time.sleep(.3)
-        badges = pg.eval_on_selector_all("td .inb", "els => els.map(e => e.textContent)")
-        print("overview per-project badges:", badges)
-        pg.goto(BASE + "/#p/framegrade"); pg.wait_for_selector("#phead h2"); time.sleep(.5)
-        pg.mouse.move(0, 0)
-        pg.screenshot(path=str(SHOT))
+        pg.goto(BASE + "/#overview"); pg.wait_for_selector(".proj"); time.sleep(.3)
+        reports = sum(m["kind"] == "report" and m["status"] == "unread" for pr in hub.list_projects() for m in hub.read_inbox(pr["id"]))
+        lead = pg.inner_text("#ov-lead")
+        print("lead:", lead, "| unread reports:", reports)
+        if f"{reports} unread report" not in lead: fails.append("overview lead report count")
         if errors: fails.append(f"console errors {errors}")
         b.close()
 finally:

@@ -1,4 +1,4 @@
-"""Browser checks for overview order, phase position, repo header, label alignment, unread count; retakes both screenshots."""
+"""Browser checks for overview order (urgent first), phase sentence, repo header, unread count and phase numbering. Takes no screenshots."""
 import os, shutil, subprocess, sys, time, urllib.request
 import tempfile
 from pathlib import Path
@@ -8,7 +8,6 @@ from hubserver import BASE, PORT, SERVE
 
 S = Path(__file__).resolve().parent
 D = Path(tempfile.mkdtemp(prefix="hub-browser-"))  # never the real data folder
-M = S.parents[1] / "mockups"
 subprocess.check_call([sys.executable, str(S / "seed.py"), str(D)])
 from project_hub.hub import Hub
 hub = Hub(D)
@@ -31,12 +30,17 @@ time.sleep(1.1); hub.update_project("cuedeck", next_step="Map Brompton presets t
 time.sleep(1.1); hub.update_project("project-hub", next_step="Concurrent-write test with two processes")
 
 order = ("active", "paused", "parked", "done")
-expected = [p["name"] for p in sorted(sorted(hub.list_projects(), key=lambda p: p["updated_at"], reverse=True),
-                                      key=lambda p: order.index(p["status"]))]
+def urgent(p):  # waiting gates + unread reports, the overview's first sort key
+    from project_hub.web import hub as _  # noqa: F401  (import check only)
+    ph = p["phases"]
+    gates = sum((x.get("gate") == "manual_test" and x["status"] != "done") or (x.get("gate") == "review" and not x.get("gate_approved")) for x in ph)
+    return gates + sum(m["kind"] == "report" for m in hub.read_inbox(p["id"]))
+expected = [p["name"] for p in sorted(sorted(sorted(hub.list_projects(), key=lambda p: p["updated_at"], reverse=True),
+                                             key=lambda p: order.index(p["status"])), key=urgent, reverse=True)]
 def pos(p):
     from project_hub.biblia import current_phase
     c = current_phase(p)
-    return f"{p['phases'].index(c) + 1}/{len(p['phases'])}" if c else None
+    return f"Phase {p['phases'].index(c) + 1} of {len(p['phases'])}" if c and c["status"] != "done" else None
 expected_pos = {p["name"]: pos(p) for p in hub.list_projects()}
 unique = len({m["id"] for p in hub.list_projects() for m in hub.read_inbox(p["id"])})
 
@@ -54,27 +58,26 @@ try:
         pg = b.new_page(viewport={"width": 1440, "height": 800})
         errors = []
         pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-        pg.goto(BASE + "/#overview"); pg.wait_for_selector("tr.row"); time.sleep(.5)
-        rows = pg.eval_on_selector_all("tr.row", "els => els.map(r => [r.querySelector('td.name a, td.name').firstChild.textContent.trim(), (r.querySelector('td.ph small') || {}).textContent || null])")
+        pg.goto(BASE + "/#overview"); pg.wait_for_selector(".proj"); time.sleep(.5)
+        rows = pg.eval_on_selector_all(".proj", "els => els.map(r => [r.querySelector('h2 a').textContent.trim(), r.querySelector('.sum').textContent])")
         names = [r[0] for r in rows]
-        print("overview order:", names, "\nexpected:      ", expected)
+        print("overview order:", names, "
+expected:      ", expected)
         if names != expected: fails.append("overview order")
         for name, shown in rows:
-            print(f"  {name}: phase col {shown!r}, expected {expected_pos[name]!r}")
-            if shown != expected_pos[name]: fails.append(f"phase position {name}")
+            print(f"  {name}: {shown!r}, expected {expected_pos[name]!r}")
+            if expected_pos[name] and not shown.startswith(expected_pos[name]): fails.append(f"phase position {name}")
         top = pg.text_content("#unread").strip()
         if top != f"{unique} unread": fails.append(f"top-bar unread {top!r} != {unique}")
-        pg.mouse.move(0, 0); pg.screenshot(path=str(M / "impl-B-overview.png"))
 
         pg.set_viewport_size({"width": 1440, "height": 1000})
         pg.goto(BASE + "/#p/framegrade"); pg.wait_for_selector("#phead h2"); time.sleep(.5)
         head = pg.text_content("#phead")
         print("header:", " ".join(head.split()))
-        if not ("repo " + repos["framegrade"] in head and head.index("repo ") < head.index("next")): fails.append("repo in header before next")
-        tops = pg.eval_on_selector_all(".cue", "els => els.map(e => [e.className, Math.round(e.querySelector('h4').getBoundingClientRect().top)])")
-        print("phase label tops:", tops)
-        if len({t[1] for t in tops}) != 1: fails.append("phase label alignment")
-        pg.mouse.move(0, 0); pg.screenshot(path=str(M / "impl-B-project.png"))
+        if "repo " + repos["framegrade"] not in head: fails.append("repo in header")
+        nums = pg.eval_on_selector_all("#tl .pe .n", "els => els.map(e => e.textContent.trim())")
+        print("phase numbers:", nums)
+        if not nums or any(n for n in nums if not n.replace("/", "").isdigit()): fails.append("phase numbering")
         pg.goto(BASE + "/#p/led-mapper"); pg.wait_for_selector("#phead h2"); time.sleep(.4)
         if "repo " in pg.text_content("#phead"): fails.append("repo label shown for project without repo_path")
         if errors: fails.append(f"console errors {errors}")
