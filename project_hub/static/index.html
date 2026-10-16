@@ -976,7 +976,8 @@ async function copyProject(p) {
   if (!await copyText(p.copy.chat_text)) { toast("No se pudo copiar", "err"); return; }
   try {
     await api("POST", "/api/summary/copied", { project_id: p.id, at: S.sumD.until });
-    S.copiedNow.add(p.id); toast(`Copiado para el chat: ${p.name}`, "ok"); loadSummary();
+    S.copiedNow.add(p.id); toast(`Copiado para el chat: ${p.name}`, "ok");
+    await refresh(true); loadSummary(); // fresh project states first, so the box re-renders with its new state
   } catch (e) { toast(e.message, "err"); }
 }
 function sumProject(p) {

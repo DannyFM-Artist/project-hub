@@ -1,72 +1,83 @@
-# project-hub design system — "Console"
+# project-hub design system — "D" (Signal)
 
-Source of truth for every project-hub screen. Approved by Danny on 2026-10-16 (mockup option B, `mockups/option-B.html`).
+Source of truth for every project-hub screen. Design D replaced the Console look on 2026-10-16 by Danny's choice
+(mockup `mockups/redesign-D.html`, screenshots `mockups/redesign-D-*.png`; implementation shots `mockups/impl-D-*.png`).
+D is the Console B information layout with the C reading refinements, in the dannyfm-ui v0.2.0 "signal" identity.
 New screens reuse these tokens and patterns; a new visual pattern starts as a mockup Danny approves.
 
 ## Character
 
-Dark terminal tool. Monospace everywhere, flat, no rounded corners, no shadows, no gradients.
-Structure comes from 1px lines and boxed panes, not from cards or elevation. Amber is the single accent; the other colours carry meaning only (status, type).
+Dark desktop-tool surfaces (dannyfm-ui dock panels), flat, 2 px radius, no gradients. Structure comes from panels with a
+header strip, column headers and 1 px dividers. Green (`--ACCENT`) marks "current / selected / confirm"; amber (`--WARN`)
+marks "needs Danny"; every other colour carries a meaning and always sits next to a word.
 
-## Colour tokens
+## Tokens (CSS variables, named after the dannyfm-ui tokens)
 
-| Token | Value | Use | Contrast on `--bg` |
-|---|---|---|---|
-| `--bg` | `#0E1013` | page and pane background | — |
-| `--p` | `#13161B` | bars (tab bar, shortcut bar), row hover, report blocks | — |
-| `--p2` | `#1A1E25` | raised surface (inputs, popovers) | — |
-| `--line` | `#2A2F38` | pane borders, table rules | — |
-| `--line2` | `#3A404B` | stronger dividers, hover borders | — |
-| `--text` | `#D7DBE2` | primary text | 13.7:1 |
-| `--dim` | `#A0A8B5` | secondary text, inactive tabs, read messages | 8.0:1 (7.0 on `--p2`) |
-| `--faint` | `#7A8190` | meta text: ids, timestamps, column headers, legend | 4.9:1 on `--bg` (4.3 on `--p2`: keep faint text off `--p2`) |
+| Token | Value | Use |
+|---|---|---|
+| `--BASE` | `#131313` | page background, `theme-color` |
+| `--SURFACE` | `#181818` | panels, title bar |
+| `--RAISED` | `#1F1F1F` | row hover, forms |
+| `--OVERLAY` | `#262626` | bell panel, toasts, pressed buttons |
+| `--INPUT` | `#0E0E0E` | inputs, selects, report bodies, inline confirmations |
+| `--BORDER` / `--BORDER_STRONG` / `--DIVIDER` | `#2A2A2A` / `#444748` / `#1F1F1F` | panel borders / button outlines, "Para ti" border / row dividers |
+| `--TEXT` / `--TEXT_DIM` / `--TEXT_MUTED` | `#E5E2E1` / `#A8ABAB` / `#8E9192` | primary / secondary / meta (headers, ages, ids) |
+| `--TEXT_ON_ACCENT` | `#0C2000` | text on the filled confirm button |
+| `--ACCENT` (+ `_HOVER`, `_PRESSED`, `_SOFT`) | `#88FE00` | active tab, current phase, selection edge, focus, the confirm button |
+| `--OK` | `#3FC78B` | done, project active, state ready / waiting |
+| `--WARN` | `#EA7F2A` | gates and anything that waits for Danny, the hot bell, state working |
+| `--ERROR` | `#FF2E4D` | errors, type bug |
+| `--IDLE` | `#6C7173` | inactive project dot, state quiet |
+| `--SELECTED` (hub) | `#213012` | selected-row tint: blend(ACCENT_SOFT, SURFACE, .5), keeps WARN and TEXT_DIM ≥ 4.5:1 |
+| `--TYPE_IDEA` / `--TYPE_REQUEST` (hub) | `#6CC4DC` / `#B7A1F2` | item types idea / petición (bug uses `--ERROR`) |
 
-The mockup's original `#7D8593` / `#555C69` greys were raised in the implementation because `#555C69` was 2.8:1.
-| `--amber` | `#FFB547` | the accent: active tab, focus ring, current phase, unread, pane titles, primary actions | 10.8:1 |
-| `--green` | `#8BD47C` | status active, phase done, "ok" lines | 10.7:1 |
-| `--violet` | `#C29BFF` | status parked, type future_request, kind task | 8.6:1 |
-| `--blue` | `#7AB6FF` | status done | 9.0:1 |
-| `--cyan` | `#6CD3E8` | type idea, kind message | 11.0:1 |
-| `--red` | `#FF7A7A` | type bug, errors, "no" lines | 7.6:1 |
+Hub-only tokens live in the app (dannyfm-ui rule R3).
 
-Text on an amber fill uses `--bg` (10.8:1).
+## Type and spacing
 
-Meaning map (always paired with a text label, never colour alone):
-- Project status: active `--green`, paused `--amber`, parked `--violet`, done `--blue`, shown as `● active`.
-- Item type: bug `B` `--red`, idea `I` `--cyan`, future_request `F` `--violet`.
-- Message kind: message `--cyan`, task `--violet` with a `[ ]` prefix, report = framed block with amber left border and an amber label.
-- Phase: done `--green`, in_progress amber fill tint + amber border + 3px amber underline, todo `--dim`.
+- `--scale: 1.1667` (dannyfm-ui's opt-in 7/6 interface scale: 12 px body becomes 14 px in a browser). Every size and space is `calc(n px * var(--scale))`.
+- Text: `"Segoe UI", Inter, system-ui, sans-serif`. Mono: `"Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace` for numbers, ids, ages, state words, repo paths.
+- Sizes: H1 19, H2 15 (the lead sentence), H3 12, BODY 12, SMALL 11, CAPTION 10 (all × scale). Weights 400 and 600 only.
+- Panel titles and column headers: uppercase, letter-spaced; panel titles SMALL 600 `--TEXT`, column headers CAPTION `--TEXT_MUTED`.
+- Space steps XXS 2, XS 4, SM 8, MD 12, LG 16, XL 24, XXL 32 (× scale). Page padding LG / XL; panels 12 apart; max width 1680.
 
-## Typography
+## Layout
 
-- One family: `"Cascadia Mono","Cascadia Code",Consolas,"SF Mono",Menlo,ui-monospace,monospace`. System fonts only; the page runs offline.
-- Base 13px / 1.55. Small meta 11.5–12px (only in `--dim` or brighter). Project title 22px bold. Column headers 11.5px uppercase, letter-spacing .06em.
-- Weights: 400 body, 700 for names, titles, unread messages. No italics.
-- Numbers are tabular by nature (monospace); keep fractions as `n/m`.
+- **Title bar** (sticky, every view): wordmark · tabs `Proyectos` (key 1), one tab per project with its amber action count (key 2 = last project), `Resumen` (key 3) · reports counter · bell · poll time. An offline banner (WARN) sits under it when the hub cannot be reached.
+- **Proyectos (overview)**: eyebrow + one-sentence lead (what Danny must do), "Para ti", reports lines, projects table (filter tabs by status), resources.
+- **Project**: name, state, phase track, repo; lead sentence; next step; description and autonomy line; "Para ti" with the reports line; then a 7/5 grid: phases + decisions | items + inbox. One column under 1100 px. No page h-scroll down to 800 px.
+- **Resumen**: period tabs, one folded box per project with news since its last copy, the rest in one "Sin novedades: A, B" line.
 
-## Spacing and layout
+## The reading rule
 
-- 4px rhythm; common steps 6, 8, 10, 14, 22, 24.
-- Page padding 22px top, 24px sides. Gap between panes 22px.
-- Fixed top tab bar (34px) and bottom shortcut bar; content scrolls between them.
-- Project view: phase strip full width, then a 2fr / 1fr grid (kanban | decisions + inbox). Collapses to one column on narrow windows; tables scroll inside their pane, never the page.
+Information is split by what it asks of Danny:
+- **Actions** ("Para ti", the bell): waiting gates (review not approved, manual_test not done) and open messages to "user". Only these count in the bell; it is amber above zero and neutral at zero.
+- **Information**: unread reports, one collapsed line per project ("N reports sin leer · ver"), expanding in place, with "Marcar todos como leídos". They never count as actions.
+- Lists are ordered most urgent first (actions, then unread reports, then the server order).
 
 ## Patterns
 
-- **Pane**: 1px `--line` box; title sits on the top border in amber (`--bg` background behind it), optional dim count next to it, optional right-side controls on the border.
-- **Toggle / filter**: plain words; the active one is wrapped in amber brackets `[all]`.
-- **Progress**: block bar (`█` cells) in the status colour, in-progress cell at ~55% mix, empty cells `#262B33`, then `n/m` in `--dim`.
-- **Unread badge**: amber fill, `--bg` bold text, no radius.
-- **Kanban line**: type letter column + title; id below in meta text; hover/selected = `--p` background + 2px amber left border.
-- **Decision log**: date column, decision in `--text`, reason on the next line prefixed `└ because`.
-- **Command input**: 1px `--line` box with an amber prompt glyph; transparent input.
-- **Keys**: `<kbd>` with `--dim` fill and `--bg` text; every shortcut also has a mouse path.
-- **Prompt line**: `user@hub ~ $ command` with a blinking amber caret (animation off under `prefers-reduced-motion`).
+- **Panel**: SURFACE box, header strip (uppercase title · count, muted meta, right-side tabs), column header row, rows.
+- **Row**: grid, 1 px divider, hover RAISED. **Selected row**: `--SELECTED` tint + 2 px `--ACCENT` left border. The border is the row's own left edge, outside its padding, so the marker never overlaps the first cell (checked in `gates_check.py`). The same treatment is used in the overview, phases, items and inbox; a selected row shows its detail (notes, actions) in place.
+- **State word**: mono uppercase coloured word, no box (`EN CURSO`, `TEST MANUAL`, `bug`, `petición`).
+- **Phase track**: one 7×11 cell per phase: OK done, WARN gate waiting, ACCENT current, BORDER_STRONG to do; then `n/m`.
+- **Buttons**: outline; `primary` = stronger outline + 600; `filled` (ACCENT) only for the "Sí, …" of a confirmation; `ghost` for secondary; `small` keeps a 24 px target.
+- **Tabs / filters**: words with a mono count; the active one has an ACCENT underline.
+- **Done phases** fold into one "✓ N fases hechas · ver" line above the current phase.
+- **Resumen box**: folded line = chevron, name, phase, counts (waiting gates in WARN), copy state ("copiado hace X" / "N novedades desde la última copia"), project state badge (dot + label + one-line detail: ready/waiting green, working WARN "Copiar igualmente", quiet grey), and the copy button. Nothing new: "Nada nuevo desde la última copia", disabled. Polling only updates badges and button texts in place.
+- **Toasts**: the `aria-live` line, OVERLAY with an OK (or ERROR) left edge.
 
-## Interaction and accessibility rules
+## Gate controls
 
-- Focus: `:focus-visible` 1px amber outline, offset 1px. Never remove it without a replacement.
-- Interactive elements are real `button` / `a` / `input` / `select`; letter-only controls carry `aria-label`.
-- API errors and confirmations go to an `aria-live="polite"` line in the console style; form errors sit next to the form.
-- Motion: only the caret blink and ≤200ms colour/opacity transitions; none under reduced motion.
-- Read messages switch to `--dim` text (no opacity fades for state).
+- A phase with a waiting review gate shows **Aprobar**; a manual_test phase not done shows **Marcar como hecha**. Both are always visible on the phase's own row, in "Para ti" and in the bell panel, without selecting anything first.
+- Every one opens a small **inline confirmation** (INPUT background, BORDER_STRONG) naming project and phase, e.g. "¿Aprobar el gate de «Rediseño D: implementación» en project-hub?", with "Sí, aprobar" (filled) and "Cancelar" (ghost). Cancel changes nothing. Never `alert` / `confirm` / `prompt`.
+- Changing a gated phase to **hecha** from the status selector (or the space key) asks the same way; Cancelar puts the selector back.
+- Force-releasing a resource and marking a message to Danny as done use the same inline confirmation.
+- The selected phase row also holds the gate editor (gate type, reason up to 160 characters, "Guardar gate").
+
+## Interaction and accessibility
+
+- Every shortcut has a mouse path: 1/2/3 tabs; ↑↓ select (overview rows / items), Enter open; a "Añadir ítem"; m "Publicar mensaje"; ←→ item move buttons; r/d message buttons; x "+cerrados"; space the status selector. Shortcuts are ignored while typing.
+- Polling (5 s) never loses focus, typed text, drafts, open confirmations, expansions or selection.
+- Focus: `:focus-visible` 1 px ACCENT outline (buttons: ACCENT border + ring). Real `button` / `a` / `select`; icon-only controls carry `aria-label`.
+- Motion: only the 120 ms chevron turn, off under reduced motion.

@@ -1,4 +1,4 @@
-"""Browser checks for overview order, phase position, repo header, label alignment, unread count; retakes both screenshots."""
+"""Browser checks for overview order, phase position, repo header, phase-row alignment, reports counter; screenshots go to the temp data folder."""
 import os, shutil, subprocess, sys, time, urllib.request
 import tempfile
 from pathlib import Path
@@ -8,7 +8,6 @@ from hubserver import BASE, PORT, SERVE
 
 S = Path(__file__).resolve().parent
 D = Path(tempfile.mkdtemp(prefix="hub-browser-"))  # never the real data folder
-M = S.parents[1] / "mockups"
 subprocess.check_call([sys.executable, str(S / "seed.py"), str(D)])
 from project_hub.hub import Hub
 hub = Hub(D)
@@ -27,18 +26,20 @@ cd = hub.get_project("cuedeck")["phases"]
 hub.set_phase_status("cuedeck", cd[0]["id"], "done", "OSC listener on 8000")
 hub.set_phase_status("cuedeck", cd[1]["id"], "done")
 hub.set_phase_status("cuedeck", cd[2]["id"], "in_progress", "Tessera presets mapped")
+hub.post_message("all", "report", "Weekly report to all", "+ ok", "cuedeck")  # one record, counted once in the top bar
 time.sleep(1.1); hub.update_project("cuedeck", next_step="Map Brompton presets to OSC macro buttons")
 time.sleep(1.1); hub.update_project("project-hub", next_step="Concurrent-write test with two processes")
 
 order = ("active", "paused", "parked", "done")
-expected = [p["name"] for p in sorted(sorted(hub.list_projects(), key=lambda p: p["updated_at"], reverse=True),
-                                      key=lambda p: order.index(p["status"]))]
+server = sorted(sorted(hub.list_projects(), key=lambda p: p["updated_at"], reverse=True), key=lambda p: order.index(p["status"]))
+reports = lambda pid: [m for m in hub._messages() if m["to_project"] in (pid, "all") and m["kind"] == "report" and m["status"] == "unread"]
+expected = [p["name"] for p in sorted(server, key=lambda p: -len(reports(p["id"])))]  # most unread reports first (no gates here), then the server order
 def pos(p):
     from project_hub.biblia import current_phase
     c = current_phase(p)
-    return f"{p['phases'].index(c) + 1}/{len(p['phases'])}" if c else None
+    return f"{p['phases'].index(c) + 1:02d}" if c and c["status"] != "done" else None
 expected_pos = {p["name"]: pos(p) for p in hub.list_projects()}
-unique = len({m["id"] for p in hub.list_projects() for m in hub.read_inbox(p["id"])})
+unique = len({m["id"] for p in hub.list_projects() for m in reports(p["id"])})
 
 srv = subprocess.Popen(SERVE,
                        env=dict(os.environ, PROJECT_HUB_DATA=str(D)), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -54,30 +55,33 @@ try:
         pg = b.new_page(viewport={"width": 1440, "height": 800})
         errors = []
         pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-        pg.goto(BASE + "/#overview"); pg.wait_for_selector("tr.row"); time.sleep(.5)
-        rows = pg.eval_on_selector_all("tr.row", "els => els.map(r => [r.querySelector('td.name a, td.name').firstChild.textContent.trim(), (r.querySelector('td.ph small') || {}).textContent || null])")
+        pg.goto(BASE + "/#overview"); pg.wait_for_selector("#ov-body .row"); time.sleep(.5)
+        rows = pg.eval_on_selector_all("#ov-body .row", "els => els.map(r => [r.querySelector('.nm a').textContent.trim(), (r.querySelector('.cp .n') || {textContent: ''}).textContent.trim() || null])")
         names = [r[0] for r in rows]
         print("overview order:", names, "\nexpected:      ", expected)
         if names != expected: fails.append("overview order")
         for name, shown in rows:
             print(f"  {name}: phase col {shown!r}, expected {expected_pos[name]!r}")
             if shown != expected_pos[name]: fails.append(f"phase position {name}")
-        top = pg.text_content("#unread").strip()
-        if top != f"{unique} unread": fails.append(f"top-bar unread {top!r} != {unique}")
-        pg.mouse.move(0, 0); pg.screenshot(path=str(M / "impl-B-overview.png"))
+        top = pg.text_content("#repcount b").strip()
+        print("top-bar reports:", top, "expected", unique)
+        if top != str(unique): fails.append(f"top-bar reports {top!r} != {unique}")
+        pg.mouse.move(0, 0); pg.screenshot(path=str(D / "overview.png"))
 
         pg.set_viewport_size({"width": 1440, "height": 1000})
-        pg.goto(BASE + "/#p/framegrade"); pg.wait_for_selector("#phead h2"); time.sleep(.5)
+        pg.goto(BASE + "/#p/framegrade"); pg.wait_for_selector("#phead h1"); time.sleep(.5)
         head = pg.text_content("#phead")
         print("header:", " ".join(head.split()))
-        if not ("repo " + repos["framegrade"] in head and head.index("repo ") < head.index("next")): fails.append("repo in header before next")
-        tops = pg.eval_on_selector_all(".cue", "els => els.map(e => [e.className, Math.round(e.querySelector('h4').getBoundingClientRect().top)])")
-        print("phase label tops:", tops)
-        if len({t[1] for t in tops}) != 1: fails.append("phase label alignment")
-        pg.mouse.move(0, 0); pg.screenshot(path=str(M / "impl-B-project.png"))
-        pg.goto(BASE + "/#p/led-mapper"); pg.wait_for_selector("#phead h2"); time.sleep(.4)
-        if "repo " in pg.text_content("#phead"): fails.append("repo label shown for project without repo_path")
+        if pg.text_content("#phead .repo") != repos["framegrade"]: fails.append("repo in header")
+        pg.click('[data-fk="done|framegrade"]'); time.sleep(.3)
+        lefts = pg.eval_on_selector_all("#phases .row", "els => els.map(e => [Math.round(e.querySelector('.n').getBoundingClientRect().left), Math.round(e.querySelector('.nm').getBoundingClientRect().left)])")
+        print("phase number / name lefts:", lefts)
+        if len({tuple(x) for x in lefts}) != 1: fails.append("phase row alignment")
+        pg.mouse.move(0, 0); pg.screenshot(path=str(D / "project.png"))
+        pg.goto(BASE + "/#p/led-mapper"); pg.wait_for_selector("#phead h1"); time.sleep(.4)
+        if pg.query_selector("#phead .repo"): fails.append("repo shown for project without repo_path")
         if errors: fails.append(f"console errors {errors}")
+        print("screenshots in", D)
         b.close()
 finally:
     srv.terminate(); srv.wait()
