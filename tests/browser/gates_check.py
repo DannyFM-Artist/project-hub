@@ -1,4 +1,4 @@
-"""Phase gates against the real backend: set / approve / mark done / remove through the dashboard UI, waiting pane, screenshots."""
+"""Gates are read-only in the dashboard: waiting / resolved lines, no gate controls, waiting panel links to the chat project."""
 import os, subprocess, sys, tempfile, time, urllib.request
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -7,14 +7,16 @@ from hubserver import BASE, SERVE
 
 S = Path(__file__).resolve().parent
 D = Path(tempfile.mkdtemp(prefix="hub-browser-"))  # never the real data folder
-SHOTS = S.parents[1] / "mockups"
 subprocess.check_call([sys.executable, str(S / "seed.py"), str(D)])
 from project_hub.hub import Hub
 hub = Hub(D)
 hub.create_project("gatedemo", "gatedemo", "phase gate demo", phases=["Plan", "Build", "Field test", "Ship"])
 ph = {p["name"]: p["id"] for p in hub.get_project("gatedemo")["phases"]}
-hub.set_phase_status("gatedemo", ph["Plan"], "done")
-gate = lambda name: hub.get_project("gatedemo")["phases"][list(ph).index(name)]
+hub.set_gate("gatedemo", ph["Build"], "Check the colour pipeline before Build ships", by="agent")
+hub.set_gate("gatedemo", ph["Field test"], "Run the show file", by="agent")
+hub.resolve_gate("gatedemo", ph["Field test"], "sigue", "sí, sigue con eso " + "y " * 50)
+hub.set_gate("gatedemo", ph["Ship"], "Final check", by="agent")
+hub.resolve_gate("gatedemo", ph["Ship"], "hecho", "ya está, hecho")
 
 srv = subprocess.Popen(SERVE, env=dict(os.environ, PROJECT_HUB_DATA=str(D)), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 fails = []
@@ -29,80 +31,41 @@ try:
     with sync_playwright() as p:
         b = p.chromium.launch(channel="chrome")
         pg = b.new_page(viewport={"width": 1440, "height": 900})
-        errors = []
+        errors, dialogs = [], []
         pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
         pg.on("pageerror", lambda e: errors.append(str(e)))
-        pg.goto(BASE + "/#p/gatedemo"); pg.wait_for_selector("#cues .cue")
-        check("autonomy line shown", "Autonomous work allowed up to phase" in pg.inner_text("#phead"), pg.inner_text(".aut") if pg.query_selector(".aut") else "missing")
+        pg.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
+        card = lambda n: pg.locator(f'#cues .cue:has([data-fk="ph{ph[n]}"])')
 
-        def set_gate(name, kind, reason):
-            pg.click(f'[data-fk="ph{ph[name]}"]')
-            pg.select_option(f"#gs{ph[name]}", kind)
-            pg.fill(f"#gr{ph[name]}", reason)
-            pg.click(f'[data-fk="gset{ph[name]}"]'); time.sleep(.8)
-        def wait_text():
-            return pg.inner_text("#wt-pane") if pg.is_visible("#wt-pane") else ""
-
-        # half-typed reason survives a poll
-        pg.click(f'[data-fk="ph{ph["Build"]}"]'); pg.fill(f"#gr{ph['Build']}", "half typ")
-        pg.evaluate("refresh(true)"); time.sleep(.5)
-        check("draft reason survives refresh", pg.input_value(f"#gr{ph['Build']}") == "half typ")
-
-        set_gate("Build", "review", "Check the colour pipeline before Build ships")
-        g = gate("Build")
-        check("review gate set via UI (by user)", g["gate"] == "review" and g["gate_set_by"] == "user" and not g["gate_approved"] and "colour pipeline" in g["gate_reason"], g)
-        card = pg.inner_text(f'#cues .cue:has([data-fk="ph{ph["Build"]}"])')
-        check("badge + reason on card", "REVIEW" in card and "not approved" in card and "colour pipeline" in card, card)
         pg.goto(BASE + "/#overview"); pg.wait_for_selector("#wt-pane:not([hidden])")
-        t = wait_text()
-        check("waiting pane lists review gate", "gatedemo" in t and "Build" in t and "REVIEW" in t and "colour pipeline" in t, t)
-        check("waiting pane is above projects pane", pg.evaluate("document.querySelector('#wt-pane').compareDocumentPosition(document.querySelector('#ov-table')) & 4") != 0)
-        check("overview headings are h2", pg.eval_on_selector_all("#overview .lbl", "e => e.every(x => x.tagName === 'H2')"))
-        pg.mouse.move(0, 0); pg.screenshot(path=str(SHOTS / "impl-B-overview-gates.png"), full_page=True)
-        pg.click("#wt-body tr:first-child td:nth-child(2)")
-        pg.wait_for_selector("#phead h2")
-        check("clicking a waiting row opens the project", pg.url.endswith("#p/gatedemo"), pg.url)
-
-        pg.wait_for_selector("#cues .cue")
-        set_gate("Field test", "manual_test", "Run the show file on the real LED wall")
-        check("manual_test gate set via UI", gate("Field test")["gate"] == "manual_test")
-        pg.click(f'[data-fk="ph{ph["Build"]}"]'); pg.click(f'[data-fk="ph{ph["Field test"]}"]'); time.sleep(.3)
-        pg.mouse.move(0, 0); pg.screenshot(path=str(SHOTS / "impl-B-project-gates.png"), full_page=True)
-
-        pg.click(f'[data-fk="ph{ph["Build"]}"]')  # select Build (card toggles; ensure it is selected)
-        if not pg.query_selector(f'[data-fk="gap{ph["Build"]}"]'): pg.click(f'[data-fk="ph{ph["Build"]}"]')
-        pg.click(f'[data-fk="gap{ph["Build"]}"]'); time.sleep(.8)
-        check("approve via UI", gate("Build")["gate_approved"] is True, gate("Build"))
-        hub.set_phase_status("gatedemo", ph["Build"], "done", by="user")
-        pg.goto(BASE + "/#overview"); pg.wait_for_selector("#wt-pane:not([hidden])")
-        t = wait_text()
-        check("approved review leaves waiting; manual test now waits", "REVIEW" not in t and "MANUAL TEST" in t, t)
+        t = pg.inner_text("#wt-pane")
+        check("waiting panel line", "gatedemo" in t and "Build" in t and "colour pipeline" in t and "Resuélvelo en el chat de gatedemo" in t, t)
+        check("waiting panel lists only the waiting gate", "Field test" not in t and "Ship" not in t, t)
+        check("waiting panel link goes to the project", pg.get_attribute("#wt-body a", "href") == "#p/gatedemo")
+        check("waiting panel has no buttons", pg.locator("#wt-pane button").count() == 0)
 
         pg.goto(BASE + "/#p/gatedemo"); pg.wait_for_selector("#cues .cue")
-        pg.click(f'[data-fk="ph{ph["Field test"]}"]')
-        if not pg.query_selector(f'[data-fk="gdone{ph["Field test"]}"]'): pg.click(f'[data-fk="ph{ph["Field test"]}"]')
-        pg.click(f'[data-fk="gdone{ph["Field test"]}"]'); time.sleep(.8)
-        check("manual_test marked done via UI", gate("Field test")["status"] == "done", gate("Field test"))
-        pg.goto(BASE + "/#overview"); time.sleep(.5)
-        check("waiting pane hidden when empty", not pg.is_visible("#wt-pane"))
+        check("waiting line on card", "Espera a Danny: Check the colour pipeline" in card("Build").inner_text(), card("Build").inner_text())
+        ft = card("Field test")
+        check("resolved line with words and action", "Resuelto vía chat: «sí, sigue con eso" in ft.inner_text() and "…»" in ft.inner_text() and "(sigue)" in ft.inner_text(), ft.inner_text())
+        tip = ft.locator(".gt").get_attribute("title")
+        check("tooltip has full words, action and time", "y y y y y y y y y y y y y y y y y y y y y y y y y y" in tip and "sigue" in tip and "20" in tip, tip)
+        check("hecho resolution shown", "ya está, hecho" in card("Ship").inner_text() and "(hecho)" in card("Ship").inner_text(), card("Ship").inner_text())
 
-        hub.set_gate("gatedemo", ph["Ship"], "review", "temp", by="user")
-        pg.goto(BASE + "/#p/gatedemo"); pg.wait_for_selector("#cues .cue")
-        set_gate("Ship", "none", "")
-        check("gate removed via UI", gate("Ship")["gate"] == "none", gate("Ship"))
-        pg.set_viewport_size({"width": 1280, "height": 800})
-        check("no horizontal scroll (project)", pg.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"))
-        hub.set_gate("gatedemo", ph["Ship"], "manual_test", "x" * 160, by="user")
-        pg.goto(BASE + "/#overview"); pg.wait_for_selector("#wt-pane:not([hidden])")
-        check("no horizontal scroll (overview, long reason)", pg.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"))
-        hub.create_project("chatdemo", "chatdemo", "chat approval", phases=["Rev"])
-        cid = hub.get_project("chatdemo")["phases"][0]["id"]
-        hub.set_gate("chatdemo", cid, "review", "check it")
-        hub.approve_gate_chat("chatdemo", cid, "sí, apruebo esta fase " + "y " * 50)
-        pg.goto(BASE + "/#p/chatdemo"); pg.wait_for_selector("#cues .cue")
-        card = pg.inner_text("#cues .cue")
-        check("badge shows aprobado vía chat", "aprobado vía chat: «sí, apruebo esta fase" in card and "…»" in card, card)
-        check("full words in tooltip", "y y y y" in (pg.get_attribute("#cues .cue [title]", "title") or ""))
+        card("Plan").locator("button.main").click()
+        check("status control still on a non-gated phase", card("Plan").locator(".selst").count() == 1)
+        card("Build").locator("button.main").click()
+        check("no status control on the waiting phase", card("Build").locator(".selst").count() == 0 and pg.locator("#cues .selst").count() == 0)
+        check("no gate controls anywhere", pg.locator("#cues .gf, #cues select, #cues input, #cues form").count() == 0
+              and not any(w in pg.inner_text("main") for w in ("Guardar gate", "Set gate", "Quitar aprobación", "Approve", "Mark done")))
+        pg.keyboard.press(" "); time.sleep(.5)
+        check("space does not change the waiting phase", hub.get_project("gatedemo")["phases"][1]["status"] == "todo")
+
+        pg.goto(BASE + "/#resumen"); pg.wait_for_selector("#su-body .su-proj")
+        sec = pg.inner_text("#su-body")
+        check("Resumen waiting line", "Build" in sec and "Resuélvelo en el chat de gatedemo" in sec, sec)
+        check("Resumen has no gate buttons", pg.locator("#su-body .su-l button").count() == 0)
+        check("no alert or confirm", not dialogs, dialogs)
         check("no console errors", not errors, errors)
         b.close()
 finally:

@@ -157,45 +157,48 @@ def test_resources_routes(env):
     assert c.post("/api/resources/release", json={"resource": " "}).status_code == 400
 
 
-def test_gate_routes(env):
+def test_gate_fields_and_waiting(env):
     h, c = env
     p0, p1 = (ph["id"] for ph in h.get_project("alpha")["phases"])
     d = c.get("/api/projects/alpha").json()
-    assert all(ph["gate"] == "none" and ph["gate_reason"] == "" and ph["gate_set_by"] is None and ph["gate_approved"] is False
+    assert all(ph["gate_state"] is None and ph["gate_reason"] == "" and ph["gate_set_by"] is None
+               and ph["gate_resolved_action"] is None and ph["gate_resolved_words"] is None and ph["gate_resolved_at"] is None
                for ph in d["phases"])  # defaults filled for phases stored without gate fields
     assert d["autonomy"] == "Autonomous work allowed up to phase 2 (two)"
     assert c.get("/api/waiting").json() == []
-
-    base = f"/api/projects/alpha/phases/{p0}"
-    r = c.post(f"{base}/gate", json={"gate": "manual_test"})  # user: any gate, reason optional
-    assert r.status_code == 200 and r.json()["gate_set_by"] == "user"
-    assert c.post(f"{base}/gate/approve").status_code == 400  # manual_test cannot be approved
-    r = c.post(f"{base}/gate", json={"gate": "review", "reason": "look at it"})  # user may loosen
-    assert r.status_code == 200 and r.json()["gate"] == "review"
+    h.set_gate("alpha", p0, "look at it")
     assert c.get("/api/waiting").json() == [{"project_id": "alpha", "project_name": "Alpha", "phase_id": p0, "phase_name": "one",
-                                             "gate": "review", "gate_reason": "look at it", "gate_set_by": "user"}]
+                                             "reason": "look at it", "set_by": "agent"}]
     d = c.get("/api/projects/alpha").json()
     assert d["autonomy"] == "Autonomous work allowed up to phase 0 (phase 1 is gated)"
-    assert d["phases"][0]["gate"] == "review" and d["phases"][1]["gate"] == "none"
-    r = c.post(f"{base}/gate/approve")
-    assert r.status_code == 200 and r.json()["gate_approved"] is True
+    assert "gate" not in d["phases"][0] and "gate_approved" not in d["phases"][0]  # legacy keys stay out of the API
+    assert (d["phases"][0]["gate_state"], d["phases"][0]["gate_reason"]) == ("waiting", "look at it")
+    h.resolve_gate("alpha", p0, "sigue", "sí, sigue")
+    ph = c.get("/api/projects/alpha").json()["phases"][0]
+    assert (ph["gate_state"], ph["gate_resolved_action"], ph["gate_resolved_words"]) == ("continue", "sigue", "sí, sigue")
+    assert ph["gate_resolved_at"]
     assert c.get("/api/waiting").json() == []
-    r = c.post(f"{base}/gate", json={"gate": "none"})
-    assert r.status_code == 200 and (r.json()["gate"], r.json()["gate_set_by"]) == ("none", None)
-    assert c.post(f"{base}/gate/approve").status_code == 400  # no gate
-    assert c.post(f"{base}/gate", json={"gate": "bogus"}).status_code == 400
-    assert c.post(f"{base}/gate", json={"gate": "review", "reason": "x" * 161}).status_code == 400
-    assert c.post("/api/projects/alpha/phases/zzz/gate", json={"gate": "review"}).status_code == 404
-    assert c.post("/api/projects/alpha/phases/zzz/gate/approve").status_code == 404
 
 
-def test_dashboard_phase_status_ignores_gates(env):
+def test_gate_endpoints_are_gone(env):
     h, c = env
     p0 = h.get_project("alpha")["phases"][0]["id"]
-    h.set_gate("alpha", p0, "manual_test", "Danny tests it")
+    base = f"/api/projects/alpha/phases/{p0}"
+    assert c.post(f"{base}/gate", json={"gate": "review", "reason": "r"}).status_code in (404, 405)
+    assert c.post(f"{base}/gate/approve").status_code in (404, 405)
+    assert "gate_state" not in h.get_project("alpha")["phases"][0]
+
+
+def test_dashboard_phase_status_refused_while_waiting(env):
+    h, c = env
+    p0 = h.get_project("alpha")["phases"][0]["id"]
+    h.set_gate("alpha", p0, "Danny tests it")
     for status in ("in_progress", "done"):
         r = c.post(f"/api/projects/alpha/phases/{p0}", json={"status": status})
-        assert r.status_code == 200 and r.json()["status"] == status
+        assert r.status_code == 400 and "waits for Danny: Danny tests it" in r.json()["error"]
+    assert h.get_project("alpha")["phases"][0]["status"] == "todo"
+    h.resolve_gate("alpha", p0, "sigue", "sigue")
+    assert c.post(f"/api/projects/alpha/phases/{p0}", json={"status": "done"}).status_code == 200
 
 
 def test_over_limit_item_title_is_400(env):

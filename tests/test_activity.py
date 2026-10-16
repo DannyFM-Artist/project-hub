@@ -44,12 +44,13 @@ def test_event_for_each_kind(hub, clock):
     hub.update_phase("demo", p1, name="Dos")
     hub.set_phase_status("demo", p0, "in_progress")
     hub.set_phase_status("demo", p0, "in_progress", notes="n")  # notes only
-    hub.set_gate("demo", p1, "review", "check")
-    hub.set_gate("demo", p1, "manual_test", "test it")
-    hub.set_gate("demo", p1, "review", "back", by="dashboard")
-    hub.approve_gate("demo", p1)
-    hub.set_gate("demo", p1, "none", by="user")
-    hub.delete_phase("demo", p1)
+    hub.set_gate("demo", p1, "check")
+    hub.set_gate("demo", p1, "test it")
+    hub.set_gate("demo", p1, "test it")  # same reason: no event
+    hub.resolve_gate("demo", p1, "sigue", "vale")
+    hub.set_gate("demo", p1, "again", by="chat")
+    p2 = hub.add_phase("demo", "Three")["id"]
+    hub.delete_phase("demo", p2)
     item = hub.add_item("demo", "bug", "Crash")["id"]
     hub.update_item("demo", item, status="planned")
     hub.update_item("demo", item, status="done")
@@ -67,12 +68,12 @@ def test_event_for_each_kind(hub, clock):
         ("phase_updated", "agent", "Two → Dos", "Dos"),
         ("phase_status", "agent", "todo → in_progress", "One"),
         ("phase_updated", "agent", "notes updated", "One"),
-        ("gate_set", "agent", "review: check", "Dos"),
-        ("gate_changed", "agent", "review → manual_test", "Dos"),
-        ("gate_changed", "dashboard", "manual_test → review", "Dos"),
-        ("gate_approved", "dashboard", "review approved", "Dos"),
-        ("gate_removed", "user", "review → none", "Dos"),
-        ("phase_deleted", "agent", "Dos", "Dos"),
+        ("gate_set", "agent", "check", "Dos"),
+        ("gate_changed", "agent", "reason updated: test it", "Dos"),
+        ("gate_resolved", "chat", "resuelto vía chat (sigue): «vale»", "Dos"),
+        ("gate_set", "chat", "again", "Dos"),
+        ("phase_added", "agent", "Three", "Three"),
+        ("phase_deleted", "agent", "Three", "Three"),
         ("item_added", "agent", "bug: Crash", "Crash"),
         ("item_updated", "agent", "status open → planned", "Crash"),
         ("item_closed", "agent", "status planned → done", "Crash"),
@@ -87,20 +88,14 @@ def test_event_for_each_kind(hub, clock):
 def test_failed_change_logs_nothing(hub):
     hub.create_project("demo", "Demo", "", phases=["One"])
     p0 = hub.get_project("demo")["phases"][0]["id"]
-    hub.set_gate("demo", p0, "manual_test", "on device")
+    hub.set_gate("demo", p0, "on device")
     with pytest.raises(HubError):
         hub.set_phase_status("demo", p0, "done")
     with pytest.raises(HubError):
         hub.delete_phase("demo", p0)
+    with pytest.raises(HubError):
+        hub.resolve_gate("demo", p0, "vuelve a cerrar", "x")  # not continued
     assert [e["type"] for e in events(hub)] == ["project_created", "gate_set"]
-
-
-def test_dashboard_gate_keeps_gate_set_by_user(hub):
-    hub.create_project("demo", "Demo", "", phases=["One"])
-    p0 = hub.get_project("demo")["phases"][0]["id"]
-    ph = hub.set_gate("demo", p0, "manual_test", "", by="dashboard")
-    assert ph["gate_set_by"] == "user"
-    assert hub.set_phase_status("demo", p0, "done", by="dashboard")["status"] == "done"  # Danny ignores gates
 
 
 def test_web_changes_are_by_dashboard(tmp_path, monkeypatch):
@@ -111,14 +106,12 @@ def test_web_changes_are_by_dashboard(tmp_path, monkeypatch):
     p0 = h.get_project("alpha")["phases"][0]["id"]
     start = len(events(h))
     assert c.post(f"/api/projects/alpha/phases/{p0}", json={"status": "in_progress"}).status_code == 200
-    assert c.post(f"/api/projects/alpha/phases/{p0}/gate", json={"gate": "review", "reason": "r"}).json()["gate_set_by"] == "user"
-    assert c.post(f"/api/projects/alpha/phases/{p0}/gate/approve").status_code == 200
     item = c.post("/api/projects/alpha/items", json={"type": "idea", "title": "Idea"}).json()["id"]
     assert c.patch(f"/api/projects/alpha/items/{item}", json={"status": "discarded"}).status_code == 200
     msg = c.post("/api/messages", json={"to_project": "alpha", "kind": "task", "title": "T", "body": "b"}).json()["id"]
     assert c.patch(f"/api/messages/{msg}", json={"status": "done"}).status_code == 200
     got = [(e["type"], e["by"]) for e in events(h)[start:]]
-    assert got == [("phase_status", "dashboard"), ("gate_set", "dashboard"), ("gate_approved", "dashboard"),
+    assert got == [("phase_status", "dashboard"),
                    ("item_added", "dashboard"), ("item_closed", "dashboard"),
                    ("message_posted", "user"), ("message_marked", "dashboard")]  # post_message: by is from_project
 
@@ -154,13 +147,13 @@ def make_world(hub, clock):
     for pid in ("alpha", "beta", "gamma"):
         hub.create_project(pid, pid.title(), "", phases=["One", "Two", "Three"])
     ph = {pid: [p["id"] for p in hub.get_project(pid)["phases"]] for pid in ("alpha", "gamma")}
-    hub.set_gate("gamma", ph["gamma"][0], "manual_test", "on device")
+    hub.set_gate("gamma", ph["gamma"][0], "on device")
     clock[0] = T0 + timedelta(hours=10)
     hub.mark_summary_seen()  # last seen: T0+10h
     clock[0] = T0 + timedelta(hours=11)
     hub.set_phase_status("alpha", ph["alpha"][0], "done")
     hub.set_phase_status("alpha", ph["alpha"][1], "in_progress")
-    hub.set_gate("alpha", ph["alpha"][1], "review", "look at the API", by="user")
+    hub.set_gate("alpha", ph["alpha"][1], "look at the API", by="chat")
     hub.log_decision("alpha", "Use LZ4", "fast")
     item = hub.add_item("alpha", "bug", "Crash on load")["id"]
     hub.add_item("alpha", "idea", "Dark mode")
@@ -185,7 +178,7 @@ def test_summary_grouping_and_content(hub, clock):
     assert set(a) == {"id", "name", "status", "has_activity", "current", "action", "reports", "phase_changes", "decisions",
                       "items_opened", "items_closed", "blocked", "chat_text", "copied_at", "counts", "copy", "state"}
     assert a["current"] == {"phase": "Two", "n": 2, "total": 3, "next_step": None}
-    assert a["action"]["gates"] == [{"phase_id": ph["alpha"][1], "phase": "Two", "gate": "review", "reason": "look at the API"}]
+    assert a["action"]["gates"] == [{"phase_id": ph["alpha"][1], "phase": "Two", "reason": "look at the API", "set_by": "chat"}]
     assert [m["title"] for m in a["action"]["user_messages"]] == ["Need a decision"]
     assert [(r["title"], r["from_project"], r["status"]) for r in a["reports"]] == [("Session report", "alpha", "unread")]
     assert [(c["phase"], c["text"], c["by"]) for c in a["phase_changes"]] == [("One", "todo → done", "agent"),
@@ -193,9 +186,9 @@ def test_summary_grouping_and_content(hub, clock):
     assert [d["decision"] for d in a["decisions"]] == ["Use LZ4"]
     assert [i["title"] for i in a["items_opened"]] == ["Crash on load", "Dark mode"]
     assert [(i["title"], i["text"]) for i in a["items_closed"]] == [("Crash on load", "status open → done")]
-    assert a["blocked"] == ["fase 'Two' en curso, espera gate review", "mensaje de beta: API changed"]
+    assert a["blocked"] == ["fase 'Two' en curso, espera a Danny", "mensaje de beta: API changed"]
     # gamma: nothing happened, but its gate waits for Danny, so it is not hidden
-    assert g["has_activity"] and g["action"]["gates"][0]["gate"] == "manual_test" and not g["reports"] and g["blocked"] == []
+    assert g["has_activity"] and g["action"]["gates"][0]["reason"] == "on device" and not g["reports"] and g["blocked"] == []
     assert not b["has_activity"] and b["chat_text"].split("\n")[1] == "Sin actividad nueva en este periodo."
     # the message to "user" stays out of the project inboxes
     assert [m["title"] for m in hub.read_inbox("alpha")] == ["Session report", "API changed", "Broadcast"]
@@ -207,17 +200,17 @@ def test_chat_text(hub, clock):
     a = hub.summary()["projects"][0]
     lines = a["chat_text"].split("\n")
     assert lines[0].startswith("Periodo: ")
-    assert lines[1:] == ["Gate esperando a Danny: Two (review)", "Reports nuevos: Session report", "1 fase terminada: One",
+    assert lines[1:] == ["Espera a Danny: Two — look at the API", "Reports nuevos: Session report", "1 fase terminada: One",
                          "1 decisión de los agentes", LAST.format("alpha")]
     assert "Long body" not in a["chat_text"]
     for i in range(7):
         clock[0] += timedelta(minutes=1)
         hub.post_message("alpha", "report", f"R{i}", "b", from_project="alpha")
-    hub.set_gate("alpha", hub.get_project("alpha")["phases"][2]["id"], "manual_test", "r")
+    hub.set_gate("alpha", hub.get_project("alpha")["phases"][2]["id"], "y" * 160)
     clock[0] += timedelta(minutes=1)
     hub.post_message("alpha", "report", "x" * 100, "b", from_project="alpha")
     lines = hub.summary()["projects"][0]["chat_text"].split("\n")
-    assert lines[1:3] == ["Gate esperando a Danny: Three (prueba manual)", "Gate esperando a Danny: Two (review)"]
+    assert lines[1:3] == ["Espera a Danny: Three — " + "y" * 69 + "…", "Espera a Danny: Two — look at the API"]
     # 9 reports, newest first: the 70-char shortening, then R6..R2, and 3 more
     assert lines[3] == "Reports nuevos: " + "x" * 69 + "… · R6 · R5 · R4 · R3 · R2 y 3 más"
     assert len(lines) <= 10 and lines[-1] == LAST.format("alpha")

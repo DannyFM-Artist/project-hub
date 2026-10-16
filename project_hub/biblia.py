@@ -17,12 +17,21 @@ def unread_for(project_id, messages):
     return [m for m in messages if m["to_project"] in (project_id, "all") and m["status"] == "unread"]
 
 
-GATE_DEFAULTS = {"gate": "none", "gate_reason": "", "gate_set_by": None, "gate_approved": False}  # phases stored before gates
+GATE_DEFAULTS = {"gate_state": None, "gate_reason": "", "gate_set_by": None,
+                 "gate_resolved_action": None, "gate_resolved_words": None, "gate_resolved_at": None}  # a phase without a gate
 
 
 def blocking(phase):
-    gate = phase.get("gate", "none")
-    return phase["status"] != "done" and (gate == "manual_test" or (gate == "review" and not phase.get("gate_approved")))
+    """A waiting gate on a phase that is not done: work stops there until Danny resolves it from his chat."""
+    return phase["status"] != "done" and phase.get("gate_state") == "waiting"
+
+
+def stopping_gates(project):
+    """Blocking phases that stop the next work: at or before the current phase, or in progress."""
+    phases = project.get("phases", [])
+    cur = current_phase(project)
+    limit = phases.index(cur) if cur else -1
+    return [ph for i, ph in enumerate(phases) if blocking(ph) and (i <= limit or ph["status"] == "in_progress")]
 
 
 def autonomy_limit(project):
@@ -40,24 +49,29 @@ def autonomy_line(project):
 
 
 def gate_label(phase):
-    """`[gate: review, not approved, set by agent] reason` for a gated phase (or a waiting() entry), "" when ungated."""
-    gate = phase.get("gate", "none")
-    if gate == "none":
-        return ""
-    approved = (", approved" if phase.get("gate_approved") else ", not approved") if gate == "review" else ""
-    reason = phase.get("gate_reason", "")
-    return f"[gate: {gate}{approved}, set by {phase.get('gate_set_by') or '-'}]" + (f" {_cell(reason)}" if reason else "")
+    """`[espera a Danny] reason` for a waiting gate, `[resuelto vía chat (action): «words»]` for a resolved one,
+    "" without a gate. A gate resolved before the chat (no words) reads `[resuelto (action)]`."""
+    state = phase.get("gate_state")
+    if state == "waiting":
+        return "[espera a Danny]" + (f" {_cell(phase.get('gate_reason'))}" if phase.get("gate_reason") else "")
+    if state == "continue":
+        action = phase.get("gate_resolved_action") or "sigue"
+        words = phase.get("gate_resolved_words")
+        return f"[resuelto vía chat ({action}): «{_cell(words)}»]" if words else f"[resuelto ({action})]"
+    return ""
 
 
 def waiting(projects):
-    """Blocking phases whose previous phases are all done, in project order."""
-    out = []
+    """One entry per blocking gate, most urgent first: gates that stop the next work, then the rest; project order."""
+    now, later = [], []
     for p in projects:
-        ph = next((ph for ph in p.get("phases", []) if ph["status"] != "done"), None)
-        if ph and blocking(ph):
-            out.append({"project_id": p["id"], "project_name": p["name"], "phase_id": ph["id"], "phase_name": ph["name"],
-                        **{k: ph.get(k, GATE_DEFAULTS[k]) for k in ("gate", "gate_reason", "gate_set_by")}})
-    return out
+        stop = {ph["id"] for ph in stopping_gates(p)}
+        for ph in p.get("phases", []):
+            if blocking(ph):
+                (now if ph["id"] in stop else later).append(
+                    {"project_id": p["id"], "project_name": p["name"], "phase_id": ph["id"], "phase_name": ph["name"],
+                     "reason": ph.get("gate_reason", ""), "set_by": ph.get("gate_set_by")})
+    return now + later
 
 
 def _cell(text):
@@ -100,7 +114,7 @@ def render(projects, messages, generated_at, leases=()):
         out.append("(none)")
 
     out += ["", "## Waiting for Danny", ""]
-    out += [f"- {_cell(w['project_name'])} (`{w['project_id']}`): phase {_cell(w['phase_name'])} (id {w['phase_id']}) {gate_label(w)}"
+    out += [f"- {_cell(w['project_name'])} (`{w['project_id']}`): phase {_cell(w['phase_name'])} (id {w['phase_id']}) [espera a Danny] {_cell(w['reason'])}"
             for w in waiting(projects)] or ["(none)"]
 
     for p in projects:

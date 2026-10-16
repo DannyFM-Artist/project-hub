@@ -6,7 +6,7 @@ Local project-tracking hub. Three parts share one data folder:
 2. an MCP stdio server (`project-hub mcp`) for Claude Desktop and Claude Code,
 3. a local web dashboard (`project-hub dashboard`).
 
-Plus `project-hub session-start`, a Claude Code SessionStart hook that prints the current project's phase, next step and unread inbox. Everything is local; no auth, nothing is exposed to the network.
+Plus `project-hub session-start`, a Claude Code SessionStart hook that prints the current project's phase, next step and unread inbox, and `project-hub migrate-gates`, a one-off rewrite of every project file in the current gate format (see Phase gates). Everything is local; no auth, nothing is exposed to the network.
 
 ## Data folder
 
@@ -58,11 +58,11 @@ Edit `claude_desktop_config.json`:
 }
 ```
 
-### Letting Danny approve gates from the Desktop chat (`PROJECT_HUB_ROLE=chat`)
+### Letting Danny resolve gates from the Desktop chat (`PROJECT_HUB_ROLE=chat`)
 
-With the env var `PROJECT_HUB_ROLE=chat` the MCP server registers two extra tools: `approve_gate(project_id, phase_id, danny_words)` (approves an unapproved review gate) and `complete_manual_phase(project_id, phase_id, danny_words)` (marks a manual_test phase done). `danny_words` is required (max 300 characters): Danny's literal words authorising the action. They are stored on the phase (`gate_approved_by: "chat"`, `gate_approved_words`, `gate_approved_at`), written to the activity log, and shown in the dashboard as "aprobado vía chat: «...»".
+With the env var `PROJECT_HUB_ROLE=chat` the MCP server registers one extra tool, `resolve_gate(project_id, phase_id, action, danny_words)`, and gates it sets are stored with `gate_set_by: "chat"`. See Phase gates for the actions.
 
-Only the Claude Desktop entry gets this variable. The Claude Code registration must never have it; without it the tools do not exist and agents stay refused on gated phases.
+Only the Claude Desktop entry gets this variable. The Claude Code registration must never have it; without it the tool does not exist and agents stay refused on phases whose gate waits for Danny.
 
 ```json
 "project-hub": {
@@ -124,9 +124,10 @@ Set `repo_path` (absolute) when you create a project; session-start matches the 
 - At the end of the session, post a report message summarizing what changed.
 - Before using a shared resource (GPU-heavy runs, physical sensors, shared repos such as dannyfm-ui, files outside this repo), claim it in project-hub with claim_resource; release it as soon as you are done. If it is busy, do not use it: work on something else and retry later. Tests must bind to free ports chosen by the OS, never to fixed ports.
 - Keep hub text short and readable at a glance: no commit hashes, file:line citations or logs in descriptions, notes or titles; details belong in the repo.
-- Before starting a phase, check its gate in project-hub. If it has an unapproved review gate or a manual_test gate, do not start it: post a report message describing what is ready for review or what needs testing, and stop.
-- If you judge that the next phase needs a manual review or a test by Danny (real hardware, visual approval, anything you cannot verify yourself), add a gate with set_gate and a short reason.
-- Si Danny te dice explícitamente que aprueba un gate o que ha hecho una prueba manual, usa approve_gate o complete_manual_phase con sus palabras exactas; nunca por iniciativa propia.
+- Before starting a phase, check its gate in project-hub. If it waits for Danny, do not start it: post a report message saying what he must do, and stop.
+- If the next phase needs Danny (a review, real hardware, a decision, an action only he can do), add a gate with set_gate and a reason that says exactly what he must do.
+- Never resolve gates.
+- Si Danny te dice explícitamente «sigue», «hecho» o «vuelve a cerrar» sobre un gate, usa resolve_gate con esa acción y sus palabras exactas; nunca por iniciativa propia.
 ```
 
 Updating as you go means a session cut off by a usage limit doesn't lose the project's state.
@@ -166,8 +167,9 @@ The screenshot-taking scripts overwrite the PNGs in `mockups/`; discard those ch
 - `add_phase(project_id, name, position?)` - add a phase.
 - `set_phase_status(project_id, phase_id, status, notes?)` - todo / in_progress / done.
 - `update_phase(project_id, phase_id, name?, notes?)` - rename a phase or replace its notes.
-- `delete_phase(project_id, phase_id)` - remove a phase (refused for a gated phase).
-- `set_gate(project_id, phase_id, gate, reason)` - add or tighten a phase gate (none → review → manual_test); agents can never remove, loosen or approve one.
+- `delete_phase(project_id, phase_id)` - remove a phase (refused for a phase with a gate).
+- `set_gate(project_id, phase_id, reason)` - make a phase wait for Danny, with what he must review or do (max 160 characters); agents can never resolve or remove a gate.
+- `resolve_gate(project_id, phase_id, action, danny_words)` - only with `PROJECT_HUB_ROLE=chat`: Danny's "sigue", "hecho" or "vuelve a cerrar", with his exact words.
 - `add_item(project_id, type, title, details?)` - idea / future_request / bug.
 - `update_item(project_id, item_id, status?, type?, title?, details?)` - edit or move an item.
 - `log_decision(project_id, decision, reason)` - append to the decision log.
@@ -183,22 +185,32 @@ Text limits on every write (MCP and dashboard): project description 200 characte
 
 ## Activity log and summary
 
-Every change made through project-hub (phases, gates, items, decisions, messages, project fields; not resource leases) appends one line to `activity/events.jsonl` with `by` = `agent` (MCP), `dashboard` (web) or, for a posted message, its sender. The log has no history before it was first written.
+Every change made through project-hub (phases, gates, items, decisions, messages, project fields; not resource leases) appends one line to `activity/events.jsonl` with `by` = `agent` (MCP), `chat` (MCP with `PROJECT_HUB_ROLE=chat`), `dashboard` (web) or, for a posted message, its sender. The log has no history before it was first written.
 
 `GET /api/summary` (optional `since=<ISO>` or `hours=<n>`; default: since the last time it was marked seen, else the last 24 h) lists per project what is waiting for Danny, new reports, phase changes, decisions, items and a short Spanish `chat_text` to paste into that project's chat. Reports, decisions and new items come from their own timestamps, so they appear even for periods before the log started; phase changes and closed items need the log. `POST /api/summary/seen` stores the last-seen time.
 
 Each project also has a "copied for the chat" marker (`POST /api/summary/copied` with `{"project_id", "at"}`, kept in `summary_state.json` under `copied`). Per project, `copy` in the summary holds `since` (the marker, else the summary start), `new` (things since then) and a `chat_text` that is null when nothing is new; `counts` sums the summary period.
 
-Each project in the summary and in `GET /api/projects` also has `state` `{kind, label, detail}`: `working` (an active `task:<id>` lease or a read task, not waiting for Danny), `waiting` (that work waits on a gate, a message to Danny, a later report or a lease purpose with "esper/wait/gate/puerta/aprobación"), `ready` (new things since the last copy) or `quiet`, in that precedence. The copied text lists each waiting gate, the newest report titles (max 6) and ends with the "Revisa el proyecto ..." line.
+Each project in the summary and in `GET /api/projects` also has one `state` `{kind, label, detail}`, by priority:
+
+1. `waiting` ("Te espera", red): code is stopped for Danny. A waiting gate at or before the current phase or on an in-progress phase, a not-done message from the project to `user`, a `task:` lease whose purpose says it waits ("esper/wait/gate/puerta/aprobación"), or a report posted after such a lease was taken that says so. `detail` is the first reason (gate reason, message title or lease purpose, about 80 characters) plus " +N" for the others.
+2. `working` ("Trabajando", amber): an active `task:<id>` lease or a read, not-done task; `detail` "Trabajando en: <task>".
+3. `ready` ("Novedades para copiar", green): something new since the last copy.
+4. `quiet` ("Sin novedades", grey).
+
+`GET /api/projects` rows also carry `state_rank` (0 waiting … 3 quiet) and list waiting projects first. The copied text has one line `Espera a Danny: <phase> — <reason>` per waiting gate, the newest report titles (max 6) and ends with the "Revisa el proyecto ..." line.
 
 ## Phase gates
 
-A gate on a phase limits how far sessions work on their own:
+There is one kind of gate: "espera a Danny". Danny takes every decision by talking to the project's Claude Desktop chat; the dashboard only shows gates.
 
-- `review` - no agent may start the phase until Danny approves the gate in the dashboard.
-- `manual_test` - Danny does this phase himself; no agent may start it or mark it done.
+- A gate has a reason (what Danny must review or do, at most 160 characters), `gate_set_by` (`agent` or `chat`) and a state: `waiting` or `continue`. Phase fields: `gate_state`, `gate_reason`, `gate_set_by`, `gate_resolved_action`, `gate_resolved_words`, `gate_resolved_at`.
+- Any session adds one with `set_gate`: a new gate waits; on a waiting gate it only updates the reason; on a continued gate it makes it wait again. Use it for a review, a test on real hardware, a decision, or an action only Danny can do.
+- While a gate waits, nobody (agents, the chat, the dashboard) can move its phase to in_progress or done; the refusal tells agents to post a report saying what Danny must do, and stop. A phase with a gate cannot be deleted. Nobody removes a gate.
+- Only Danny resolves a gate, from the Desktop chat (`PROJECT_HUB_ROLE=chat`), with `resolve_gate` and his exact words (`danny_words`, required, at most 300 characters): `sigue` (waiting → continue: code may work on the phase), `hecho` (waiting → continue and the phase is done: he did it himself) or `vuelve a cerrar` (continue → waiting; a phase done by `hecho` goes back to todo). The action, words and time are stored on the phase and in the activity log (`by: "chat"`, `action`, `words`).
+- `get_project`, `session-start` and BIBLIA.md show `[espera a Danny] <reason>` or `[resuelto vía chat (<action>): «<words>»]`, and the line "Autonomous work allowed up to phase N", which stops before the first waiting gate. `GET /api/waiting` lists every waiting gate, the ones stopping work now first.
 
-Agents can add or tighten gates with `set_gate` (with a reason, at most 160 characters) and are refused when they try to start a gated phase; the refusal tells them to post a report and stop. Gates are approved, changed and removed only in the dashboard, which also lists every phase that is waiting for you. `get_project`, `session-start` and BIBLIA.md show each gate and the line "Autonomous work allowed up to phase N".
+Projects stored by older versions (review / manual_test gates) are converted when read and saved in the new form on the next write: an approved review gate continues, every other gate waits, a gate set by Danny becomes `chat`, and a chat approval from the previous version becomes the resolution (`sigue`, or `hecho` for a manual test completed from the chat). `project-hub migrate-gates` rewrites every project file once, under the lock. Every write also keeps `gate: "review"` and `gate_approved` (true when continued) so MCP servers still running the old code stop at waiting gates; they go away once every session has restarted.
 
 ## Autonomous work with /loop
 
@@ -211,7 +223,7 @@ The user-level skill `~/.claude/skills/hub-sync/SKILL.md` (not part of this repo
 - It only fires while that Claude Code session is open and idle. Closing the terminal stops it; a run that comes due while Claude is busy happens once when it is idle again (no catch-up).
 - Recurring loops expire 7 days after they are created: they fire one last time and delete themselves. Run the command again to continue.
 - To stop it, ask Claude in the session: "cancel the hub-sync loop" (or "what scheduled tasks do I have?" to see it first). `Esc` only stops a self-paced `/loop` started without an interval.
-- The skill never approves, loosens or removes a gate; you do that in the dashboard.
+- The skill never resolves or removes a gate; you resolve gates from the project's Claude Desktop chat.
 
 ## Resource reservations
 

@@ -469,11 +469,12 @@ const short = (t, n = 60) => (t.length > n ? t.slice(0, n) + "…" : t);
 const chatLink = (id, name) => h("a", { href: "#p/" + encodeURIComponent(id) }, "Resuélvelo en el chat de " + name);
 // Read-only gate line for a phase card (gates are decided only in the project's Claude Desktop chat)
 function gateInfo(p) {
-  if (p.gate_state === "waiting") return h("div", { class: "gt" }, "Espera a Danny: " + (p.gate_reason || ""));
+  // a done phase never blocks: a leftover waiting gate on it is not shown
+  if (p.gate_state === "waiting") return p.status === "done" ? null : h("div", { class: "gt" }, "Espera a Danny: " + (p.gate_reason || ""));
   if (p.gate_state === "continue") {
-    const w = p.gate_resolved_words || "";
-    return h("div", { class: "gt ok", title: `${w}\n${p.gate_resolved_action || ""} · ${p.gate_resolved_at || ""}` },
-      "Resuelto vía chat: «" + short(w) + "»", p.gate_resolved_action ? h("small", {}, ` (${p.gate_resolved_action})`) : null);
+    const w = p.gate_resolved_words, act = p.gate_resolved_action;
+    return h("div", { class: "gt ok", title: [w, act, p.gate_resolved_at].filter(Boolean).join(" · ") },
+      w ? ["Resuelto vía chat: «" + short(w) + "»", act ? h("small", {}, ` (${act})`) : null] : "Resuelto" + (act ? ` (${act})` : ""));
   }
   return null;
 }
@@ -521,7 +522,7 @@ function renderProject() {
         h("span", { class: "n" }, h("span", {}, String(i + 1).padStart(2, "0")), h("span", { class: "s" }, `${PH_SYM[p.status]} ${p.status.replace("_", " ")}`)),
         h("h4", {}, p.name), h("p", {}, p.notes || ""),
         gateInfo(p)),
-      sel && p.gate_state !== "waiting" ? h("div", { class: "selst" }, "status:", PHASE_ST.map((s) => h("button", { type: "button", class: p.status === s ? "on" : "", onclick: () => setPhase(p.id, s) }, s))) : null);
+      sel && !(p.gate_state === "waiting" && p.status !== "done") ? h("div", { class: "selst" }, "status:", PHASE_ST.map((s) => h("button", { type: "button", class: p.status === s ? "on" : "", onclick: () => setPhase(p.id, s) }, s))) : null);
   }) : h("div", { class: "empty" }, "No phases yet. Add them from Claude with add_phase."));
 
   const live = items.filter((i) => i.status !== "discarded"), disc = items.filter((i) => i.status === "discarded");
