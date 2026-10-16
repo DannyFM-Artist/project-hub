@@ -7,7 +7,7 @@ from mcp.client.stdio import stdio_client
 
 NAMES = {"list_projects", "get_project", "create_project", "update_project", "add_phase", "set_phase_status", "update_phase", "delete_phase",
          "add_item", "update_item", "log_decision", "post_message", "read_inbox", "mark_message",
-         "claim_resource", "release_resource", "list_resources"}
+         "claim_resource", "release_resource", "list_resources", "set_gate"}
 
 
 def run_session(tmp_path, steps):
@@ -100,3 +100,35 @@ def test_phase_edit_round_trip(tmp_path):
     assert out["del"] == f"Deleted phase {out['ids'][0]}: Uno"
     assert out["gone"].startswith("Error: unknown phase id")
     assert "Uno" not in out["get"] and "Two" in out["get"]
+
+
+def test_gate_round_trip(tmp_path):
+    async def steps(s):
+        async def call(tool, /, **args):
+            return (await s.call_tool(tool, args)).content[0].text
+
+        out = {"tools": {t.name for t in (await s.list_tools()).tools}}
+        await call("create_project", id="demo", name="Demo", description="d", phases=["One", "Two"])
+        ids = [ph["id"] for ph in json.loads((tmp_path / "projects" / "demo.json").read_text(encoding="utf-8"))["phases"]]
+        out["ids"] = ids
+        out["gate"] = await call("set_gate", project_id="demo", phase_id=ids[1], gate="review", reason="check the API")
+        out["loosen"] = await call("set_gate", project_id="demo", phase_id=ids[1], gate="none", reason="x")
+        out["ok"] = await call("set_phase_status", project_id="demo", phase_id=ids[0], status="done")
+        out["refused"] = await call("set_phase_status", project_id="demo", phase_id=ids[1], status="in_progress")
+        out["delete"] = await call("delete_phase", project_id="demo", phase_id=ids[1])
+        out["get"] = await call("get_project", project_id="demo")
+        return out
+
+    out = run_session(tmp_path, steps)
+    assert out["tools"] == NAMES
+    assert not {t for t in out["tools"] if "approve" in t or "remove" in t}
+    i0, i1 = out["ids"]
+    assert out["gate"] == f"Phase {i1} (Two) [gate: review, not approved, set by agent] check the API"
+    assert out["loosen"].startswith("Error:") and "only add or tighten" in out["loosen"]
+    assert out["ok"] == f"Phase {i0} is now done"
+    assert out["refused"] == ("Error: phase 'Two' is gated (review, not approved): check the API. "
+                              "Post a report message describing what is ready for review, then stop.")
+    assert out["delete"].startswith("Error:")
+    assert f"  [{i1}] todo: Two [gate: review, not approved, set by agent] check the API" in out["get"]
+    assert "Autonomous work allowed up to phase 1 (One)" in out["get"]
+    print(*out.values(), sep="\n")

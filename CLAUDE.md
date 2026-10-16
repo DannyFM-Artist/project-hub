@@ -5,3 +5,5 @@ This repo's project id in project-hub is `project-hub`.
 - At the end of the session, post a report message summarizing what changed.
 - Before using a shared resource (GPU-heavy runs, physical sensors, shared repos such as dannyfm-ui, files outside this repo), claim it in project-hub with claim_resource; release it as soon as you are done. If it is busy, do not use it: work on something else and retry later. Tests must bind to free ports chosen by the OS, never to fixed ports.
 - Keep hub text short and readable at a glance: no commit hashes, file:line citations or logs in descriptions, notes or titles; details belong in the repo.
+- Before starting a phase, check its gate in project-hub. If it has an unapproved review gate or a manual_test gate, do not start it: post a report message describing what is ready for review or what needs testing, and stop.
+- If you judge that the next phase needs a manual review or a test by Danny (real hardware, visual approval, anything you cannot verify yourself), add a gate with set_gate and a short reason.

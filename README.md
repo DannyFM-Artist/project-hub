@@ -108,6 +108,8 @@ Set `repo_path` (absolute) when you create a project; session-start matches the 
 - At the end of the session, post a report message summarizing what changed.
 - Before using a shared resource (GPU-heavy runs, physical sensors, shared repos such as dannyfm-ui, files outside this repo), claim it in project-hub with claim_resource; release it as soon as you are done. If it is busy, do not use it: work on something else and retry later. Tests must bind to free ports chosen by the OS, never to fixed ports.
 - Keep hub text short and readable at a glance: no commit hashes, file:line citations or logs in descriptions, notes or titles; details belong in the repo.
+- Before starting a phase, check its gate in project-hub. If it has an unapproved review gate or a manual_test gate, do not start it: post a report message describing what is ready for review or what needs testing, and stop.
+- If you judge that the next phase needs a manual review or a test by Danny (real hardware, visual approval, anything you cannot verify yourself), add a gate with set_gate and a short reason.
 ```
 
 Updating as you go means a session cut off by a usage limit doesn't lose the project's state.
@@ -147,7 +149,8 @@ The screenshot-taking scripts overwrite the PNGs in `mockups/`; discard those ch
 - `add_phase(project_id, name, position?)` - add a phase.
 - `set_phase_status(project_id, phase_id, status, notes?)` - todo / in_progress / done.
 - `update_phase(project_id, phase_id, name?, notes?)` - rename a phase or replace its notes.
-- `delete_phase(project_id, phase_id)` - remove a phase.
+- `delete_phase(project_id, phase_id)` - remove a phase (refused for a gated phase).
+- `set_gate(project_id, phase_id, gate, reason)` - add or tighten a phase gate (none → review → manual_test); agents can never remove, loosen or approve one.
 - `add_item(project_id, type, title, details?)` - idea / future_request / bug.
 - `update_item(project_id, item_id, status?, type?, title?, details?)` - edit or move an item.
 - `log_decision(project_id, decision, reason)` - append to the decision log.
@@ -159,6 +162,15 @@ The screenshot-taking scripts overwrite the PNGs in `mockups/`; discard those ch
 - `list_resources()` - all active leases.
 
 Text limits on every write (MCP and dashboard): project description 200 characters, next_step 160, phase name 60, phase notes 240, item title 100. A longer text is refused with a message asking for a shorter one; data already stored is left as is.
+
+## Phase gates
+
+A gate on a phase limits how far sessions work on their own:
+
+- `review` - no agent may start the phase until Danny approves the gate in the dashboard.
+- `manual_test` - Danny does this phase himself; no agent may start it or mark it done.
+
+Agents can add or tighten gates with `set_gate` (with a reason, at most 160 characters) and are refused when they try to start a gated phase; the refusal tells them to post a report and stop. Gates are approved, changed and removed only in the dashboard, which also lists every phase that is waiting for you. `get_project`, `session-start` and BIBLIA.md show each gate and the line "Autonomous work allowed up to phase N".
 
 ## Autonomous work with /loop
 

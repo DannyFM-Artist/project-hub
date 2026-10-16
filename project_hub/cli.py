@@ -8,7 +8,7 @@ from pathlib import Path
 def session_start() -> None:
     # A SessionStart hook must never break session start: any failure -> silent stdout, exit 0.
     try:
-        from .biblia import current_phase
+        from .biblia import autonomy_line, current_phase, gate_label
         from .hub import Hub
 
         p = Hub().find_project_for_path(Path.cwd())
@@ -21,6 +21,9 @@ def session_start() -> None:
             f"Current phase: {cur['name']} ({cur['status']})" if cur else "Current phase: none",
             f"Next step: {p['next_step'] or '(not set)'}",
         ]
+        lines += [f"Gated phase {i}: {ph['name']} ({ph['status']}) {gate_label(ph)}"
+                  for i, ph in enumerate(p["phases"], 1) if gate_label(ph)]
+        lines.append(autonomy_line(p))
         if unread:
             lines.append(f"Unread inbox ({len(unread)}):")
             lines += [f"- [{m['kind']}] {m['title']} — from {m['from_project']} (id {m['id']})" for m in unread]

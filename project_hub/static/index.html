@@ -102,6 +102,20 @@ td.dim{color:var(--dim)}
 .cue.in_progress .s{color:var(--amber)}
 .cue.in_progress::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;background:var(--amber)}
 .cue.sel{box-shadow:inset 0 0 0 1px var(--amber);z-index:2}
+.cue .gt{font-size:11.5px;margin-top:6px;color:var(--c);font-weight:700;overflow-wrap:anywhere}
+.cue .gt::before{content:"◆ "}
+.cue .gt small{font-weight:400;color:var(--faint);font-size:inherit}
+.gate-review{--c:var(--violet)} .gate-review.ok{--c:var(--green)} .gate-manual_test{--c:var(--amber)}
+.cue p.gr{margin-top:2px}
+.cue .gf{display:grid;gap:6px;margin-top:8px;border-top:1px dashed var(--line2);padding-top:8px;font-size:12px}
+.cue .gf label{display:grid;gap:2px;color:var(--dim)}
+.cue .gf select,.cue .gf input{background:var(--p);border:1px solid var(--line);color:var(--text);font:inherit;padding:3px 6px;min-width:0;width:100%;min-height:24px}
+.cue .gf .btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cue .gf .btns button{color:var(--bg);background:var(--amber);padding:2px 10px;font-weight:700;min-height:24px}
+.cue .gf .btns button.sec{background:none;color:var(--amber);border:1px solid var(--amber);font-weight:400}
+.cue .gf .ferr{font-size:12px}
+.aut{flex-basis:100%;color:var(--dim)} .aut::before{content:"# ";color:var(--line2)}
+#wt-table th:nth-child(1){width:20%} #wt-table th:nth-child(2){width:22%} #wt-table th:nth-child(3){width:130px} #wt-table th:nth-child(5){width:80px}
 .cue .selst{color:var(--dim);font-size:11.5px;margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
 .cue .selst button{color:var(--dim)} .cue .selst button:hover{color:var(--text)}
 .cue .selst button.on{color:var(--amber)}
@@ -210,6 +224,13 @@ td.rl button:hover{color:var(--amber);border-color:var(--amber)}
 <main>
 <div class="view" id="overview">
   <div class="prompt"><b>danny@hub</b> ~ $ <i>list_projects</i> <span class="caret"></span></div>
+  <section class="pane" id="wt-pane" hidden>
+    <h2 class="lbl">waiting for you <span id="wt-count"></span></h2>
+    <div class="tw"><table id="wt-table">
+      <thead><tr><th>project</th><th>phase</th><th>gate</th><th>reason</th><th>set by</th></tr></thead>
+      <tbody id="wt-body"></tbody>
+    </table></div>
+  </section>
   <section class="pane">
     <h2 class="lbl">projects <span id="ov-count"></span></h2>
     <span class="rt" id="ov-filter"></span>
@@ -314,7 +335,7 @@ const COLS = ["open", "planned", "done"];
 const TYPE = { bug: ["B", "bug"], idea: ["I", "idea"], future_request: ["F", "future"] };
 const PHASE_ST = ["todo", "in_progress", "done"];
 const PH_SYM = { todo: "○", in_progress: "▶", done: "✓" };
-const S = { focusNext: false, projects: [], d: null, pid: null, last: null, res: [], filter: "all", ovSel: 0, sel: null, tf: "all", disc: false, offline: false, key: "", exp: new Set() };
+const S = { focusNext: false, projects: [], d: null, pid: null, last: null, res: [], wait: [], gd: {}, filter: "all", ovSel: 0, sel: null, tf: "all", disc: false, offline: false, key: "", exp: new Set() };
 
 function ago(iso) {
   const m = (Date.now() - new Date(iso).getTime()) / 60000;
@@ -363,13 +384,13 @@ async function act(fn, okText, errEl) {
 /* ---------- data ---------- */
 async function refresh(force) {
   try {
-    const [list, unread, res] = await Promise.all([api("GET", "/api/projects"), api("GET", "/api/unread"), api("GET", "/api/resources")]);
+    const [list, unread, res, wait] = await Promise.all([api("GET", "/api/projects"), api("GET", "/api/unread"), api("GET", "/api/resources"), api("GET", "/api/waiting")]);
     S.unread = unread.count;
     let d = null;
     if (S.pid) d = await api("GET", "/api/projects/" + encodeURIComponent(S.pid));
     S.offline = false;
-    const key = JSON.stringify([list, d, res.map((r) => ({ ...r, seconds_left: left(r.seconds_left) }))]); // time left as shown, so the pane re-renders only when the text changes
-    S.projects = list; S.d = d; S.res = res;
+    const key = JSON.stringify([list, d, res.map((r) => ({ ...r, seconds_left: left(r.seconds_left) })), wait]); // time left as shown, so the pane re-renders only when the text changes
+    S.projects = list; S.d = d; S.res = res; S.wait = wait;
     if (S.pid && !d) return;
     syncBar();
     if (force || key !== S.key) { S.key = key; render(); }
@@ -388,6 +409,7 @@ function syncBar() {
 /* ---------- render ---------- */
 function render() {
   const a = document.activeElement, fk = a && a.dataset && a.dataset.fk;
+  S.caret = a && a.tagName === "INPUT" ? a.selectionStart : null;
   document.body.dataset.view = S.pid ? "project" : "overview";
   $("#tab-ov").classList.toggle("on", !S.pid);
   $("#tab-pr").classList.toggle("on", !!S.pid);
@@ -398,12 +420,13 @@ function render() {
   if (S.focusNext) {
     const t = S.pid ? (S.d && S.d.id === S.pid && $("#phead h2")) : document.querySelector("tr.sel a");
     if (t) { t.focus(); S.focusNext = false; }
-  } else if (fk) { const n = document.querySelector(`[data-fk="${CSS.escape(fk)}"]`); if (n) n.focus(); }
+  } else if (fk) { const n = document.querySelector(`[data-fk="${CSS.escape(fk)}"]`); if (n) { n.focus(); if (n.tagName === "INPUT" && S.caret != null) try { n.setSelectionRange(S.caret, S.caret); } catch (e) { /* ignore */ } } }
 }
 const visibleProjects = () => S.projects.filter((p) => S.filter === "all" || p.status === S.filter);
 const COLOR = { active: "green", paused: "amber", parked: "violet", done: "blue" };
 
 function renderOverview() {
+  renderWaiting();
   renderResources();
   const ps = S.projects;
   const cnt = STATUSES.map((s) => [s, ps.filter((p) => p.status === s).length]).filter((x) => x[1]).map((x) => `${x[1]} ${x[0]}`);
@@ -424,6 +447,17 @@ function renderOverview() {
     h("td", { class: "dim nw" }, ago(p.updated_at)))));
 }
 
+const GATE = { review: "REVIEW", manual_test: "MANUAL TEST" };
+function renderWaiting() {
+  $("#wt-pane").hidden = !S.wait.length; // quiet when nothing waits
+  $("#wt-count").textContent = S.wait.length;
+  fill($("#wt-body"), S.wait.map((w) => h("tr", { class: "wrow", style: "cursor:pointer", onclick: (e) => { if (!e.target.closest("a")) open(w.project_id); } },
+    h("td", { class: "name" }, h("a", { href: "#p/" + encodeURIComponent(w.project_id), "data-fk": "w" + w.project_id + w.phase_id }, w.project_name)),
+    h("td", {}, w.phase_name),
+    h("td", { class: "nw" }, h("span", { class: "gt gate-" + w.gate, style: "color:var(--c);font-weight:700" }, GATE[w.gate] || w.gate)),
+    h("td", { class: "dim" }, w.gate_reason || "-"),
+    h("td", { class: "dim nw" }, w.gate_set_by || "-"))));
+}
 function left(sec) {
   const m = Math.floor(sec / 60);
   return m < 1 ? "<1m" : m < 60 ? m + "m" : Math.floor(m / 60) + "h " + String(m % 60).padStart(2, "0") + "m";
@@ -448,6 +482,7 @@ function renderProject() {
   fill($("#phead"), h("h2", { tabindex: "-1" }, d.name), h("span", { class: "tag s-" + d.status }, d.status),
     d.repo_path ? h("span", {}, h("span", { class: "k" }, "repo "), h("span", { class: "v" }, d.repo_path)) : null,
     h("span", {}, h("span", { class: "k" }, "next → "), h("span", { class: "nx" }, d.next_step || "-")),
+    d.autonomy ? h("p", { class: "aut" }, d.autonomy) : null,
     d.description ? h("p", { class: "desc" }, d.description) : null);
 
   $("#ph-count").textContent = `${d.phases.filter((p) => p.status === "done").length}/${d.phases.length} done`;
@@ -456,8 +491,11 @@ function renderProject() {
     return h("div", { class: `cue ${p.status}` + (sel ? " sel" : "") + (S.exp.has(p.id) ? " exp" : "") },
       h("button", { type: "button", class: "main", "data-fk": "ph" + p.id, "aria-pressed": sel, "aria-expanded": S.exp.has(p.id), onclick: () => { S.sel = { kind: "phase", id: p.id }; S.exp.has(p.id) ? S.exp.delete(p.id) : S.exp.add(p.id); render(); } },
         h("span", { class: "n" }, h("span", {}, String(i + 1).padStart(2, "0")), h("span", { class: "s" }, `${PH_SYM[p.status]} ${p.status.replace("_", " ")}`)),
-        h("h4", {}, p.name), h("p", {}, p.notes || "")),
-      sel ? h("div", { class: "selst" }, "status:", PHASE_ST.map((s) => h("button", { type: "button", class: p.status === s ? "on" : "", onclick: () => setPhase(p.id, s) }, s))) : null);
+        h("h4", {}, p.name), h("p", {}, p.notes || ""),
+        p.gate && p.gate !== "none" ? [h("div", { class: `gt gate-${p.gate}` + (p.gate === "review" && p.gate_approved ? " ok" : "") }, GATE[p.gate], p.gate === "review" ? (p.gate_approved ? " · approved" : " · not approved") : null, h("small", {}, p.gate_set_by ? ` · set by ${p.gate_set_by}` : "")),
+          p.gate_reason ? h("p", { class: "gr" }, p.gate_reason) : null] : null),
+      sel ? h("div", { class: "selst" }, "status:", PHASE_ST.map((s) => h("button", { type: "button", class: p.status === s ? "on" : "", onclick: () => setPhase(p.id, s) }, s))) : null,
+      sel ? gateForm(p) : null);
   }) : h("div", { class: "empty" }, "No phases yet. Add them from Claude with add_phase."));
 
   const live = items.filter((i) => i.status !== "discarded"), disc = items.filter((i) => i.status === "discarded");
@@ -508,6 +546,26 @@ function renderProject() {
   const to = $("#f-msg [name=to]"), cur = to.value;
   fill(to, h("option", { value: d.id }, "this project (" + d.id + ")"), h("option", { value: "all" }, "all"));
   to.value = cur === "all" ? "all" : d.id;
+}
+function gateForm(p) {
+  const k = S.pid + "/" + p.id, base = { gate: p.gate || "none", reason: p.gate_reason || "" };
+  const dr = S.gd[k] || base, edit = (f, v) => { S.gd[k] = { ...dr, [f]: v }; Object.assign(dr, S.gd[k]); }; // draft exists only once the user typed, so polling never overwrites it and untouched forms follow the server
+  const err = h("span", { class: "ferr", role: "alert" });
+  const sel = h("select", { "data-fk": "gs" + p.id, id: "gs" + p.id, onchange: (e) => { edit("gate", e.target.value); } },
+    [["none", "none"], ["review", "review"], ["manual_test", "manual test"]].map(([v, l]) => h("option", { value: v, selected: dr.gate === v }, l)));
+  const inp = h("input", { "data-fk": "gr" + p.id, id: "gr" + p.id, maxlength: "160", value: dr.reason, oninput: (e) => { edit("reason", e.target.value); } });
+  const gated = p.gate && p.gate !== "none";
+  const set = async () => {
+    err.textContent = "";
+    if (dr.gate !== "none" && !dr.reason.trim()) { err.textContent = "Reason is required."; inp.focus(); return; }
+    const ok = await act(() => api("POST", `/api/projects/${S.pid}/phases/${p.id}/gate`, { gate: dr.gate, reason: dr.gate === "none" ? "" : dr.reason }), dr.gate === "none" ? "Gate removed" : "Gate set", err);
+    if (ok) delete S.gd[k]; // saved; show server values again
+  };
+  return h("div", { class: "gf", onclick: (e) => e.stopPropagation() },
+    h("label", {}, "gate", sel), h("label", {}, "reason (max 160)", inp), err,
+    h("div", { class: "btns" }, h("button", { type: "button", "data-fk": "gset" + p.id, onclick: set }, "Set gate"),
+      gated && p.gate === "review" && !p.gate_approved ? h("button", { type: "button", class: "sec", "data-fk": "gap" + p.id, onclick: () => act(() => api("POST", `/api/projects/${S.pid}/phases/${p.id}/gate/approve`), "Gate approved", err) }, "Approve") : null,
+      gated && p.gate === "manual_test" && p.status !== "done" ? h("button", { type: "button", class: "sec", "data-fk": "gdone" + p.id, onclick: () => act(() => api("POST", `/api/projects/${S.pid}/phases/${p.id}`, { status: "done" }), "Phase marked done", err) }, "Mark done") : null));
 }
 function colItems(c) {
   return S.d.items.filter((i) => i.status === c && (S.tf === "all" || i.type === S.tf)).sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -602,7 +660,7 @@ function route() {
   const m = location.hash.match(/^#p\/(.+)$/);
   const pid = m ? decodeURIComponent(m[1]) : null;
   if (pid !== S.pid) {
-    S.pid = pid; S.sel = null; S.exp.clear(); S.d = null; S.key = "";
+    S.pid = pid; S.sel = null; S.gd = {}; S.exp.clear(); S.d = null; S.key = "";
     if (pid) S.last = pid;
     else { const i = visibleProjects().findIndex((x) => x.id === S.last); if (i >= 0) S.ovSel = i; }
     S.focusNext = true;

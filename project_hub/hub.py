@@ -11,7 +11,7 @@ from pathlib import Path
 
 from filelock import FileLock
 
-from .biblia import render, unread_for
+from .biblia import GATE_DEFAULTS, render, unread_for
 
 PROJECT_STATUSES = ("active", "paused", "parked", "done")
 PHASE_STATUSES = ("todo", "in_progress", "done")
@@ -19,7 +19,9 @@ ITEM_TYPES = ("idea", "future_request", "bug")
 ITEM_STATUSES = ("open", "planned", "done", "discarded")
 MESSAGE_KINDS = ("message", "task", "report")
 MESSAGE_STATUSES = ("unread", "read", "done")
-LIMITS = {"description": 200, "next_step": 160, "phase name": 60, "notes": 240, "title": 100}  # max characters
+GATES = ("none", "review", "manual_test")  # strictness order
+GATE_BY = ("agent", "user")
+LIMITS = {"description": 200, "next_step": 160, "phase name": 60, "notes": 240, "title": 100, "gate_reason": 160}  # max characters
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]*")
 
 
@@ -285,14 +287,22 @@ class Hub:
 
         return self._modify(project_id, change)
 
-    def set_phase_status(self, project_id, phase_id, status, notes=None) -> dict:
+    def set_phase_status(self, project_id, phase_id, status, notes=None, *, by="agent") -> dict:
+        """by="agent" is refused to in_progress/done on an unapproved review or a manual_test gate; by="user" never."""
         _check_enum(status, PHASE_STATUSES, "phase status")
+        _check_enum(by, GATE_BY, "by")
         if notes is not None:
             _check_text(notes, "notes")
             _check_len(notes, "notes", LIMITS["notes"])
 
         def change(p):
             phase = _find(p["phases"], phase_id, "phase")
+            gate = phase.get("gate", "none")
+            if by == "agent" and status in ("in_progress", "done") and (
+                    gate == "manual_test" or (gate == "review" and not phase.get("gate_approved"))):
+                state, todo = ("review, not approved", "what is ready for review") if gate == "review" else ("manual_test", "what needs testing")
+                raise HubError(f"phase {phase['name']!r} is gated ({state}): {phase.get('gate_reason', '')}. "
+                               f"Post a report message describing {todo}, then stop.")
             phase["status"] = status
             if notes is not None:
                 phase["notes"] = notes
@@ -323,7 +333,44 @@ class Hub:
     def delete_phase(self, project_id, phase_id) -> dict:
         def change(p):
             phase = _find(p["phases"], phase_id, "phase")
+            if phase.get("gate", "none") != "none":  # so agents cannot remove a gate by deleting its phase
+                raise HubError(f"phase {phase['name']!r} has a {phase['gate']} gate and cannot be deleted; "
+                               "only Danny removes gates, in the dashboard")
             p["phases"].remove(phase)
+            return phase
+
+        return self._modify(project_id, change)
+
+    def set_gate(self, project_id, phase_id, gate, reason="", *, by="agent") -> dict:
+        """by="agent" may only add or tighten a gate (none < review < manual_test), with a reason.
+        by="user" (dashboard) may set any gate; "none" clears it. A change of gate type resets the approval."""
+        _check_enum(gate, GATES, "gate")
+        _check_enum(by, GATE_BY, "by")
+        _check_text(reason, "gate reason", required=by == "agent")
+        _check_len(reason, "gate reason", LIMITS["gate_reason"])
+
+        def change(p):
+            phase = _find(p["phases"], phase_id, "phase")
+            current = phase.get("gate", "none")
+            if by == "agent" and GATES.index(gate) <= GATES.index(current):
+                raise HubError(f"phase {phase['name']!r} already has gate {current!r}; agents can only add or tighten "
+                               "gates (none < review < manual_test). Only Danny removes, loosens or approves gates, in the dashboard.")
+            if gate == "none":
+                phase.update(GATE_DEFAULTS)
+            else:
+                phase.update(gate=gate, gate_reason=reason, gate_set_by=by,
+                             gate_approved=phase.get("gate_approved", False) and gate == current)
+            return phase
+
+        return self._modify(project_id, change)
+
+    def approve_gate(self, project_id, phase_id) -> dict:
+        """Dashboard only: approve an unapproved review gate."""
+        def change(p):
+            phase = _find(p["phases"], phase_id, "phase")
+            if phase.get("gate", "none") != "review" or phase.get("gate_approved"):
+                raise HubError(f"phase {phase['name']!r} has no unapproved review gate to approve")
+            phase["gate_approved"] = True
             return phase
 
         return self._modify(project_id, change)

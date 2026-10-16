@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from . import hub as hub_module  # module reference so a faked hub._utcnow applies here too
-from .biblia import current_phase
+from .biblia import GATE_DEFAULTS, autonomy_line, current_phase, waiting
 from .hub import PROJECT_STATUSES as STATUS_ORDER, Hub, HubError  # active, paused, parked, done
 
 app = FastAPI(title="project-hub")
@@ -89,14 +89,37 @@ def unread_total():
 @app.get("/api/projects/{project_id}")
 def get_project(project_id: str):
     project = hub().get_project(project_id)
+    project["phases"] = [{**GATE_DEFAULTS, **ph} for ph in project["phases"]]
+    project["autonomy"] = autonomy_line(project)
     project["inbox"] = sorted(hub().read_inbox(project_id, unread_only=False),
                               key=lambda m: m["created_at"], reverse=True)
     return project
 
 
+# the dashboard is Danny: phase and gate changes here are by="user"
 @app.post("/api/projects/{project_id}/phases/{phase_id}")
 def set_phase(project_id: str, phase_id: str, body: PhaseIn):
-    return hub().set_phase_status(project_id, phase_id, body.status, body.notes)
+    return hub().set_phase_status(project_id, phase_id, body.status, body.notes, by="user")
+
+
+class GateIn(BaseModel):
+    gate: str
+    reason: str = ""
+
+
+@app.post("/api/projects/{project_id}/phases/{phase_id}/gate")
+def set_gate(project_id: str, phase_id: str, body: GateIn):
+    return hub().set_gate(project_id, phase_id, body.gate, body.reason, by="user")
+
+
+@app.post("/api/projects/{project_id}/phases/{phase_id}/gate/approve")
+def approve_gate(project_id: str, phase_id: str):
+    return hub().approve_gate(project_id, phase_id)
+
+
+@app.get("/api/waiting")
+def list_waiting():
+    return waiting(hub().list_projects())
 
 
 @app.post("/api/projects/{project_id}/items")

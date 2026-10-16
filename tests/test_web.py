@@ -133,6 +133,47 @@ def test_resources_routes(env):
     assert c.post("/api/resources/release", json={"resource": " "}).status_code == 400
 
 
+def test_gate_routes(env):
+    h, c = env
+    p0, p1 = (ph["id"] for ph in h.get_project("alpha")["phases"])
+    d = c.get("/api/projects/alpha").json()
+    assert all(ph["gate"] == "none" and ph["gate_reason"] == "" and ph["gate_set_by"] is None and ph["gate_approved"] is False
+               for ph in d["phases"])  # defaults filled for phases stored without gate fields
+    assert d["autonomy"] == "Autonomous work allowed up to phase 2 (two)"
+    assert c.get("/api/waiting").json() == []
+
+    base = f"/api/projects/alpha/phases/{p0}"
+    r = c.post(f"{base}/gate", json={"gate": "manual_test"})  # user: any gate, reason optional
+    assert r.status_code == 200 and r.json()["gate_set_by"] == "user"
+    assert c.post(f"{base}/gate/approve").status_code == 400  # manual_test cannot be approved
+    r = c.post(f"{base}/gate", json={"gate": "review", "reason": "look at it"})  # user may loosen
+    assert r.status_code == 200 and r.json()["gate"] == "review"
+    assert c.get("/api/waiting").json() == [{"project_id": "alpha", "project_name": "Alpha", "phase_id": p0, "phase_name": "one",
+                                             "gate": "review", "gate_reason": "look at it", "gate_set_by": "user"}]
+    d = c.get("/api/projects/alpha").json()
+    assert d["autonomy"] == "Autonomous work allowed up to phase 0 (phase 1 is gated)"
+    assert d["phases"][0]["gate"] == "review" and d["phases"][1]["gate"] == "none"
+    r = c.post(f"{base}/gate/approve")
+    assert r.status_code == 200 and r.json()["gate_approved"] is True
+    assert c.get("/api/waiting").json() == []
+    r = c.post(f"{base}/gate", json={"gate": "none"})
+    assert r.status_code == 200 and (r.json()["gate"], r.json()["gate_set_by"]) == ("none", None)
+    assert c.post(f"{base}/gate/approve").status_code == 400  # no gate
+    assert c.post(f"{base}/gate", json={"gate": "bogus"}).status_code == 400
+    assert c.post(f"{base}/gate", json={"gate": "review", "reason": "x" * 161}).status_code == 400
+    assert c.post("/api/projects/alpha/phases/zzz/gate", json={"gate": "review"}).status_code == 404
+    assert c.post("/api/projects/alpha/phases/zzz/gate/approve").status_code == 404
+
+
+def test_dashboard_phase_status_ignores_gates(env):
+    h, c = env
+    p0 = h.get_project("alpha")["phases"][0]["id"]
+    h.set_gate("alpha", p0, "manual_test", "Danny tests it")
+    for status in ("in_progress", "done"):
+        r = c.post(f"/api/projects/alpha/phases/{p0}", json={"status": status})
+        assert r.status_code == 200 and r.json()["status"] == status
+
+
 def test_over_limit_item_title_is_400(env):
     h, c = env
     r = c.post("/api/projects/alpha/items", json={"type": "bug", "title": "x" * 101})

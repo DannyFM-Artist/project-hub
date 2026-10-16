@@ -4,7 +4,7 @@ from functools import wraps
 
 from mcp.server.mcpserver import MCPServer
 
-from .biblia import current_phase
+from .biblia import autonomy_line, current_phase, gate_label
 from .hub import Hub, HubError
 
 mcp = MCPServer("project-hub")
@@ -49,7 +49,9 @@ def get_project(project_id: str) -> str:
     p = hub.get_project(project_id)
     out = [f"{p['id']} | {p['name']} | {p['status']}", f"Description: {p['description'] or '-'}",
            f"Repo: {p['repo_path'] or '-'}", f"Next step: {p['next_step'] or '-'}", "Phases:"]
-    out += [f"  [{ph['id']}] {ph['status']}: {ph['name']}" + (f" - {ph['notes']}" if ph["notes"] else "") for ph in p["phases"]] or ["  (none)"]
+    out += [f"  [{ph['id']}] {ph['status']}: {ph['name']}" + (f" {gate_label(ph)}" if gate_label(ph) else "")
+            + (f" - {ph['notes']}" if ph["notes"] else "") for ph in p["phases"]] or ["  (none)"]
+    out.append(autonomy_line(p))
     out.append("Items:")
     out += [f"  [{i['id']}] {i['type']} {i['status']}: {i['title']}" + (f" - {i['details']}" if i["details"] else "") for i in p["items"]] or ["  (none)"]
     out.append("Recent decisions:")
@@ -85,9 +87,19 @@ def add_phase(project_id: str, name: str, position: int | None = None) -> str:
 
 @tool
 def set_phase_status(project_id: str, phase_id: str, status: str, notes: str | None = None) -> str:
-    """Set a phase status: todo, in_progress, done. Optional notes replace the phase notes (limit 240 characters)."""
-    ph = hub.set_phase_status(project_id, phase_id, status, notes)
+    """Set a phase status: todo, in_progress, done. Optional notes replace the phase notes (limit 240 characters).
+    A gated phase (unapproved review, or manual_test) cannot be moved to in_progress or done: post a report and stop."""
+    ph = hub.set_phase_status(project_id, phase_id, status, notes, by="agent")
     return f"Phase {ph['id']} is now {ph['status']}"
+
+
+@tool
+def set_gate(project_id: str, phase_id: str, gate: str, reason: str) -> str:
+    """Put a gate on a phase so work stops there for Danny. gate: review (Danny approves before it starts/finishes)
+    or manual_test (Danny tests it himself). Agents may only add or tighten a gate (none -> review -> manual_test),
+    with a short reason (limit 160 characters). Only Danny approves, loosens or removes gates, in the dashboard."""
+    ph = hub.set_gate(project_id, phase_id, gate, reason, by="agent")
+    return f"Phase {ph['id']} ({ph['name']}) {gate_label(ph)}"
 
 
 @tool
@@ -99,7 +111,7 @@ def update_phase(project_id: str, phase_id: str, name: str | None = None, notes:
 
 @tool
 def delete_phase(project_id: str, phase_id: str) -> str:
-    """Delete a phase from a project."""
+    """Delete a phase from a project. A phase with a gate cannot be deleted."""
     ph = hub.delete_phase(project_id, phase_id)
     return f"Deleted phase {ph['id']}: {ph['name']}"
 

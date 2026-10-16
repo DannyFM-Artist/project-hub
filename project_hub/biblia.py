@@ -17,6 +17,49 @@ def unread_for(project_id, messages):
     return [m for m in messages if m["to_project"] in (project_id, "all") and m["status"] == "unread"]
 
 
+GATE_DEFAULTS = {"gate": "none", "gate_reason": "", "gate_set_by": None, "gate_approved": False}  # phases stored before gates
+
+
+def blocking(phase):
+    gate = phase.get("gate", "none")
+    return phase["status"] != "done" and (gate == "manual_test" or (gate == "review" and not phase.get("gate_approved")))
+
+
+def autonomy_limit(project):
+    """Number of phases before the first blocking phase; len(phases) if none blocks."""
+    phases = project.get("phases", [])
+    return next((i for i, ph in enumerate(phases) if blocking(ph)), len(phases))
+
+
+def autonomy_line(project):
+    n = autonomy_limit(project)
+    phases = project.get("phases", [])
+    if n > 0:
+        return f"Autonomous work allowed up to phase {n} ({phases[n - 1]['name']})"
+    return "Autonomous work allowed up to phase 0" + (" (phase 1 is gated)" if phases else "")
+
+
+def gate_label(phase):
+    """`[gate: review, not approved, set by agent] reason` for a gated phase (or a waiting() entry), "" when ungated."""
+    gate = phase.get("gate", "none")
+    if gate == "none":
+        return ""
+    approved = (", approved" if phase.get("gate_approved") else ", not approved") if gate == "review" else ""
+    reason = phase.get("gate_reason", "")
+    return f"[gate: {gate}{approved}, set by {phase.get('gate_set_by') or '-'}]" + (f" {_cell(reason)}" if reason else "")
+
+
+def waiting(projects):
+    """Blocking phases whose previous phases are all done, in project order."""
+    out = []
+    for p in projects:
+        ph = next((ph for ph in p.get("phases", []) if ph["status"] != "done"), None)
+        if ph and blocking(ph):
+            out.append({"project_id": p["id"], "project_name": p["name"], "phase_id": ph["id"], "phase_name": ph["name"],
+                        **{k: ph.get(k, GATE_DEFAULTS[k]) for k in ("gate", "gate_reason", "gate_set_by")}})
+    return out
+
+
 def _cell(text):
     return str(text or "").replace("|", "\\|").replace("\r", "").replace("\n", " ")
 
@@ -56,6 +99,10 @@ def render(projects, messages, generated_at, leases=()):
     else:
         out.append("(none)")
 
+    out += ["", "## Waiting for Danny", ""]
+    out += [f"- {_cell(w['project_name'])} (`{w['project_id']}`): phase {_cell(w['phase_name'])} (id {w['phase_id']}) {gate_label(w)}"
+            for w in waiting(projects)] or ["(none)"]
+
     for p in projects:
         cur = current_phase(p)
         out += [
@@ -66,6 +113,7 @@ def render(projects, messages, generated_at, leases=()):
             f"- Repo path: {p['repo_path'] or '-'}",
             f"- Next step: {_block(p['next_step']) or '-'}",
             f"- Updated: {p['updated_at']}",
+            f"- {autonomy_line(p)}",
             "",
             "### Description",
             "",
@@ -78,6 +126,8 @@ def render(projects, messages, generated_at, leases=()):
             line = f"{i}. [{ph['status']}] {ph['name']} (id {ph['id']})"
             if cur is ph:
                 line += " <- current"
+            if gate := gate_label(ph):
+                line += f" {gate}"
             if ph["notes"]:
                 line += f" - {_block(ph['notes'])}"
             out.append(line)

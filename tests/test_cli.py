@@ -24,6 +24,20 @@ def test_match_prints_context(tmp_path):
         assert text in r.stdout
 
 
+def test_shows_gates_and_autonomy(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    hub = Hub(tmp_path / "data")
+    hub.create_project("demo", "Demo", "d", repo_path=str(repo), phases=["Plan", "Build"])
+    p1 = hub.get_project("demo")["phases"][1]["id"]
+    hub.set_gate("demo", p1, "manual_test", "Danny tests on device")
+    r = run(repo, tmp_path / "data")
+    assert r.returncode == 0
+    assert "Gated phase 2: Build (todo) [gate: manual_test, set by agent] Danny tests on device" in r.stdout
+    assert "Autonomous work allowed up to phase 1 (Plan)" in r.stdout
+    print(r.stdout)
+
+
 def test_no_match_is_silent(tmp_path):
     Hub(tmp_path / "data").create_project("demo", "Demo", "d", repo_path=str(tmp_path / "repo"))
     other = tmp_path / "other"
