@@ -26,9 +26,17 @@ class FakeServer:
 
 class FakeIcon:
     stopped = False
+    visible = True
 
     def stop(self):
         self.stopped = True
+
+
+@pytest.fixture
+def status(monkeypatch):
+    from project_hub import web
+    monkeypatch.setattr(web, "STATUS", {"state": "running", "polled": 0.0})
+    return web.STATUS
 
 
 @pytest.fixture
@@ -68,12 +76,37 @@ def test_open_data_folder(monkeypatch, tmp_path):
     assert got == [tmp_path.resolve()]
 
 
-def test_restart_and_quit():
+def test_restart_and_quit(status):
     s, i = FakeServer(), FakeIcon()
     tray.restart_server(s)
-    assert s.calls == ["stop", "start"]
-    tray.quit_app(s, i)
-    assert s.calls[-1] == "stop" and i.stopped
+    assert s.calls == ["stop", "start"] and status["state"] == "restarting"  # the real Server.start sets it back
+    tray.quit_app(s, i, confirm=lambda: True)
+    assert s.calls[-1] == "stop" and i.stopped and not i.visible and status["state"] == "stopping"
+
+
+def test_quit_cancelled_keeps_everything(status):
+    s, i = FakeServer(), FakeIcon()
+    tray.quit_app(s, i, confirm=lambda: False)
+    assert s.calls == [] and not i.stopped and i.visible and status["state"] == "running"
+
+
+def test_status_endpoint_reports_the_flag_and_poll_time(status):
+    from fastapi.testclient import TestClient
+    from project_hub import web
+    c = TestClient(web.app)
+    assert c.get("/api/status").json() == {"state": "running"} and status["polled"] > 0
+    status["state"] = "stopping"
+    assert c.get("/api/status").json() == {"state": "stopping"}
+
+
+def test_announce_waits_only_when_a_page_polled_lately(status, monkeypatch):
+    slept = []
+    monkeypatch.setattr(tray.time, "sleep", slept.append)
+    tray.announce("stopping")
+    assert slept == [] and status["state"] == "stopping"  # no open page: quit at once
+    status["polled"] = tray.time.monotonic()
+    tray.announce("restarting")
+    assert slept == [tray.POLL_WAIT] and status["state"] == "restarting"
 
 
 def test_log_file_created_in_data_folder(tmp_path):
@@ -114,6 +147,8 @@ def test_real_server_start_stop_restart():
             threading.Event().wait(0.1)
         assert tray.is_running(port)
         tray.restart_server(s)
+        from project_hub import web
+        assert web.STATUS["state"] == "running"  # the restarted server serves "running" again
         for _ in range(100):
             if tray.is_running(port):
                 break

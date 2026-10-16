@@ -147,7 +147,7 @@ Opens at http://127.0.0.1:8765 (bound to 127.0.0.1 only). Uses `~/project-hub-da
 project-hub-tray      # windowless; "project-hub tray" from a console does the same
 ```
 
-Starts the dashboard in a background thread and puts a brain icon in the Windows notification area (it may be under the ^ overflow). Menu: Abrir dashboard (also double-click), Reiniciar servidor, Abrir carpeta de datos, Salir. To stop the dashboard use tray > Salir; to restart it, tray > Reiniciar servidor. A second launch while something already answers on port 8765 only opens the browser.
+Starts the dashboard in a background thread and puts a brain icon in the Windows notification area (it may be under the ^ overflow). Menu: Abrir dashboard (also double-click), Reiniciar servidor, Abrir carpeta de datos, Salir. To stop the dashboard use tray > Salir (it asks first; open dashboard pages then show "Dashboard detenido" and an app window closes itself); to restart it, tray > Reiniciar servidor (open pages show "Reiniciando…" and reconnect). A second launch while something already answers on port 8765 only opens the browser.
 
 Logs (dashboard, uvicorn and uncaught errors) go to `<data>/logs/dashboard.log` (1 MB x 3, ignored by the data folder's git).
 
@@ -177,6 +177,7 @@ python -m venv .venv-browser
 - `unread_align_check.py` - reports counter counts each report once, phase row alignment
 - `longtext_check.py` - very long text at 1280/1440/1920 px: no horizontal scroll, clamps, selection
 - `res_check.py` - resources pane against the real API, force release with inline confirmation
+- `shutdown_check.py` - tray Reiniciar servidor and Salir against the real tray server: "Reiniciando…", "Dashboard detenido", app window closing
 
 Screenshots taken by the scripts go to their temp data folder (the path is printed), never to `mockups/`.
 The dashboard's look is described in `design-system/MASTER.md`.

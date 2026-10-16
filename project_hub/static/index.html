@@ -76,6 +76,10 @@ button:disabled { opacity: .5; cursor: default; }
 .bell.hot { border-color: var(--WARN); color: var(--WARN); }
 .bell[aria-expanded="true"] { background: var(--OVERLAY); }
 .snap { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); white-space: nowrap; }
+.stopped { position: fixed; inset: 0; z-index: 100; background: var(--BASE); display: flex; flex-direction: column;
+  justify-content: center; align-items: center; gap: var(--Space-MD); padding: var(--Space-XL); text-align: center; }
+.stopped h1 { font-size: var(--Type-H1); color: var(--TEXT); margin: 0; }
+.stopped p { color: var(--TEXT_DIM); max-width: 60ch; margin: 0; }
 .offline { position: sticky; top: var(--TITLE_H); z-index: 19; background: var(--RAISED); color: var(--WARN); border-bottom: 1px solid var(--WARN);
   padding: var(--Space-XS) var(--Space-XL); font-weight: 600; }
 
@@ -567,7 +571,9 @@ function left(sec) {
 }
 async function refresh(force) {
   try {
-    const [list, res] = await Promise.all([api("GET", "/api/projects"), api("GET", "/api/resources")]);
+    const [list, res, st] = await Promise.all([api("GET", "/api/projects"), api("GET", "/api/resources"), api("GET", "/api/status")]);
+    if (st.state === "stopping") return stopped();
+    S.restarting = st.state === "restarting"; // cleared by the first poll of the restarted server
     let d = null;
     if (S.pid) d = await api("GET", "/api/projects/" + enc(S.pid));
     S.offline = false;
@@ -586,10 +592,22 @@ async function refresh(force) {
   }
 }
 function syncBar() {
-  $("#offline").hidden = !S.offline;
-  $("#offline").textContent = S.offline ? `No se puede conectar con el hub en ${location.host}. Reintentando cada 5 s.` : "";
+  $("#offline").hidden = !S.offline && !S.restarting;
+  $("#offline").textContent = S.restarting ? "Reiniciando el servidor del dashboard…"
+    : S.offline ? `No se puede conectar con el hub en ${location.host}. Reintentando cada 5 s.` : "";
   $("#sync").textContent = new Date().toTimeString().slice(0, 8);
   $("#sync").title = `${location.host} · poll 5s` + (S.offline ? " · sin conexión" : "");
+}
+
+// Salir in the tray: stop polling, cover the page, and close the window where the browser allows it (an app window)
+function stopped() {
+  clearInterval(S.poll);
+  if ($("#stopped")) return; // a refresh already in flight can land here twice
+  document.body.append(h("div", { class: "stopped", id: "stopped", role: "alert" },
+    h("h1", {}, "Dashboard detenido"),
+    h("p", {}, "Se ha cerrado desde el icono de la bandeja. Los chats y las sesiones de Claude Code siguen funcionando."),
+    h("p", {}, "Para abrirlo de nuevo, busca «project-hub dashboard» en el menú Inicio (el icono del cerebro); también arranca solo al iniciar sesión. Después recarga esta página.")));
+  window.close();
 }
 
 const waitsFor = (ph) => ph.gate_state === "waiting" && ph.status !== "done"; // done phases never block
@@ -1168,7 +1186,7 @@ function route() {
 }
 addEventListener("hashchange", route);
 route();
-setInterval(() => refresh(false), 5000);
+S.poll = setInterval(() => refresh(false), 5000);
 </script>
 </body>
 </html>

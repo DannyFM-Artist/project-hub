@@ -6,6 +6,7 @@ import os
 import socket
 import sys
 import threading
+import time
 import webbrowser
 from pathlib import Path
 
@@ -14,6 +15,10 @@ from .hub import data_dir
 HOST, PORT = "127.0.0.1", 8765
 ICON = Path(__file__).parent / "static" / "icons" / "app.ico"
 LABELS = ("Abrir dashboard", "Reiniciar servidor", "Abrir carpeta de datos", "Salir")
+QUIT_TITLE = "¿Cerrar el dashboard de project-hub?"
+QUIT_TEXT = ("Los chats y las sesiones de Claude Code seguirán funcionando, "
+             "pero el dashboard dejará de estar disponible.")
+POLL_WAIT = 6  # pages poll every 5 s: one poll plus margin so every open page reads the flag before the server goes
 
 
 def url(port=PORT) -> str:
@@ -54,7 +59,9 @@ class Server:
     def start(self):
         import uvicorn
 
+        from . import web
         from .web import app
+        web.STATUS["state"] = "running"
         # log_config=None: no console handlers (a windowless exe has no stdout); records reach the file handler
         self.server = uvicorn.Server(uvicorn.Config(app, host=HOST, port=self.port, log_config=None))
         self.thread = threading.Thread(target=self.server.run, daemon=True, name="uvicorn")
@@ -75,12 +82,60 @@ def open_data_folder():
     os.startfile(data_dir())
 
 
+def announce(state, wait=POLL_WAIT):
+    """Tell open dashboard pages what is coming; wait for their next poll only if a page polled lately."""
+    from . import web
+    web.STATUS["state"] = state
+    if time.monotonic() - web.STATUS["polled"] < wait:
+        time.sleep(wait)
+
+
+def confirm_quit() -> bool:
+    """Native Windows task dialog with Cerrar / Cancelar; Esc, the X and Cancelar all keep the dashboard."""
+    import ctypes
+    from ctypes import wintypes as w
+
+    class Button(ctypes.Structure):
+        _pack_ = 1
+        _fields_ = [("id", ctypes.c_int), ("text", w.LPCWSTR)]
+
+    class Config(ctypes.Structure):  # TASKDIALOGCONFIG, packed like commctrl.h
+        _pack_ = 1
+        _fields_ = [("cbSize", w.UINT), ("hwndParent", w.HWND), ("hInstance", w.HINSTANCE), ("dwFlags", ctypes.c_int),
+                    ("dwCommonButtons", ctypes.c_int), ("pszWindowTitle", w.LPCWSTR), ("pszMainIcon", ctypes.c_void_p),
+                    ("pszMainInstruction", w.LPCWSTR), ("pszContent", w.LPCWSTR), ("cButtons", w.UINT),
+                    ("pButtons", ctypes.POINTER(Button)), ("nDefaultButton", ctypes.c_int), ("cRadioButtons", w.UINT),
+                    ("pRadioButtons", ctypes.c_void_p), ("nDefaultRadioButton", ctypes.c_int),
+                    ("pszVerificationText", w.LPCWSTR), ("pszExpandedInformation", w.LPCWSTR),
+                    ("pszExpandedControlText", w.LPCWSTR), ("pszCollapsedControlText", w.LPCWSTR),
+                    ("pszFooterIcon", ctypes.c_void_p), ("pszFooter", w.LPCWSTR), ("pfCallback", ctypes.c_void_p),
+                    ("lpCallbackData", ctypes.c_void_p), ("cxWidth", w.UINT)]
+
+    CLOSE, CANCEL = 100, 2  # 2 = IDCANCEL, also returned for Esc and the X
+    buttons = (Button * 2)(Button(CLOSE, "Cerrar"), Button(CANCEL, "Cancelar"))
+    cfg = Config(cbSize=ctypes.sizeof(Config), dwFlags=0x0008, pszWindowTitle="project-hub",  # TDF_ALLOW_DIALOG_CANCELLATION
+                 pszMainIcon=0xFFFF, pszMainInstruction=QUIT_TITLE, pszContent=QUIT_TEXT,  # 0xFFFF = TD_WARNING_ICON
+                 cButtons=2, pButtons=buttons, nDefaultButton=CANCEL)
+    pressed = ctypes.c_int(0)
+    if ctypes.windll.comctl32.TaskDialogIndirect(ctypes.byref(cfg), ctypes.byref(pressed), None, None) == 0:
+        return pressed.value == CLOSE
+    logging.warning("task dialog unavailable, using a message box")  # e.g. no common controls v6
+    MB_OKCANCEL, MB_ICONWARNING, MB_DEFBUTTON2, IDOK = 0x1, 0x30, 0x100, 1
+    return ctypes.windll.user32.MessageBoxW(None, QUIT_TITLE + "\n\n" + QUIT_TEXT, "project-hub",
+                                            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2) == IDOK
+
+
 def restart_server(server):
+    announce("restarting")
     server.stop()
     server.start()
 
 
-def quit_app(server, icon):
+def quit_app(server, icon, confirm=confirm_quit):
+    if not confirm():
+        return
+    icon.visible = False  # immediate feedback while open pages get their last poll
+    announce("stopping")
     server.stop()
     icon.stop()
 

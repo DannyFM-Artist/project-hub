@@ -1,5 +1,6 @@
 """Local dashboard backend: JSON API over Hub plus the static page."""
 
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -183,6 +184,16 @@ class CopiedIn(BaseModel):
 @app.post("/api/summary/copied")
 def summary_copied(body: CopiedIn):
     return hub().mark_copied(body.project_id, body.at)
+
+
+# the tray sets "stopping" (Salir) or "restarting" before it stops uvicorn; open pages read it on their 5 s poll
+STATUS = {"state": "running", "polled": 0.0}
+
+
+@app.get("/api/status")
+def server_status():
+    STATUS["polled"] = time.monotonic()  # lets the tray skip its wait when no page is open
+    return {"state": STATUS["state"]}
 
 
 @app.get("/")
