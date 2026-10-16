@@ -646,11 +646,25 @@ class Hub:
             path = self._summary_state_path
             return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
-    def mark_summary_seen(self, at=None) -> dict:
-        state = {"last_seen": _iso(_parse_time(at, "at") if at is not None else _utcnow())}
+    def _update_state(self, fn):
         with self._write_lock():
-            _write_atomic(self._summary_state_path, _dump(state))
-        return state
+            path = self._summary_state_path
+            state = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+            fn(state)
+            _write_atomic(path, _dump(state))
+            return state
+
+    def mark_summary_seen(self, at=None) -> dict:
+        iso = _iso(_parse_time(at, "at") if at is not None else _utcnow())
+        self._update_state(lambda st: st.update(last_seen=iso))
+        return {"last_seen": iso}
+
+    def mark_copied(self, project_id, at=None) -> dict:
+        """Remember when this project's chat text was last copied. View state: not logged."""
+        self._load(project_id)
+        iso = _iso(_parse_time(at, "at") if at is not None else _utcnow())
+        self._update_state(lambda st: st.setdefault("copied", {}).update({project_id: iso}))
+        return {"project_id": project_id, "copied_at": iso}
 
     def summary(self, since: datetime | str | None = None, hours: int | None = None) -> dict:
         """What happened per project in [since, now]. since wins over hours; with neither, since is the stored
@@ -662,7 +676,9 @@ class Hub:
             projects = overview_order(self._projects())
             messages = self._messages()
             events = self._events()
-        last_seen = self.summary_state().get("last_seen")
+        state = self.summary_state()
+        last_seen = state.get("last_seen")
+        copied = state.get("copied", {})
         if since is not None:
             start = _parse_time(since)
         elif hours is not None:
@@ -677,31 +693,48 @@ class Hub:
         else:
             note = None
 
-        def in_period(ts):
-            return bool(ts) and start <= datetime.fromisoformat(ts) <= until
-
         active, rest = [], []
         for p in projects:
-            entry = self._project_summary(p, messages, [e for e in events if e["project_id"] == p["id"] and in_period(e["at"])],
-                                          in_period, f"Periodo: {_local(start)} - {_local(until)}")
+            entry = self._project_summary(p, messages, [e for e in events if e["project_id"] == p["id"]], start, until,
+                                          copied.get(p["id"]))
             (active if entry["has_activity"] else rest).append(entry)
         return {"since": _iso(start), "until": _iso(until), "last_seen": last_seen, "log_started_at": log_started,
                 "note": note, "projects": active + rest}
 
     @staticmethod
-    def _project_summary(p, messages, events, in_period, period_line):
+    def _project_summary(p, messages, all_events, start, until, copied_at):
         pid = p["id"]
         mine = [m for m in messages if m["to_project"] in (pid, "all") or (m["to_project"] == "user" and m["from_project"] == pid)]
-        gates = [{"phase_id": ph["id"], "phase": ph["name"], "gate": ph["gate"], "reason": ph.get("gate_reason", "")}
-                 for ph in p["phases"] if blocking(ph)]
+        waiting = [{"phase_id": ph["id"], "phase": ph["name"], "gate": ph["gate"], "reason": ph.get("gate_reason", "")}
+                   for ph in p["phases"] if blocking(ph)]
         user_messages = [{k: m[k] for k in ("id", "title", "from_project", "created_at")}
                          for m in mine if m["to_project"] == "user" and m["status"] != "done"]
-        reports = [{k: m[k] for k in ("id", "title", "body", "from_project", "created_at", "status")}
-                   for m in mine if m["kind"] == "report" and in_period(m["created_at"])]
-        phase_changes = [{k: e.get(k) for k in ("at", "phase", "text", "by")} for e in events if e["type"] == "phase_status"]
-        decisions = [{k: d[k] for k in ("date", "decision", "reason")} for d in p["decisions"] if in_period(d.get("date"))]
-        items_opened = [{k: i[k] for k in ("id", "type", "title", "created_at")} for i in p["items"] if in_period(i.get("created_at"))]
-        items_closed = [{k: e.get(k) for k in ("at", "title", "text")} for e in events if e["type"] == "item_closed"]
+
+        def window(w_start, count_waiting):
+            """Everything in [w_start, until] plus its chat text. gates = phases whose gate was set in the window
+            (and, if count_waiting, those waiting now)."""
+            def in_period(ts):
+                return bool(ts) and w_start <= datetime.fromisoformat(ts) <= until
+            events = [e for e in all_events if in_period(e["at"])]
+            w = {
+                "events": events,
+                "reports": [{k: m[k] for k in ("id", "title", "body", "from_project", "created_at", "status")}
+                            for m in mine if m["kind"] == "report" and in_period(m["created_at"])],
+                "phase_changes": [{k: e.get(k) for k in ("at", "phase", "text", "by")} for e in events if e["type"] == "phase_status"],
+                "decisions": [{k: d[k] for k in ("date", "decision", "reason")} for d in p["decisions"] if in_period(d.get("date"))],
+                "items_opened": [{k: i[k] for k in ("id", "type", "title", "created_at")} for i in p["items"] if in_period(i.get("created_at"))],
+                "items_closed": [{k: e.get(k) for k in ("at", "title", "text")} for e in events if e["type"] == "item_closed"],
+            }
+            gate_phases = {e.get("phase") for e in events if e["type"] == "gate_set"}
+            if count_waiting:
+                gate_phases |= {g["phase"] for g in waiting}
+            w["gates"] = len(gate_phases)
+            w["text"] = Hub._chat_text(pid, f"Periodo: {_local(w_start)} - {_local(until)}", w)
+            return w
+
+        w = window(start, True)  # the summary period: gates are the ones waiting now
+        reports, phase_changes, decisions = w["reports"], w["phase_changes"], w["decisions"]
+        items_opened, items_closed, events = w["items_opened"], w["items_closed"], w["events"]
         # blocked: work that cannot go on without someone else - an in_progress phase stopped at its gate,
         # or a message from another project (an agent) to this one that is not done yet
         blocked = [f"fase '{ph['name']}' en curso, espera gate {ph['gate']}" for ph in p["phases"]
@@ -710,7 +743,31 @@ class Hub:
                     if m["to_project"] == pid and m["kind"] == "message" and m["from_project"] not in ("user", pid) and m["status"] != "done"]
         cur = current_phase(p)
 
-        done = [c["phase"] for c in phase_changes if c["text"].endswith("→ done")]
+        copy_since = datetime.fromisoformat(copied_at) if copied_at else start
+        c = window(copy_since, copied_at is None)
+        new = (len(c["reports"]) + len(c["decisions"]) + len(c["items_opened"]) + len(c["items_closed"])
+               + len(c["phase_changes"]) + c["gates"])
+
+        return {
+            "id": pid, "name": p["name"], "status": p["status"],
+            # a waiting gate or a message to Danny counts as activity, so it is never hidden in the "nothing happened" group
+            "has_activity": bool(events or reports or decisions or items_opened or waiting or user_messages),
+            "current": {"phase": cur["name"] if cur else None, "n": p["phases"].index(cur) + 1 if cur else None,
+                        "total": len(p["phases"]), "next_step": p["next_step"] or None},
+            "action": {"gates": waiting, "user_messages": user_messages},
+            "reports": reports, "phase_changes": phase_changes, "decisions": decisions,
+            "items_opened": items_opened, "items_closed": items_closed, "blocked": blocked,
+            "chat_text": w["text"],
+            "copied_at": copied_at,
+            "counts": {"gates": len(waiting), "reports": len(reports), "decisions": len(decisions),
+                       "items_opened": len(items_opened), "items_closed": len(items_closed), "phase_changes": len(phase_changes)},
+            "copy": {"since": _iso(copy_since), "new": new, "chat_text": c["text"] if new else None},
+        }
+
+    @staticmethod
+    def _chat_text(pid, period_line, w):
+        done = [c["phase"] for c in w["phase_changes"] if c["text"].endswith("→ done")]
+        reports, decisions, gates = w["reports"], w["decisions"], w["gates"]
         lines = [period_line]
         if reports:
             lines.append(_plural(len(reports), "informe nuevo", "informes nuevos")
@@ -720,22 +777,11 @@ class Hub:
         if decisions:
             lines.append(_plural(len(decisions), "decisión de los agentes", "decisiones de los agentes"))
         if gates:
-            lines.append(_plural(len(gates), "gate esperando a Danny", "gates esperando a Danny"))
+            lines.append(_plural(gates, "gate esperando a Danny", "gates esperando a Danny"))
         if len(lines) == 1:
             lines.append("Sin actividad nueva en este periodo.")
         lines.append(f"Revisa el proyecto {pid} en project-hub (get_project y read_inbox) y prepara los siguientes pasos.")
-
-        return {
-            "id": pid, "name": p["name"], "status": p["status"],
-            # a waiting gate or a message to Danny counts as activity, so it is never hidden in the "nothing happened" group
-            "has_activity": bool(events or reports or decisions or items_opened or gates or user_messages),
-            "current": {"phase": cur["name"] if cur else None, "n": p["phases"].index(cur) + 1 if cur else None,
-                        "total": len(p["phases"]), "next_step": p["next_step"] or None},
-            "action": {"gates": gates, "user_messages": user_messages},
-            "reports": reports, "phase_changes": phase_changes, "decisions": decisions,
-            "items_opened": items_opened, "items_closed": items_closed, "blocked": blocked,
-            "chat_text": "\n".join(lines),
-        }
+        return "\n".join(lines)
 
     # --- misc --------------------------------------------------------------
 
