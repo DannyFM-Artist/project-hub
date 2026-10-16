@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>project-hub — Option B · Console</title>
+<style>
+:root{
+  --bg:#0E1013; --p:#13161B; --p2:#1A1E25; --line:#2A2F38; --line2:#3A404B;
+  --text:#D7DBE2; --dim:#7D8593; --faint:#555C69;
+  --amber:#FFB547; --cyan:#6CD3E8; --green:#8BD47C; --red:#FF7A7A; --violet:#C29BFF; --blue:#7AB6FF;
+  --mono:"Cascadia Mono","Cascadia Code",Consolas,"SF Mono",Menlo,ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:13px/1.55 var(--mono);min-height:100vh;display:flex;flex-direction:column}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:1px solid var(--amber);outline-offset:1px}
+
+.bar{display:flex;align-items:stretch;background:var(--p);border-bottom:1px solid var(--line);height:34px}
+.bar>*{display:flex;align-items:center;padding:0 14px;border-right:1px solid var(--line)}
+.bar .logo{background:var(--amber);color:#14110A;font-weight:700;border:0}
+.bar .tab{color:var(--dim)}
+.bar .tab kbd{color:var(--faint);margin-right:6px;font:inherit}
+.bar .tab.on{color:var(--text);background:var(--bg);box-shadow:inset 0 -2px 0 var(--amber)}
+.bar .sp{flex:1;border:0}
+.bar .st{color:var(--dim);gap:8px}
+.bar .st b{color:var(--green);font-weight:400}
+.bar .st .u{color:var(--amber)}
+
+main{flex:1;padding:22px 24px 30px}
+.view{display:none}
+body[data-view=overview] #overview, body[data-view=project] #project{display:block}
+
+.pane{border:1px solid var(--line);position:relative;padding:18px 16px 14px;margin-bottom:22px;background:var(--bg)}
+.pane>.lbl{position:absolute;top:-10px;left:12px;background:var(--bg);padding:0 8px;color:var(--amber);display:flex;gap:10px}
+.pane>.lbl span{color:var(--dim)}
+.pane>.rt{position:absolute;top:-10px;right:12px;background:var(--bg);padding:0 8px;color:var(--dim);display:flex;gap:12px}
+.pane>.rt button{color:var(--dim)}
+.pane>.rt button.on{color:var(--text)}
+.pane>.rt button.on::before{content:"[";color:var(--amber)} .pane>.rt button.on::after{content:"]";color:var(--amber)}
+
+.prompt{color:var(--dim);margin-bottom:14px}
+.prompt b{color:var(--green);font-weight:400}
+.prompt i{font-style:normal;color:var(--text)}
+.caret{display:inline-block;width:8px;height:15px;background:var(--amber);vertical-align:-3px;animation:bl 1.1s steps(1) infinite}
+@keyframes bl{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.caret{animation:none}}
+
+/* status tags */
+.tag{display:inline-block;min-width:62px;color:var(--c)}
+.tag::before{content:"● "}
+.s-active{--c:var(--green)} .s-paused{--c:var(--amber)} .s-parked{--c:var(--violet)} .s-done{--c:var(--blue)}
+
+/* overview table */
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:400;color:var(--faint);padding:0 14px 8px 0;border-bottom:1px solid var(--line);text-transform:uppercase;font-size:11.5px;letter-spacing:.06em}
+td{padding:11px 14px 11px 0;border-bottom:1px solid #1C2027;vertical-align:top;white-space:nowrap}
+tr.row:hover td{background:var(--p)}
+td.name{color:var(--text);font-weight:700}
+td.name small{display:block;font-weight:400;color:var(--faint);font-size:11.5px}
+td.nx{white-space:normal;color:var(--text);max-width:380px}
+td.dim{color:var(--dim)}
+.bar16{letter-spacing:-1px;color:#262B33}
+.bar16 b{font-weight:400;color:var(--c)}
+.bar16 em{font-style:normal;color:color-mix(in srgb,var(--c) 55%,transparent)}
+.frac{color:var(--dim);margin-left:8px}
+.ph{color:var(--text)} .ph small{color:var(--faint);font-size:11.5px;margin-left:6px}
+.inb{color:var(--faint)}
+.inb.has{color:var(--bg);background:var(--amber);padding:0 6px;font-weight:700}
+.legend{display:flex;gap:22px;color:var(--faint);margin-top:14px;font-size:12px}
+
+/* project */
+.phead{display:flex;gap:22px;align-items:baseline;margin-bottom:22px;flex-wrap:wrap}
+.phead h1{font-size:22px;font-weight:700;color:var(--text)}
+.phead .k{color:var(--faint)} .phead .v{color:var(--text)}
+.phead .nx{color:var(--amber)}
+
+.cues{display:grid;grid-template-columns:repeat(6,1fr);gap:0}
+.cue{border:1px solid var(--line);border-left:0;padding:10px 12px;position:relative;min-height:112px}
+.cue:first-child{border-left:1px solid var(--line)}
+.cue .n{color:var(--faint);font-size:11.5px;display:flex;justify-content:space-between}
+.cue h4{font-size:13.5px;margin:4px 0;color:var(--text)}
+.cue p{color:var(--dim);font-size:12px;line-height:1.45;white-space:normal}
+.cue .s{font-size:11.5px}
+.cue.done .s{color:var(--green)} .cue.done h4{color:var(--dim)}
+.cue.todo .s{color:var(--faint)}
+.cue.prog{background:color-mix(in srgb,var(--amber) 8%,var(--bg));border-color:var(--amber);border-left:1px solid var(--amber)}
+.cue.prog+.cue{border-left:0}
+.cue.prog .s{color:var(--amber)}
+.cue.prog::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;background:var(--amber)}
+.cue .sel{color:var(--dim);font-size:11.5px;margin-top:8px}
+.cue .sel b{color:var(--amber);font-weight:400}
+
+.cols{display:grid;grid-template-columns:2fr 1fr;gap:22px;align-items:start}
+.kb{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+.kc{border-right:1px solid var(--line);padding:0 14px}
+.kc:first-child{padding-left:0} .kc:last-child{border-right:0;padding-right:0}
+.kc h5{font-weight:400;color:var(--dim);border-bottom:1px dashed var(--line);padding-bottom:6px;margin-bottom:6px;display:flex}
+.kc h5 b{color:var(--text);font-weight:700;margin-right:8px}
+.kc h5 span{margin-left:auto;color:var(--faint)}
+.it{display:grid;grid-template-columns:18px 1fr;gap:0 6px;padding:6px 4px;border-left:2px solid transparent}
+.it:hover{background:var(--p);border-left-color:var(--amber)}
+.it .ty{font-weight:700;color:var(--c)}
+.it .t{color:var(--text);white-space:normal;line-height:1.4}
+.it .id{grid-column:2;color:var(--faint);font-size:11.5px}
+.ty-bug{--c:var(--red)} .ty-idea{--c:var(--cyan)} .ty-future{--c:var(--violet)}
+.kc.dn .t{color:var(--dim)}
+.kc .add{color:var(--faint);padding:6px 4px;display:block}
+.kc .add:hover{color:var(--amber)}
+
+.dl{display:grid;grid-template-columns:100px 1fr;gap:2px 16px}
+.dl time{color:var(--faint)}
+.dl .d{color:var(--text)}
+.dl .r{grid-column:2;color:var(--dim);margin-bottom:10px}
+.dl .r::before{content:"└ because ";color:var(--faint)}
+
+.feed .m{padding:10px 0;border-bottom:1px solid #1C2027}
+.feed .m:last-of-type{border-bottom:0}
+.feed .h{display:flex;gap:8px;color:var(--faint);font-size:12px}
+.feed .h .k{font-weight:700}
+.feed .h .acts{margin-left:auto;display:flex;gap:10px}
+.feed .h .acts button{color:var(--dim)} .feed .h .acts button:hover{color:var(--amber)}
+.feed .ti{color:var(--text);margin-top:2px}
+.feed .bd{color:var(--dim);white-space:normal}
+.m.msg .k{color:var(--cyan)}
+.m.task .k{color:var(--violet)}
+.m.task .ti::before{content:"[ ] ";color:var(--violet)}
+.m.unread .ti{font-weight:700}
+.m.unread .h::before{content:"●";color:var(--amber)}
+.m.read{opacity:.55}
+.m.report{background:var(--p);border:1px solid var(--line);border-left:3px solid var(--amber);padding:10px 12px;margin:8px 0}
+.m.report .k{color:var(--bg);background:var(--amber);padding:0 5px}
+.m.report pre{font:inherit;color:var(--text);margin-top:6px;white-space:pre-wrap;line-height:1.5}
+.m.report pre .ok{color:var(--green)} .m.report pre .no{color:var(--red)} .m.report pre .ar{color:var(--amber)}
+.cmd{display:flex;gap:8px;align-items:center;border:1px solid var(--line);padding:7px 10px;margin-top:10px;color:var(--dim)}
+.cmd b{color:var(--amber);font-weight:400}
+.cmd input{flex:1;background:none;border:0;color:var(--text);font:inherit;outline:0}
+
+.keys{border-top:1px solid var(--line);background:var(--p);padding:7px 24px;color:var(--dim);display:flex;gap:22px;font-size:12px}
+.keys kbd{font:inherit;color:var(--bg);background:var(--dim);padding:0 5px;margin-right:6px}
+</style>
+</head>
+<body data-view="overview">
+<div class="bar">
+  <span class="logo">project-hub</span>
+  <a class="tab" href="#overview" data-v="overview"><kbd>1</kbd>overview</a>
+  <a class="tab" href="#project" data-v="project"><kbd>2</kbd>framegrade</a>
+  <span class="sp"></span>
+  <span class="st"><span class="u">6 unread</span></span>
+  <span class="st"><b>●</b> 127.0.0.1:8765 · poll 5s · 08:41:07</span>
+</div>
+
+<main>
+<!-- ============ OVERVIEW ============ -->
+<div class="view" id="overview">
+  <div class="prompt"><b>danny@hub</b> ~ $ <i>list_projects</i> <span class="caret"></span></div>
+  <div class="pane">
+    <span class="lbl">projects <span>6 · 3 active · 1 paused · 1 parked · 1 done</span></span>
+    <span class="rt"><button class="on">all</button><button>active</button><button>paused</button><button>parked</button><button>done</button></span>
+    <table>
+      <thead><tr><th>status</th><th>project</th><th>current phase</th><th>progress</th><th>next step</th><th>inbox</th><th>updated</th></tr></thead>
+      <tbody>
+      <tr class="row s-active"><td><span class="tag">active</span></td><td class="name">framegrade<small>GPU video transcoder, ACES pipeline</small></td><td class="ph">GPU decode<small>3/6</small></td><td><span class="bar16"><b>██████████</b><em>███</em>███████████</span><span class="frac">2/6</span></td><td class="nx">Profile the NVDEC path on 10-bit ProRes 4444</td><td><span class="inb has">3</span></td><td class="dim">2h</td></tr>
+      <tr class="row s-active"><td><span class="tag">active</span></td><td class="name">cuedeck<small>Companion + OSC show control</small></td><td class="ph">LED processor presets<small>3/5</small></td><td><span class="bar16"><b>██████████</b><em>███</em>███████████</span><span class="frac">2/5</span></td><td class="nx">Map Brompton Tessera presets to OSC macro buttons</td><td><span class="inb has">1</span></td><td class="dim">1d</td></tr>
+      <tr class="row s-active"><td><span class="tag">active</span></td><td class="name">project-hub<small>this dashboard + MCP server</small></td><td class="ph">Data layer + tests<small>1/4</small></td><td><span class="bar16"><em>███</em>█████████████████████</span><span class="frac">0/4</span></td><td class="nx">Concurrent-write test with two processes</td><td><span class="inb has">2</span></td><td class="dim">20m</td></tr>
+      <tr class="row s-paused"><td><span class="tag">paused</span></td><td class="name">moyad.studio<small>portfolio site + reel</small></td><td class="ph">Reel page<small>4/5</small></td><td><span class="bar16"><b>██████████████</b><em>███</em>███████</span><span class="frac">3/5</span></td><td class="nx">Waiting on a 30 s reel export from framegrade</td><td><span class="inb">—</span></td><td class="dim">6d</td></tr>
+      <tr class="row s-parked"><td><span class="tag">parked</span></td><td class="name">stagetimer-ios<small>iPhone show countdown clock</small></td><td class="ph">Timecode sync<small>2/6</small></td><td><span class="bar16"><b>████</b>████████████████████</span><span class="frac">1/6</span></td><td class="nx">Revisit once cuedeck exposes LTC over the network</td><td><span class="inb">—</span></td><td class="dim">5w</td></tr>
+      <tr class="row s-done"><td><span class="tag">done</span></td><td class="name">led-mapper<small>LED wall pixel-map generator</small></td><td class="ph">Release<small>5/5</small></td><td><span class="bar16"><b>████████████████████████</b></span><span class="frac">5/5</span></td><td class="nx" style="color:var(--faint)">—</td><td><span class="inb">—</span></td><td class="dim">3mo</td></tr>
+      </tbody>
+    </table>
+    <div class="legend"><span><b style="color:var(--green);font-weight:400">█</b> done</span><span><b style="color:color-mix(in srgb,var(--green) 55%,transparent);font-weight:400">█</b> in progress</span><span><b style="color:#262B33;font-weight:400">█</b> to do</span><span style="margin-left:auto">enter = open · ↑↓ = select</span></div>
+  </div>
+</div>
+
+<!-- ============ PROJECT ============ -->
+<div class="view" id="project">
+  <div class="phead">
+    <h1>framegrade</h1><span class="tag s-active">active</span>
+    <span><span class="k">repo </span><span class="v">D:\dev\framegrade</span></span>
+    <span><span class="k">next → </span><span class="nx">Profile the NVDEC path on 10-bit ProRes 4444</span></span>
+  </div>
+
+  <div class="pane">
+    <span class="lbl">phases <span>2/6 done</span></span>
+    <span class="rt">space = cycle status</span>
+    <div class="cues">
+      <div class="cue done"><div class="n"><span>01</span><span class="s">✓ done</span></div><h4>Ingest pipeline</h4><p>MOV, MXF, MP4 probe via ffprobe</p></div>
+      <div class="cue done"><div class="n"><span>02</span><span class="s">✓ done</span></div><h4>Colour pipeline</h4><p>ACES 1.3, 32-bit float end to end</p></div>
+      <div class="cue prog"><div class="n"><span>03</span><span class="s">▶ in progress</span></div><h4>GPU decode</h4><p>NVDEC works for HEVC; ProRes still on CPU</p><div class="sel">status: todo · <b>[in_progress]</b> · done</div></div>
+      <div class="cue todo"><div class="n"><span>04</span><span class="s">○ todo</span></div><h4>Batch queue</h4><p>Resume after crash or reboot</p></div>
+      <div class="cue todo"><div class="n"><span>05</span><span class="s">○ todo</span></div><h4>Export presets</h4><p></p></div>
+      <div class="cue todo"><div class="n"><span>06</span><span class="s">○ todo</span></div><h4>Packaging</h4><p>PyInstaller + Inno Setup</p></div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <div class="pane">
+        <span class="lbl">items <span>10 · B bug · I idea · F future request</span></span>
+        <span class="rt" id="chips"><button class="on" data-f="all">all</button><button data-f="bug">bug</button><button data-f="idea">idea</button><button data-f="future">future</button><button>+discarded(1)</button></span>
+        <div class="kb" id="board">
+          <div class="kc"><h5><b>open</b>4<span>[a]dd</span></h5>
+            <div class="it ty-bug" data-t="bug"><span class="ty">B</span><span class="t">Banding on 8-bit export with dithering off</span><span class="id">#a3f20c1e · 2d</span></div>
+            <div class="it ty-idea" data-t="idea"><span class="ty">I</span><span class="t">Scopes panel: waveform and vectorscope</span><span class="id">#7c01b9d2 · 4d</span></div>
+            <div class="it ty-future" data-t="future"><span class="ty">F</span><span class="t">Watch-folder mode for overnight batches</span><span class="id">#e44a0f73 · 1w</span></div>
+            <div class="it ty-bug" data-t="bug"><span class="ty">B</span><span class="t">Drag and drop ignores .mxf files</span><span class="id">#19bd5a60 · 1w</span></div>
+            <a class="add" href="#project">+ add item…</a>
+          </div>
+          <div class="kc"><h5><b>planned</b>3<span>→ move</span></h5>
+            <div class="it ty-idea" data-t="idea"><span class="ty">I</span><span class="t">Per-clip LUT override</span><span class="id">#5d2e8a44 · 2w</span></div>
+            <div class="it ty-future" data-t="future"><span class="ty">F</span><span class="t">Headless CLI for the render node</span><span class="id">#c0f3e1a8 · 2w</span></div>
+            <div class="it ty-bug" data-t="bug"><span class="ty">B</span><span class="t">Audio drifts after 40 min on VFR sources</span><span class="id">#0b9d7e25 · 3w</span></div>
+          </div>
+          <div class="kc dn"><h5><b>done</b>3<span>✓</span></h5>
+            <div class="it ty-bug" data-t="bug"><span class="ty">B</span><span class="t">Crash when GPU memory runs out</span><span class="id">#8e60c2f1 · oct 12</span></div>
+            <div class="it ty-idea" data-t="idea"><span class="ty">I</span><span class="t">Quarter-res proxy generation</span><span class="id">#d71a03bc · oct 08</span></div>
+            <div class="it ty-future" data-t="future"><span class="ty">F</span><span class="t">Queue survives an app restart</span><span class="id">#46fb9e02 · sep 30</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pane">
+        <span class="lbl">decisions <span>4</span></span>
+        <div class="dl">
+          <time>2026-10-14</time><span class="d">Decode with NVDEC, fall back to FFmpeg software</span><span class="r">4× faster on 4K HEVC; software path keeps the studio AMD box working</span>
+          <time>2026-10-09</time><span class="d">Keep the colour pipeline in 32-bit float</span><span class="r">16-bit half showed banding on graded log footage</span>
+          <time>2026-10-02</time><span class="d">Ship as PySide6, drop the Electron shell</span><span class="r">one language end to end; installer 180 MB → 70 MB</span>
+          <time>2026-09-27</time><span class="d">ACES 1.3 as the working space</span><span class="r">matches the disguise and Resolve pipelines used on shows</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane feed">
+      <span class="lbl">inbox <span>3 unread / 5</span></span>
+      <div class="m report unread"><div class="h"><span class="k">REPORT</span><span>framegrade → framegrade · 2h</span><span class="acts"><button>[r]ead</button><button>[d]one</button></span></div>
+        <div class="ti">Session report: GPU decode</div>
+<pre><span class="ok">+</span> NVDEC decodes 4K HEVC at 212 fps (was 48)
+<span class="no">-</span> 10-bit ProRes 4444 still on software
+<span class="ar">→</span> next: profile the ProRes path</pre></div>
+      <div class="m task unread"><div class="h"><span class="k">TASK</span><span>moyad.studio → framegrade · 1d</span><span class="acts"><button>[r]ead</button><button>[d]one</button></span></div>
+        <div class="ti">Export a 30 s reel for the website</div><div class="bd">H.264, 1920×1080, Rec.709, under 25 MB.</div></div>
+      <div class="m msg unread"><div class="h"><span class="k">MSG</span><span>cuedeck → framegrade · 1d</span><span class="acts"><button>[r]ead</button><button>[d]one</button></span></div>
+        <div class="ti">Can framegrade burn in timecode?</div><div class="bd">cuedeck now sends SMPTE over OSC at 50 fps.</div></div>
+      <div class="m report read"><div class="h"><span class="k">REPORT</span><span>project-hub → all · 3d</span></div>
+        <div class="ti">project-hub MCP server is live</div>
+<pre>post a report with post_message at the end of each session</pre></div>
+      <div class="m msg read"><div class="h"><span class="k">MSG</span><span>user → framegrade · 5d</span></div>
+        <div class="ti">Test on both machines</div><div class="bd">Laptop 4090 and the studio AMD box before tagging a release.</div></div>
+      <label class="cmd"><b>post msg ›</b><input placeholder="title: body   (tab = kind)"></label>
+    </div>
+  </div>
+</div>
+</main>
+
+<div class="keys"><span><kbd>1</kbd>overview</span><span><kbd>2</kbd>project</span><span><kbd>a</kbd>add item</span><span><kbd>←→</kbd>move item</span><span><kbd>m</kbd>post message</span><span><kbd>r</kbd>mark read</span><span><kbd>d</kbd>mark done</span><span><kbd>x</kbd>show discarded</span></div>
+
+<script>
+const show=()=>{const v=location.hash==="#project"?"project":"overview";document.body.dataset.view=v;
+  document.querySelectorAll(".tab").forEach(a=>a.classList.toggle("on",a.dataset.v===v));};
+addEventListener("hashchange",show);show();
+document.getElementById("chips").addEventListener("click",e=>{const f=e.target.dataset.f;if(!f)return;
+  document.querySelectorAll("#chips [data-f]").forEach(c=>c.classList.toggle("on",c===e.target));
+  document.querySelectorAll("#board .it").forEach(i=>i.style.display=f==="all"||i.dataset.t===f?"":"none");});
+</script>
+</body>
+</html>

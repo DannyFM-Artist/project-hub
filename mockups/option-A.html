@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>project-hub — Option A · Studio</title>
+<style>
+:root{
+  --bg:#121418; --side:#0F1115; --s1:#1A1D23; --s2:#21252D; --line:#2B3039;
+  --text:#E7E9ED; --muted:#8C94A2; --faint:#5E6573;
+  --accent:#93A8FF;
+  --active:#5ED3A4; --paused:#F0BE52; --parked:#A69CC4; --done:#7FB2FF;
+  --bug:#F27A7A; --idea:#93A8FF; --future:#5ED3A4;
+  --report:#F0BE52;
+  --r:12px;
+  --sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --display:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.5 var(--sans);display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+/* sidebar */
+.side{background:var(--side);border-right:1px solid var(--line);padding:22px 14px;display:flex;flex-direction:column;gap:24px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px;font:600 15px var(--display);letter-spacing:.01em}
+.brand i{width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,var(--accent),#5ED3A4);display:block}
+.side h6{font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:0 8px 8px}
+.nav a{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;color:var(--muted)}
+.nav a:hover{background:var(--s1);color:var(--text)}
+.nav a.on{background:var(--s2);color:var(--text)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.nav .n{margin-left:auto;font-size:11px;font-weight:600;background:var(--accent);color:#0F1115;border-radius:10px;padding:0 7px}
+.side .foot{margin-top:auto;padding:0 8px;color:var(--faint);font-size:12px}
+.side .foot b{color:var(--active);font-weight:500}
+
+main{padding:36px 44px 60px;max-width:1240px}
+.view{display:none}
+body[data-view=overview] #overview, body[data-view=project] #project{display:block}
+
+/* headings */
+.head{display:flex;align-items:flex-end;gap:16px;margin-bottom:28px}
+.head h1{font:600 30px/1.1 var(--display);letter-spacing:-.01em}
+.head p{color:var(--muted);margin-top:6px}
+.head .sp{flex:1}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:9px;background:var(--s2);border:1px solid var(--line);font-weight:500}
+.btn.pri{background:var(--accent);color:#10131A;border-color:transparent}
+.seg{display:inline-flex;background:var(--s1);border:1px solid var(--line);border-radius:9px;padding:3px}
+.seg button{padding:5px 12px;border-radius:7px;color:var(--muted);font-size:13px}
+.seg button.on{background:var(--s2);color:var(--text)}
+
+/* badge */
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:2px 9px 2px 8px;border-radius:20px;background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--c)}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c)}
+.s-active{--c:var(--active)} .s-paused{--c:var(--paused)} .s-parked{--c:var(--parked)} .s-done{--c:var(--done)}
+
+/* overview cards */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:var(--r);padding:20px 20px 16px;display:flex;flex-direction:column;gap:14px;transition:border-color .15s}
+.card:hover{border-color:#3A4150}
+.card .top{display:flex;align-items:flex-start;gap:10px}
+.card h2{font:600 17px/1.25 var(--display)}
+.card .desc{color:var(--muted);font-size:13px;margin-top:2px}
+.card .top .badge{margin-left:auto;flex:none}
+.phase-line{display:flex;justify-content:space-between;font-size:13px}
+.phase-line b{font-weight:600}
+.phase-line span{color:var(--muted)}
+.pips{display:flex;gap:4px;margin-top:8px}
+.pips i{flex:1;height:6px;border-radius:3px;background:var(--s2)}
+.pips i.d{background:var(--c)}
+.pips i.p{background:repeating-linear-gradient(-45deg,var(--c) 0 4px,color-mix(in srgb,var(--c) 35%,transparent) 4px 8px)}
+.next{background:var(--bg);border-radius:9px;padding:10px 12px;font-size:13px}
+.next small{display:block;color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:600;margin-bottom:2px}
+.card .bot{display:flex;align-items:center;justify-content:space-between;color:var(--faint);font-size:12px;border-top:1px solid var(--line);padding-top:12px}
+.unread{display:inline-flex;align-items:center;gap:6px;color:var(--text);font-weight:500}
+.unread b{background:var(--accent);color:#10131A;font-size:11px;border-radius:10px;padding:0 7px}
+.unread.zero{color:var(--faint);font-weight:400}
+
+/* project */
+.crumbs{color:var(--faint);font-size:13px;margin-bottom:10px}
+.crumbs a:hover{color:var(--text)}
+.meta{display:flex;gap:16px;align-items:center;color:var(--muted);font-size:13px;margin-top:8px}
+.meta code{font:12px var(--mono);color:var(--muted);background:var(--s1);padding:2px 7px;border-radius:6px}
+section.block{background:var(--s1);border:1px solid var(--line);border-radius:var(--r);padding:22px;margin-bottom:20px}
+.block>header{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.block>header h3{font:600 15px var(--display)}
+.block>header .c{color:var(--faint);font-size:13px}
+.block>header .sp{flex:1}
+
+.timeline{display:grid;grid-template-columns:repeat(6,1fr);position:relative}
+.timeline::before{content:"";position:absolute;left:calc(100%/12);right:calc(100%/12);top:13px;height:2px;background:var(--line)}
+.timeline .fill{position:absolute;left:calc(100%/12);top:13px;height:2px;width:calc(100%*2.5/6);background:var(--active)}
+.ph{position:relative;text-align:center;padding:0 10px}
+.ph .node{width:28px;height:28px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;background:var(--s1);border:2px solid var(--line);font-size:12px;color:var(--faint);position:relative}
+.ph.done .node{background:var(--active);border-color:var(--active);color:#0F1115}
+.ph.prog .node{border-color:var(--active);box-shadow:0 0 0 5px color-mix(in srgb,var(--active) 18%,transparent)}
+.ph.prog .node::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--active)}
+.ph h4{font-weight:600;font-size:13.5px}
+.ph.todo h4{color:var(--muted)}
+.ph .st{font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--faint);margin:2px 0 6px}
+.ph.prog .st{color:var(--active)}
+.ph p{font-size:12px;color:var(--muted);line-height:1.45}
+.ph select{margin-top:8px}
+select{font:12px var(--sans);background:var(--s2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:3px 6px}
+
+.chips{display:flex;gap:6px}
+.chip{font-size:12px;padding:4px 11px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+.chip.on{background:var(--s2);color:var(--text);border-color:#3A4150}
+.toggle{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px}
+.toggle i{width:28px;height:16px;border-radius:10px;background:var(--s2);border:1px solid var(--line);position:relative}
+.toggle i::after{content:"";position:absolute;width:10px;height:10px;border-radius:50%;background:var(--muted);top:2px;left:2px}
+
+.board{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.col{background:var(--bg);border-radius:10px;padding:12px}
+.col h5{display:flex;align-items:center;gap:8px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;padding:2px 4px 12px}
+.col h5 span{color:var(--faint)}
+.col h5 button{margin-left:auto;color:var(--faint);font-size:16px;line-height:1}
+.item{background:var(--s1);border:1px solid var(--line);border-radius:9px;padding:11px 12px;margin-bottom:8px;cursor:grab}
+.item:hover{border-color:#3A4150}
+.item .t{font-size:13.5px;font-weight:500;line-height:1.35}
+.item .m{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11.5px;color:var(--faint)}
+.type{font-size:11px;font-weight:600;color:var(--c)}
+.type::before{content:"";display:inline-block;width:7px;height:7px;border-radius:2px;background:var(--c);margin-right:6px;vertical-align:1px}
+.ty-bug{--c:var(--bug)} .ty-idea{--c:var(--idea)} .ty-future{--c:var(--future)}
+.col.donecol .item .t{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
+.add{width:100%;text-align:left;padding:9px 12px;border-radius:9px;border:1px dashed var(--line);color:var(--faint);font-size:13px}
+
+.two{display:grid;grid-template-columns:1fr 1.15fr;gap:20px}
+.dec{display:grid;grid-template-columns:76px 1fr;gap:4px 14px;padding:12px 0;border-top:1px solid var(--line)}
+.dec:first-of-type{border-top:0;padding-top:0}
+.dec time{font-size:12px;color:var(--faint);padding-top:1px}
+.dec b{font-weight:600;font-size:13.5px}
+.dec p{grid-column:2;color:var(--muted);font-size:13px}
+
+.msg{display:grid;grid-template-columns:30px 1fr;gap:12px;padding:12px;border-radius:10px;margin-bottom:8px}
+.msg .av{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:700;color:#0F1115}
+.msg .h{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--faint)}
+.msg .h strong{color:var(--text);font-size:13px;font-weight:600}
+.msg .h .acts{margin-left:auto;display:flex;gap:4px}
+.msg .h .acts button{font-size:11.5px;padding:2px 8px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.msg .ti{font-weight:600;font-size:13.5px;margin-top:2px}
+.msg .bd{color:var(--muted);font-size:13px;margin-top:2px}
+.msg.unread{background:var(--s2)}
+.msg.unread .h strong::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:8px;vertical-align:2px}
+.msg.read{opacity:.62}
+.msg .kind{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.msg.task .ti::before{content:"";display:inline-block;width:12px;height:12px;border:1.5px solid var(--muted);border-radius:4px;margin-right:8px;vertical-align:-1px}
+.msg.report{background:color-mix(in srgb,var(--report) 7%,var(--s1));border:1px solid color-mix(in srgb,var(--report) 30%,transparent);border-left:3px solid var(--report)}
+.msg.report .kind{color:var(--report)}
+.msg.report .bd{color:#C9CDD5}
+.msg.report ul{margin:6px 0 0 16px;color:#C9CDD5;font-size:13px}
+.compose{display:flex;gap:8px;margin-top:6px}
+.compose input,.compose select{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 12px;color:var(--text);font:13px var(--sans)}
+.compose select{flex:none;padding:8px}
+</style>
+</head>
+<body data-view="overview">
+<aside class="side">
+  <div class="brand"><i></i>project-hub</div>
+  <nav class="nav">
+    <h6>Views</h6>
+    <a href="#overview" data-v="overview">All projects<span class="n">6</span></a>
+  </nav>
+  <nav class="nav">
+    <h6>Projects</h6>
+    <a href="#project" data-v="project"><span class="dot" style="background:var(--active)"></span>framegrade<span class="n">3</span></a>
+    <a href="#project"><span class="dot" style="background:var(--active)"></span>cuedeck<span class="n">1</span></a>
+    <a href="#project"><span class="dot" style="background:var(--active)"></span>project-hub<span class="n">2</span></a>
+    <a href="#project"><span class="dot" style="background:var(--paused)"></span>moyad.studio</a>
+    <a href="#project"><span class="dot" style="background:var(--parked)"></span>stagetimer-ios</a>
+    <a href="#project"><span class="dot" style="background:var(--done)"></span>led-mapper</a>
+  </nav>
+  <div class="foot"><b>●</b> Synced 3 s ago · 127.0.0.1:8765</div>
+</aside>
+
+<main>
+<!-- ============ OVERVIEW ============ -->
+<div class="view" id="overview">
+  <div class="head">
+    <div><h1>All projects</h1><p>3 active · 1 paused · 1 parked · 1 done — 6 unread messages</p></div>
+    <span class="sp"></span>
+    <div class="seg"><button class="on">All</button><button>Active</button><button>Paused</button><button>Parked</button><button>Done</button></div>
+  </div>
+  <div class="grid">
+    <a class="card s-active" href="#project">
+      <div class="top"><div><h2>framegrade</h2><div class="desc">GPU video transcoder with an ACES colour pipeline</div></div><span class="badge s-active">Active</span></div>
+      <div><div class="phase-line"><b>GPU decode</b><span>Phase 3 of 6</span></div><div class="pips"><i class="d"></i><i class="d"></i><i class="p"></i><i></i><i></i><i></i></div></div>
+      <div class="next"><small>Next step</small>Profile the NVDEC path on 10-bit ProRes 4444</div>
+      <div class="bot"><span>Updated 2 h ago</span><span class="unread"><b>3</b> unread</span></div>
+    </a>
+    <a class="card s-active" href="#project">
+      <div class="top"><div><h2>cuedeck</h2><div class="desc">Companion + OSC show control for disguise and Brompton</div></div><span class="badge s-active">Active</span></div>
+      <div><div class="phase-line"><b>LED processor presets</b><span>Phase 3 of 5</span></div><div class="pips"><i class="d"></i><i class="d"></i><i class="p"></i><i></i><i></i></div></div>
+      <div class="next"><small>Next step</small>Map Brompton Tessera presets to OSC macro buttons</div>
+      <div class="bot"><span>Updated yesterday</span><span class="unread"><b>1</b> unread</span></div>
+    </a>
+    <a class="card s-active" href="#project">
+      <div class="top"><div><h2>project-hub</h2><div class="desc">Local tracker for projects, phases and the cross-project inbox</div></div><span class="badge s-active">Active</span></div>
+      <div><div class="phase-line"><b>Data layer + tests</b><span>Phase 1 of 4</span></div><div class="pips"><i class="p"></i><i></i><i></i><i></i></div></div>
+      <div class="next"><small>Next step</small>Concurrent-write test with two processes</div>
+      <div class="bot"><span>Updated 20 min ago</span><span class="unread"><b>2</b> unread</span></div>
+    </a>
+    <a class="card s-paused" href="#project">
+      <div class="top"><div><h2>moyad.studio</h2><div class="desc">Portfolio site with show reel and case studies</div></div><span class="badge s-paused">Paused</span></div>
+      <div><div class="phase-line"><b>Reel page</b><span>Phase 4 of 5</span></div><div class="pips"><i class="d"></i><i class="d"></i><i class="d"></i><i class="p"></i><i></i></div></div>
+      <div class="next"><small>Next step</small>Waiting on a 30 s reel export from framegrade</div>
+      <div class="bot"><span>Updated 6 days ago</span><span class="unread zero">No unread</span></div>
+    </a>
+    <a class="card s-parked" href="#project">
+      <div class="top"><div><h2>stagetimer-ios</h2><div class="desc">iPhone countdown clock that follows show timecode</div></div><span class="badge s-parked">Parked</span></div>
+      <div><div class="phase-line"><b>Timecode sync</b><span>Phase 2 of 6</span></div><div class="pips"><i class="d"></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <div class="next"><small>Next step</small>Revisit once cuedeck exposes LTC over the network</div>
+      <div class="bot"><span>Updated 5 weeks ago</span><span class="unread zero">No unread</span></div>
+    </a>
+    <a class="card s-done" href="#project">
+      <div class="top"><div><h2>led-mapper</h2><div class="desc">Pixel-map generator for LED wall test patterns</div></div><span class="badge s-done">Done</span></div>
+      <div><div class="phase-line"><b>Release</b><span>5 of 5 done</span></div><div class="pips"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i></div></div>
+      <div class="next"><small>Next step</small>—</div>
+      <div class="bot"><span>Updated 3 months ago</span><span class="unread zero">No unread</span></div>
+    </a>
+  </div>
+</div>
+
+<!-- ============ PROJECT ============ -->
+<div class="view" id="project">
+  <div class="crumbs"><a href="#overview">All projects</a> / framegrade</div>
+  <div class="head">
+    <div>
+      <h1>framegrade</h1>
+      <div class="meta"><span class="badge s-active">Active</span><span>GPU video transcoder with an ACES colour pipeline</span><code>D:\dev\framegrade</code></div>
+    </div>
+    <span class="sp"></span>
+    <div class="next" style="background:var(--s1);border:1px solid var(--line);min-width:340px"><small>Next step · edit</small>Profile the NVDEC path on 10-bit ProRes 4444</div>
+  </div>
+
+  <section class="block">
+    <header><h3>Phases</h3><span class="c">2 of 6 done</span></header>
+    <div class="timeline"><span class="fill"></span>
+      <div class="ph done"><div class="node">✓</div><h4>Ingest pipeline</h4><div class="st">Done</div><p>MOV, MXF, MP4 probe via ffprobe</p></div>
+      <div class="ph done"><div class="node">✓</div><h4>Colour pipeline</h4><div class="st">Done</div><p>ACES 1.3, 32-bit float end to end</p></div>
+      <div class="ph prog"><div class="node"></div><h4>GPU decode</h4><div class="st">In progress</div><p>NVDEC works for HEVC; ProRes still on CPU</p>
+        <select aria-label="Phase status"><option>In progress</option><option>To do</option><option>Done</option></select></div>
+      <div class="ph todo"><div class="node">4</div><h4>Batch queue</h4><div class="st">To do</div><p>Resume after crash or reboot</p></div>
+      <div class="ph todo"><div class="node">5</div><h4>Export presets</h4><div class="st">To do</div><p>&nbsp;</p></div>
+      <div class="ph todo"><div class="node">6</div><h4>Packaging</h4><div class="st">To do</div><p>PyInstaller + Inno Setup</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <header><h3>Items</h3><span class="c">10 items</span><span class="sp"></span>
+      <div class="chips" id="chips"><button class="chip on" data-f="all">All</button><button class="chip" data-f="bug">Bugs</button><button class="chip" data-f="idea">Ideas</button><button class="chip" data-f="future">Future requests</button></div>
+      <span class="toggle"><i></i>Show discarded (1)</span>
+    </header>
+    <div class="board" id="board">
+      <div class="col"><h5>Open <span>4</span><button aria-label="Add item">+</button></h5>
+        <div class="item" data-t="bug"><div class="t">Banding on 8-bit export with dithering off</div><div class="m"><span class="type ty-bug">Bug</span>· 2 days ago</div></div>
+        <div class="item" data-t="idea"><div class="t">Scopes panel: waveform and vectorscope</div><div class="m"><span class="type ty-idea">Idea</span>· 4 days ago</div></div>
+        <div class="item" data-t="future"><div class="t">Watch-folder mode for overnight batches</div><div class="m"><span class="type ty-future">Future request</span>· 1 week ago</div></div>
+        <div class="item" data-t="bug"><div class="t">Drag and drop ignores .mxf files</div><div class="m"><span class="type ty-bug">Bug</span>· 1 week ago</div></div>
+        <button class="add">+ Add item</button>
+      </div>
+      <div class="col"><h5>Planned <span>3</span><button aria-label="Add item">+</button></h5>
+        <div class="item" data-t="idea"><div class="t">Per-clip LUT override</div><div class="m"><span class="type ty-idea">Idea</span>· 2 weeks ago</div></div>
+        <div class="item" data-t="future"><div class="t">Headless CLI for the render node</div><div class="m"><span class="type ty-future">Future request</span>· 2 weeks ago</div></div>
+        <div class="item" data-t="bug"><div class="t">Audio drifts after 40 min on VFR sources</div><div class="m"><span class="type ty-bug">Bug</span>· 3 weeks ago</div></div>
+      </div>
+      <div class="col donecol"><h5>Done <span>3</span><button aria-label="Add item">+</button></h5>
+        <div class="item" data-t="bug"><div class="t">Crash when GPU memory runs out</div><div class="m"><span class="type ty-bug">Bug</span>· closed Oct 12</div></div>
+        <div class="item" data-t="idea"><div class="t">Quarter-res proxy generation</div><div class="m"><span class="type ty-idea">Idea</span>· closed Oct 8</div></div>
+        <div class="item" data-t="future"><div class="t">Queue survives an app restart</div><div class="m"><span class="type ty-future">Future request</span>· closed Sep 30</div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="two">
+    <section class="block">
+      <header><h3>Decisions</h3><span class="c">4</span></header>
+      <div class="dec"><time>Oct 14</time><b>Decode with NVDEC, fall back to FFmpeg software</b><p>4× faster on 4K HEVC; the software path keeps the studio AMD box working.</p></div>
+      <div class="dec"><time>Oct 9</time><b>Keep the colour pipeline in 32-bit float</b><p>16-bit half showed banding on graded log footage.</p></div>
+      <div class="dec"><time>Oct 2</time><b>Ship as PySide6, drop the Electron shell</b><p>One language end to end; the installer shrank from 180 MB to 70 MB.</p></div>
+      <div class="dec"><time>Sep 27</time><b>ACES 1.3 as the working space</b><p>Matches the disguise and Resolve pipelines used on shows.</p></div>
+    </section>
+
+    <section class="block">
+      <header><h3>Inbox</h3><span class="c">3 unread</span></header>
+      <div class="msg report unread"><div class="av" style="background:var(--report)">fg</div><div>
+        <div class="h"><span class="kind">Report</span><strong>framegrade</strong>· 2 h ago<span class="acts"><button>Mark read</button><button>Done</button></span></div>
+        <div class="ti">Session report: GPU decode</div>
+        <ul><li>NVDEC decodes 4K HEVC at 212 fps (was 48 fps on CPU)</li><li>10-bit ProRes 4444 still falls back to software</li><li>Next: profile the ProRes path</li></ul>
+      </div></div>
+      <div class="msg task unread"><div class="av" style="background:#C9A7F5">ms</div><div>
+        <div class="h"><span class="kind">Task</span><strong>moyad.studio</strong>· yesterday<span class="acts"><button>Mark read</button><button>Done</button></span></div>
+        <div class="ti">Export a 30 s reel for the website</div>
+        <div class="bd">H.264, 1920×1080, Rec.709, under 25 MB.</div>
+      </div></div>
+      <div class="msg unread"><div class="av" style="background:var(--active)">cd</div><div>
+        <div class="h"><span class="kind">Message</span><strong>cuedeck</strong>· yesterday<span class="acts"><button>Mark read</button><button>Done</button></span></div>
+        <div class="ti">Can framegrade burn in timecode?</div>
+        <div class="bd">cuedeck now sends SMPTE over OSC at 50 fps.</div>
+      </div></div>
+      <div class="msg report read"><div class="av" style="background:var(--report)">ph</div><div>
+        <div class="h"><span class="kind">Report</span><strong>project-hub → all</strong>· 3 days ago</div>
+        <div class="ti">project-hub MCP server is live</div>
+        <div class="bd">Post session reports with post_message at the end of each session.</div>
+      </div></div>
+      <div class="msg read"><div class="av" style="background:var(--muted)">Me</div><div>
+        <div class="h"><span class="kind">Message</span><strong>You</strong>· 5 days ago</div>
+        <div class="ti">Test on both machines</div>
+        <div class="bd">Laptop 4090 and the studio AMD box before tagging a release.</div>
+      </div></div>
+      <div class="compose"><select aria-label="Kind"><option>Message</option><option>Task</option><option>Report</option></select><input placeholder="Write a message to framegrade…"><button class="btn pri">Post</button></div>
+    </section>
+  </div>
+</div>
+</main>
+<script>
+const show=()=>{const v=location.hash==="#project"?"project":"overview";document.body.dataset.view=v;
+  document.querySelectorAll(".nav a").forEach(a=>a.classList.toggle("on",a.dataset.v===v));};
+addEventListener("hashchange",show);show();
+document.getElementById("chips").addEventListener("click",e=>{const f=e.target.dataset.f;if(!f)return;
+  document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("on",c===e.target));
+  document.querySelectorAll("#board .item").forEach(i=>i.style.display=f==="all"||i.dataset.t===f?"":"none");});
+</script>
+</body>
+</html>

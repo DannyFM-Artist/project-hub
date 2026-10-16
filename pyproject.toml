@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project-hub"
+version = "0.1.0"
+description = "Local project-tracking hub: data layer, MCP stdio server and web dashboard sharing one data folder."
+requires-python = ">=3.11"
+dependencies = ["mcp>=2", "fastapi", "uvicorn", "filelock"]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx"]
+
+[project.scripts]
+project-hub = "project_hub.cli:main"
+
+[tool.setuptools]
+packages = ["project_hub"]
+
+[tool.setuptools.package-data]
+project_hub = ["static/*"]

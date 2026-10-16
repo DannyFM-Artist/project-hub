@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "project_hub/static/index.html"
+        ],
+        "createdAt": "2026-10-16T07:15:00.740Z",
+        "reason": "Danny chose mockup option B (Console): single monospace ~13px scale with a 22px project title, documented in design-system/MASTER.md"
+      }
+    ]
+  }
+}
