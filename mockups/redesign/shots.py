@@ -11,7 +11,7 @@ with sync_playwright() as p:
     for letter in sys.argv[1:] or ["A", "B", "C"]:
         url = (M / f"redesign-{letter}.html").as_uri()
         for name, q, h, full in [("overview", "#overview", "", False), ("project", "#p/framemorph", "", False),
-                                 ("stress", "#p/stagetrack", "?stress=1", True)]:
+                                 ("stagetrack", "#p/stagetrack", "", False), ("stress", "#p/stagetrack", "?stress=1", True)]:
             pg = b.new_page(viewport={"width": 1440, "height": 900})
             errors = []
             pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)

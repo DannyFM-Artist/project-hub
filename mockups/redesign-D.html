@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>project-hub · D</title>
+<!-- Proposal D: the Console B organisation, C's reading improvements, dannyfm-ui v0.2.0 (theme "signal") look. -->
+<style>
+:root {
+  /* dannyfm-ui v0.2.0, theme "signal" (DEFAULT_THEME of dannyfm-ui and StageTrack) */
+  --BASE: #131313; --SURFACE: #181818; --RAISED: #1F1F1F; --OVERLAY: #262626; --INPUT: #0E0E0E;
+  --BORDER: #2A2A2A; --BORDER_STRONG: #444748; --DIVIDER: #1F1F1F;
+  --TEXT: #E5E2E1; --TEXT_DIM: #A8ABAB; --TEXT_MUTED: #8E9192; --TEXT_ON_ACCENT: #0C2000;
+  --ACCENT: #88FE00; --ACCENT_HOVER: #A6FF3D; --ACCENT_PRESSED: #76DF00; --ACCENT_SOFT: #2A470D;
+  --OK: #3FC78B; --WARN: #EA7F2A; --ERROR: #FF2E4D; --IDLE: #6C7173;
+  /* hub extension tokens (dannyfm-ui rule R3: app-only tokens live in the app) */
+  --SELECTED: #213012;      /* blend(ACCENT_SOFT, SURFACE, 0.5): keeps WARN and TEXT_DIM above 4.5:1 on a selected row */
+  --TYPE_BUG: var(--ERROR); --TYPE_IDEA: #6CC4DC; --TYPE_REQUEST: #B7A1F2;
+  /* Type / Space / Radius, at interface scale 7/6 (dannyfm-ui's opt-in scale; 12px body becomes 14px in a browser) */
+  --scale: 1.1667;
+  --Type-UI: "Segoe UI", Inter, system-ui, sans-serif;
+  --Type-MONO: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+  --Type-H1: calc(19px * var(--scale)); --Type-H2: calc(15px * var(--scale)); --Type-H3: calc(12px * var(--scale));
+  --Type-BODY: calc(12px * var(--scale)); --Type-SMALL: calc(11px * var(--scale)); --Type-CAPTION: calc(10px * var(--scale));
+  --Space-XXS: calc(2px * var(--scale)); --Space-XS: calc(4px * var(--scale)); --Space-SM: calc(8px * var(--scale));
+  --Space-MD: calc(12px * var(--scale)); --Space-LG: calc(16px * var(--scale)); --Space-XL: calc(24px * var(--scale));
+  --Space-XXL: calc(32px * var(--scale));
+  --Radius-SM: 2px;
+  --TITLE_H: calc(32px * var(--scale));
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--BASE); color: var(--TEXT); font: var(--Type-BODY)/1.45 var(--Type-UI); overflow-x: hidden; }
+a { color: inherit; }
+button, select { font: inherit; color: inherit; }
+.mono { font-family: var(--Type-MONO); }
+.wrap { overflow-wrap: anywhere; min-width: 0; }
+.dim { color: var(--TEXT_DIM); } .muted { color: var(--TEXT_MUTED); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+:focus { outline: none; }
+:focus-visible { outline: 1px solid var(--ACCENT); outline-offset: 1px; }
+
+/* ---------------- title bar (chrome.TitleBar) */
+.bar { position: sticky; top: 0; z-index: 20; height: var(--TITLE_H); display: flex; align-items: stretch;
+  background: var(--SURFACE); border-bottom: 1px solid var(--BORDER); }
+.wordmark { display: flex; align-items: center; padding: 0 var(--Space-MD); color: var(--TEXT_DIM); font-size: var(--Type-SMALL);
+  font-weight: 600; letter-spacing: 1.2px; text-decoration: none; white-space: nowrap; }
+.seg { white-space: nowrap; display: flex; align-items: center; gap: var(--Space-XS); padding: 0 var(--Space-MD); color: var(--TEXT_MUTED); font-weight: 600;
+  text-decoration: none; border-bottom: 2px solid transparent; }
+.seg:hover { color: var(--TEXT_DIM); }
+.seg[aria-current] { color: var(--TEXT); border-bottom-color: var(--ACCENT); }
+.seg .n { font: 600 var(--Type-CAPTION) var(--Type-MONO); color: var(--WARN); }
+.bar .sp { flex: 1; }
+.bar .right { display: flex; align-items: center; gap: var(--Space-SM); padding-right: var(--Space-MD); color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+.repcount { white-space: nowrap; font-family: var(--Type-MONO); padding: 0 var(--Space-SM); border-right: 1px solid var(--BORDER); }
+.repcount b { color: var(--TEXT); font-weight: 600; }
+.bell { display: inline-flex; align-items: center; gap: var(--Space-XS); background: transparent; border: 1px solid var(--BORDER_STRONG);
+  border-radius: var(--Radius-SM); padding: var(--Space-XXS) var(--Space-SM); color: var(--TEXT_DIM); cursor: pointer; height: calc(var(--TITLE_H) - 10px); }
+.bell svg { width: 15px; height: 15px; }
+.bell .c { font: 600 var(--Type-SMALL) var(--Type-MONO); }
+.bell:hover { background: var(--RAISED); color: var(--TEXT); }
+.bell.hot { border-color: var(--WARN); color: var(--WARN); }
+.bell.hot:hover { background: var(--RAISED); }
+.bell[aria-expanded="true"] { background: var(--OVERLAY); }
+.snap { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); }
+
+/* bell panel: QMenu look */
+.bellpanel { position: absolute; right: var(--Space-MD); top: calc(var(--TITLE_H) - 2px); width: min(660px, calc(100vw - 32px)); max-height: calc(100vh - var(--TITLE_H) - 24px);
+  overflow: auto; background: var(--OVERLAY); border: 1px solid var(--BORDER_STRONG); border-radius: var(--Radius-SM); padding: var(--Space-XS) 0;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5); z-index: 30; }
+.bellpanel .bh { display: flex; justify-content: space-between; align-items: baseline; padding: var(--Space-SM) var(--Space-MD); border-bottom: 1px solid var(--BORDER_STRONG); }
+.bellpanel .bh b { font-size: var(--Type-SMALL); letter-spacing: 1px; text-transform: uppercase; }
+.bellpanel .grp { padding: var(--Space-SM) var(--Space-MD) var(--Space-XS); }
+.bellpanel .gh { display: flex; gap: var(--Space-SM); align-items: baseline; font-size: var(--Type-SMALL); color: var(--TEXT_DIM); font-weight: 600;
+  letter-spacing: .8px; text-transform: uppercase; padding-bottom: var(--Space-XS); border-bottom: 1px solid var(--BORDER); }
+.bellpanel .gh a { color: var(--TEXT); text-decoration: none; } .bellpanel .gh a:hover { text-decoration: underline; }
+.bellpanel .act { grid-template-columns: calc(86px * var(--scale)) minmax(0, 1fr) auto; padding-left: 0; padding-right: 0; }
+.bellpanel .act .why { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.bellpanel .act:hover { background: transparent; }
+.bellpanel .empty { padding: var(--Space-MD); }
+.bellpanel .foot { padding: var(--Space-SM) var(--Space-MD); border-top: 1px solid var(--BORDER_STRONG); color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+
+/* ---------------- page */
+main { padding: var(--Space-LG) var(--Space-XL) var(--Space-XXL); max-width: 1680px; margin: 0 auto; }
+.eyebrow { margin: 0; color: var(--TEXT_MUTED); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; }
+.lead { margin: var(--Space-XXS) 0 0; font-size: var(--Type-H2); line-height: 1.35; font-weight: 400; }
+.lead b { font-weight: 600; }
+.lead .warn { color: var(--WARN); font-weight: 600; } .lead .ok { color: var(--OK); font-weight: 600; }
+
+/* panel = dock surface with a PanelHeader */
+.panel { background: var(--SURFACE); border: 1px solid var(--BORDER); border-radius: var(--Radius-SM); margin-top: var(--Space-MD); min-width: 0; }
+.ph { display: flex; align-items: center; gap: var(--Space-SM); padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--BORDER); min-height: calc(28px * var(--scale)); }
+.ph h2 { white-space: nowrap; flex-shrink: 0; margin: 0; font-size: var(--Type-SMALL); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--TEXT); }
+.ph .meta { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); }
+.ph .sp { flex: 1; }
+.panel.foryou { border-color: var(--BORDER_STRONG); }
+.panel.foryou.hot .ph h2 { color: var(--WARN); }
+
+/* column header (QHeaderView) */
+.thead { display: grid; gap: var(--Space-MD); padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--BORDER);
+  color: var(--TEXT_MUTED); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; }
+.row { display: grid; gap: var(--Space-MD); align-items: baseline; padding: var(--Space-SM) var(--Space-MD) var(--Space-SM) calc(var(--Space-MD) - 2px);
+  border-left: 2px solid transparent; border-bottom: 1px solid var(--DIVIDER); min-width: 0; }
+.row > * { min-width: 0; }
+.row:last-child { border-bottom: none; }
+.row:hover { background: var(--RAISED); }
+
+/* state words (widgets.StateLabel): coloured word, no box */
+.st { font: 600 var(--Type-SMALL) var(--Type-MONO); letter-spacing: .6px; text-transform: uppercase; white-space: nowrap; }
+.st.done { color: var(--OK); } .st.cur { color: var(--ACCENT); } .st.todo { color: var(--TEXT_DIM); } .st.gate { color: var(--WARN); }
+.st.quiet { color: var(--TEXT_MUTED); font-weight: 400; }
+.st.active { color: var(--OK); } .st.paused { color: var(--TEXT_DIM); } .st.parked, .st.pdone { color: var(--TEXT_MUTED); }
+.st.bug { color: var(--TYPE_BUG); } .st.idea { color: var(--TYPE_IDEA); } .st.future_request { color: var(--TYPE_REQUEST); }
+.st.task, .st.message { color: var(--TEXT); } .st.report { color: var(--TEXT_DIM); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: var(--Space-XS); vertical-align: 1px; }
+
+/* buttons (QPushButton): outline weight; primary by weight; filled only for the confirm */
+.btn { background: transparent; color: var(--TEXT); border: 1px solid var(--BORDER_STRONG); border-radius: var(--Radius-SM);
+  padding: calc(var(--Space-SM) - 3px) var(--Space-MD); cursor: pointer; white-space: nowrap; line-height: 1.3; }
+.btn:hover { background: var(--RAISED); border-color: var(--TEXT_MUTED); }
+.btn:active { background: var(--OVERLAY); }
+.btn:focus-visible { outline: none; border-color: var(--ACCENT); box-shadow: 0 0 0 1px var(--ACCENT); }
+.btn.primary { border-color: var(--TEXT_DIM); font-weight: 600; }
+.btn.primary:hover { border-color: var(--TEXT); }
+.btn.primary[aria-expanded="true"] { background: var(--OVERLAY); border-color: var(--TEXT); }
+.btn.filled { background: var(--ACCENT); border-color: var(--ACCENT); color: var(--TEXT_ON_ACCENT); font-weight: 600; }
+.btn.filled:hover { background: var(--ACCENT_HOVER); border-color: var(--ACCENT_HOVER); }
+.btn.filled:active { background: var(--ACCENT_PRESSED); }
+.btn.filled:focus-visible { border-color: var(--TEXT); box-shadow: 0 0 0 1px var(--TEXT); }
+.btn.ghost { border-color: transparent; color: var(--TEXT_DIM); }
+.btn.ghost:hover { background: var(--RAISED); color: var(--TEXT); }
+.btn.small { padding: var(--Space-XXS) var(--Space-SM); font-size: var(--Type-SMALL); }
+.link { background: none; border: none; padding: 0; color: var(--TEXT_DIM); text-decoration: underline; cursor: pointer; }
+.link:hover { color: var(--TEXT); }
+.chev { display: inline-block; width: 10px; height: 10px; vertical-align: -1px; margin-right: var(--Space-XS); transition: transform .12s; }
+[aria-expanded="true"] > .chev { transform: rotate(90deg); }
+
+/* action rows ("Para ti") */
+.act { grid-template-columns: calc(110px * var(--scale)) minmax(0, 1fr) auto; align-items: center; }
+.act .what { display: flex; flex-direction: column; gap: 1px; }
+.act .ti { font-weight: 600; }
+.act .ti .n { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); font-weight: 400; margin-right: var(--Space-XS); }
+.act .why { color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+.act .btns { display: flex; gap: var(--Space-SM); justify-content: flex-end; }
+.act .proj a { text-decoration: none; font-weight: 600; } .act .proj a:hover { text-decoration: underline; }
+.calm { margin: 0; padding: var(--Space-SM) var(--Space-MD); color: var(--TEXT_DIM); }
+.calm .st { margin-right: var(--Space-SM); }
+
+/* inline confirmation (QDialog#framed, inline) */
+.confirm { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--Space-SM) var(--Space-MD);
+  margin-top: var(--Space-SM); padding: var(--Space-SM) var(--Space-MD); background: var(--INPUT); border: 1px solid var(--BORDER_STRONG); border-radius: var(--Radius-SM); }
+.confirm p { margin: 0; flex: 1 1 320px; min-width: 0; overflow-wrap: anywhere; }
+.confirm p small { display: block; color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+.confirm .btns { display: flex; gap: var(--Space-SM); }
+
+/* reports lines: information, collapsed */
+.replines .rl { border-bottom: 1px solid var(--DIVIDER); }
+.replines .rl:last-child { border-bottom: none; }
+.rlh { display: flex; align-items: center; gap: var(--Space-MD); padding: var(--Space-XS) var(--Space-MD); }
+.rlh .tog { background: none; border: none; padding: var(--Space-XS) 0; cursor: pointer; color: var(--TEXT_DIM); text-align: left; flex: 1; min-width: 0; }
+.rlh .tog:hover { color: var(--TEXT); }
+.rlh .tog b { color: var(--TEXT); font-weight: 600; }
+.rlh .tog .v { text-decoration: underline; }
+.reps { padding: 0 var(--Space-MD) var(--Space-SM) calc(var(--Space-MD) + 14px); }
+.rep { padding: var(--Space-SM) 0; border-top: 1px solid var(--DIVIDER); }
+.rep .h { display: flex; gap: var(--Space-SM); align-items: baseline; flex-wrap: wrap; }
+.rep .h b { font-weight: 600; }
+.rep .h .m { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); font-family: var(--Type-MONO); }
+.body { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--TEXT_DIM); font-size: var(--Type-SMALL); max-height: calc(130px * var(--scale)); overflow: auto;
+  margin-top: var(--Space-XS); padding: var(--Space-XS) var(--Space-SM); background: var(--INPUT); border: 1px solid var(--BORDER); border-radius: var(--Radius-SM); }
+
+/* phase track */
+.track { display: inline-flex; gap: 2px; vertical-align: middle; flex-wrap: wrap; max-width: 100%; }
+.track i { width: 7px; height: 11px; background: var(--BORDER_STRONG); }
+.track i.d { background: var(--OK); } .track i.c { background: var(--ACCENT); } .track i.g { background: var(--WARN); }
+
+/* overview tables */
+.ptab .thead, .ptab .row { grid-template-columns: calc(78px * var(--scale)) minmax(0, 1.2fr) calc(190px * var(--scale)) minmax(0, 1.4fr) minmax(0, 1.4fr) calc(56px * var(--scale)) calc(64px * var(--scale)) calc(76px * var(--scale)); }
+.ptab .row { cursor: pointer; }
+.ptab .nm a { font-weight: 600; text-decoration: none; } .ptab .nm a:hover { text-decoration: underline; }
+.ptab .sub { display: block; color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ptab .num { font-family: var(--Type-MONO); }
+.ptab .num.hot { color: var(--WARN); font-weight: 600; }
+.ptab .cp .n, .ptab .fr { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); }
+.ovact .thead, .ovact .row { grid-template-columns: calc(110px * var(--scale)) calc(120px * var(--scale)) minmax(0, 1fr) auto; }
+.res .thead, .res .row { grid-template-columns: calc(180px * var(--scale)) calc(120px * var(--scale)) minmax(0, 1fr) calc(110px * var(--scale)); }
+.empty { padding: var(--Space-SM) var(--Space-MD); color: var(--TEXT_MUTED); margin: 0; }
+
+/* project view */
+.phead { display: flex; align-items: baseline; gap: var(--Space-MD); flex-wrap: wrap; }
+.phead h1 { margin: 0; font-size: var(--Type-H1); font-weight: 600; }
+.phead .back { margin-left: auto; color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+.phead .repo { color: var(--TEXT_MUTED); font: var(--Type-SMALL) var(--Type-MONO); }
+.next { margin: var(--Space-XXS) 0 0; color: var(--TEXT_DIM); }
+.next b { color: var(--TEXT); font-weight: 600; }
+.grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--Space-MD); align-items: start; }
+.grid > div { min-width: 0; }
+
+.phases .thead, .phases .row { grid-template-columns: calc(26px * var(--scale)) minmax(0, 1fr) calc(84px * var(--scale)) calc(236px * var(--scale)); }
+.phases .row { cursor: pointer; align-items: start; }
+.phases .n { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); }
+.phases .nm { background: none; border: none; padding: 0; text-align: left; cursor: pointer; font-weight: 600; display: block; width: 100%; overflow-wrap: anywhere; }
+.phases .nt { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.phases .row.isdone .nm { font-weight: 400; color: var(--TEXT_DIM); }
+.phases .gc { display: flex; align-items: baseline; justify-content: flex-end; gap: var(--Space-SM); flex-wrap: wrap; }
+.phases .doneline { display: block; padding: var(--Space-SM) var(--Space-MD); border-bottom: 1px solid var(--DIVIDER); }
+.phases .doneline button { background: none; border: none; padding: 0; cursor: pointer; color: var(--OK); font-weight: 600; }
+.phases .doneline button:hover { text-decoration: underline; }
+/* selected row: tint + 2px accent edge (dannyfm-ui list selection) */
+.phases .row.sel { background: var(--SELECTED); border-left-color: var(--ACCENT); cursor: default; }
+.phases .row.sel .nm { color: var(--TEXT); }
+.phases .row.sel .n, .phases .row.sel .st.quiet { color: var(--TEXT_DIM); }
+.phases .row.sel .nt { color: var(--TEXT_DIM); -webkit-line-clamp: unset; display: block; }
+.detail { grid-column: 2 / -1; display: grid; gap: var(--Space-SM); padding-top: var(--Space-XS); }
+.detail .lbl { color: var(--TEXT_DIM); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; margin-right: var(--Space-SM); }
+.detail .notes { color: var(--TEXT); overflow-wrap: anywhere; white-space: pre-wrap; }
+.detail .gr { color: var(--TEXT_DIM); font-size: var(--Type-SMALL); overflow-wrap: anywhere; }
+.detail .stline { display: flex; align-items: center; gap: var(--Space-SM); flex-wrap: wrap; }
+select { background: var(--INPUT); color: var(--TEXT); border: 1px solid var(--BORDER); border-radius: var(--Radius-SM);
+  padding: calc(var(--Space-XS) + 1px) var(--Space-SM); padding-right: calc(var(--Space-XL)); appearance: none; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M1 2.5 4 5.5 7 2.5' fill='none' stroke='%23A8ABAB' stroke-width='1.3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right var(--Space-SM) center; }
+select:hover { border-color: var(--BORDER_STRONG); }
+select:focus-visible { outline: none; border-color: var(--ACCENT); }
+select option { background: var(--OVERLAY); }
+
+/* tabs (QTabBar) */
+.tabs { display: flex; gap: 0; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; min-width: 0; }
+.tab { background: none; border: none; border-bottom: 2px solid transparent; color: var(--TEXT_MUTED); padding: var(--Space-XXS) var(--Space-SM);
+  font-size: var(--Type-SMALL); cursor: pointer; }
+.tab:hover { color: var(--TEXT_DIM); }
+.tab[aria-pressed="true"] { color: var(--TEXT); border-bottom-color: var(--ACCENT); }
+.tab .mono { color: inherit; }
+.items .thead, .items .row { grid-template-columns: calc(70px * var(--scale)) minmax(0, 1fr) calc(78px * var(--scale)) calc(40px * var(--scale)); }
+.items .row { padding-top: var(--Space-XS); padding-bottom: var(--Space-XS); }
+.items details summary { cursor: pointer; list-style: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.items details summary::-webkit-details-marker { display: none; }
+.items details[open] summary { white-space: normal; overflow-wrap: anywhere; }
+.items .det { color: var(--TEXT_DIM); font-size: var(--Type-SMALL); overflow-wrap: anywhere; white-space: pre-wrap; padding: var(--Space-XS) 0; }
+.items .age, .inbox .age { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); text-align: right; }
+.items .row.closed .t { color: var(--TEXT_MUTED); text-decoration: line-through; }
+.inbox .thead, .inbox .row { grid-template-columns: calc(66px * var(--scale)) minmax(0, 1fr) calc(54px * var(--scale)) calc(40px * var(--scale)); }
+.inbox .row { padding-top: var(--Space-XS); padding-bottom: var(--Space-XS); }
+.inbox details summary { cursor: pointer; list-style: none; overflow-wrap: anywhere; }
+.inbox details summary::-webkit-details-marker { display: none; }
+.inbox .from { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); }
+.inbox .row.done .t { color: var(--TEXT_DIM); }
+.dec .row { grid-template-columns: calc(84px * var(--scale)) minmax(0, 1fr); }
+.dec time { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); }
+.dec .r { display: block; color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+
+.toast { position: fixed; right: var(--Space-LG); bottom: var(--Space-LG); max-width: 420px; background: var(--OVERLAY); border: 1px solid var(--BORDER_STRONG);
+  border-radius: var(--Radius-SM); padding: var(--Space-SM) var(--Space-MD); z-index: 40; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+.toast b { color: var(--OK); margin-right: var(--Space-SM); }
+@media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<header class="bar" id="bar"></header>
+<main id="app"></main>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="redesign/data.js"></script>
+<script>
+"use strict";
+const H = window.HUB;
+const NOW = new Date(H.snapshot).getTime();
+const TYPE = { bug: "bug", idea: "idea", future_request: "petición" };
+const TYPES_PL = { bug: "bugs", idea: "ideas", future_request: "peticiones" };
+const PSTATE = { todo: "pendiente", in_progress: "en curso", done: "hecha" };
+const PROJ = { active: "activo", paused: "en pausa", parked: "aparcado", done: "terminado" };
+const KIND = { task: "tarea", message: "mensaje", report: "report" };
+const GATE = { review: "review", manual_test: "test manual" };
+
+// UI state of the mockup. Nothing here is ever sent anywhere.
+const S = { bell: false, confirm: new Set(), repOpen: new Set(), read: new Set(), msgOpen: new Set(),
+  sel: {}, pend: {}, doneOpen: {}, filter: "all", closed: false };
+
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat(Infinity)) if (k != null && k !== false) e.append(k.nodeType ? k : String(k));
+  return e;
+}
+const svg = (html, cls) => { const s = document.createElement("span"); s.innerHTML = html; const el = s.firstChild; if (cls) el.setAttribute("class", cls); return el; };
+const CHEV = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 1.5 7 5 3.5 8.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
+const BELL = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1.3 1.3H2.7Z M6.5 14h3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+const chev = () => svg(CHEV, "chev");
+const pl = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
+const nn = (i) => String(i + 1).padStart(2, "0");
+function ago(iso) {
+  const s = Math.max(0, (NOW - new Date(iso).getTime()) / 1000);
+  if (s < 90) return "ahora";
+  if (s < 3600) return Math.round(s / 60) + " min";
+  if (s < 86400) return Math.round(s / 3600) + " h";
+  return Math.round(s / 86400) + " d";
+}
+const nameOf = (id) => (H.projects.find((p) => p.id === id) || { name: id }).name;
+const listJoin = (a) => a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " y " + a[a.length - 1];
+
+/* ---------------- the rules from the brief */
+const hasGate = (ph) => ph.gate === "review" || ph.gate === "manual_test";
+const waiting = (ph) => (ph.gate === "review" && !ph.gate_approved) || (ph.gate === "manual_test" && ph.status !== "done");
+function facts(p) {
+  const phases = p.phases || [];
+  let ci = phases.findIndex((x) => x.status === "in_progress");
+  if (ci < 0) ci = phases.findIndex((x) => x.status === "todo");
+  const gates = phases.map((ph, i) => ({ ph, i })).filter((g) => waiting(g.ph))
+    .sort((a, b) => (a.ph.gate === "review" ? 0 : 1) - (b.ph.gate === "review" ? 0 : 1) || a.i - b.i);
+  const toUser = H.messages.filter((m) => m.to_project === "user" && m.status !== "done" && m.from_project === p.id);
+  const inbox = H.messages.filter((m) => m.to_project === p.id || m.to_project === "all");
+  const reports = inbox.filter((m) => m.kind === "report" && m.status === "unread" && !S.read.has(m.id));
+  const actions = [...gates.map((g) => ({ kind: "gate", key: p.id + ":g:" + g.ph.id, ...g })),
+                   ...toUser.map((m) => ({ kind: "msg", key: p.id + ":m:" + m.id, m }))];
+  return { phases, ci, cur: ci >= 0 ? phases[ci] : null, done: phases.filter((x) => x.status === "done").length,
+    gates, toUser, inbox, reports, actions };
+}
+const allFacts = () => H.projects.map((p) => ({ p, f: facts(p) }));
+const byUrgency = (rows) => [...rows].sort((a, b) => b.f.actions.length - a.f.actions.length || b.f.reports.length - a.f.reports.length || a.p.name.localeCompare(b.p.name));
+
+/* ---------------- actions: gate and message rows, with their inline confirmation */
+function actionRow(p, a, ctx, showProject) {
+  const ck = ctx + "|" + a.key, open = S.confirm.has(ck);
+  let word, title, why, btns, question, yes;
+  if (a.kind === "gate") {
+    const review = a.ph.gate === "review";
+    word = h("span", { class: "st gate" }, GATE[a.ph.gate]);
+    title = h("div", { class: "ti wrap" }, h("span", { class: "n" }, nn(a.i)), a.ph.name);
+    why = a.ph.gate_reason ? h("div", { class: "why wrap" }, a.ph.gate_reason, a.ph.gate_set_by ? h("span", { class: "muted" }, " · puesto por " + a.ph.gate_set_by) : null) : null;
+    const label = review ? "Aprobar" : "Marcar como hecha";
+    btns = [h("button", { class: "btn primary", type: "button", "data-k": "b|" + ck, "aria-expanded": String(open), onclick: () => toggleConfirm(ck) }, label)];
+    question = review ? [`¿Aprobar el gate de «${a.ph.name}» en ${p.name}?`, "El trabajo autónomo podrá empezar esta fase."]
+                      : [`¿Marcar como hecha la fase «${a.ph.name}» en ${p.name}?`, "Confirma que has hecho la prueba manual."];
+    yes = review ? "Sí, aprobar" : "Sí, marcar como hecha";
+  } else {
+    const m = a.m, mo = S.msgOpen.has(ck);
+    word = h("span", { class: "st message" }, KIND[m.kind] || m.kind);
+    title = h("div", { class: "ti wrap" }, m.title);
+    why = h("div", { class: "why" }, `de ${m.from_project} · `, h("span", { class: "mono" }, ago(m.created_at)), mo ? h("div", { class: "body" }, m.body) : null);
+    btns = [h("button", { class: "btn ghost", type: "button", "data-k": "v|" + ck, "aria-expanded": String(mo), onclick: () => { S.msgOpen.has(ck) ? S.msgOpen.delete(ck) : S.msgOpen.add(ck); render(); } }, mo ? "Ocultar" : "Leer"),
+            h("button", { class: "btn primary", type: "button", "data-k": "b|" + ck, "aria-expanded": String(open), onclick: () => toggleConfirm(ck) }, "Marcar como hecho")];
+    question = [`¿Marcar como hecho el mensaje «${m.title}» de ${p.name}?`, "Desaparece de tus acciones."];
+    yes = "Sí, marcar como hecho";
+  }
+  return h("div", { class: "row act" },
+    word,
+    showProject ? h("div", { class: "proj wrap" }, h("a", { href: "#p/" + encodeURIComponent(p.id) }, p.name)) : null,
+    h("div", { class: "what" }, title, why),
+    h("div", { class: "btns" }, btns),
+    open ? confirmBox(ck, question, yes) : null);
+}
+function confirmBox(ck, [q, sub], yes, onClose) {
+  return h("div", { class: "confirm", role: "group", "aria-label": "Confirmación" },
+    h("p", {}, q, sub ? h("small", {}, sub) : null),
+    h("div", { class: "btns" },
+      h("button", { class: "btn filled", type: "button", "data-k": "y|" + ck, onclick: () => { S.confirm.delete(ck); if (onClose) onClose(); toast("Maqueta: no se ha cambiado nada en project-hub."); render("b|" + ck); } }, yes),
+      h("button", { class: "btn ghost", type: "button", "data-k": "n|" + ck, onclick: () => { S.confirm.delete(ck); if (onClose) onClose(); render("b|" + ck); } }, "Cancelar")));
+}
+function toggleConfirm(ck) {
+  if (S.confirm.has(ck)) { S.confirm.delete(ck); render("b|" + ck); } else { S.confirm.add(ck); render("n|" + ck); }
+}
+
+/* reports: one collapsed line per project */
+function reportLine(p, f, ctx, showProject) {
+  const k = ctx + "|" + p.id, open = S.repOpen.has(k), n = f.reports.length;
+  return h("div", { class: "rl" },
+    h("div", { class: "rlh" },
+      h("button", { class: "tog", type: "button", "aria-expanded": String(open), "data-k": "r|" + k, onclick: () => { open ? S.repOpen.delete(k) : S.repOpen.add(k); render("r|" + k); } },
+        chev(), showProject ? [h("b", {}, p.name), " · "] : null, pl(n, "report sin leer", "reports sin leer"), " · ", h("span", { class: "v" }, open ? "ocultar" : "ver")),
+      h("button", { class: "btn ghost small", type: "button", onclick: () => { f.reports.forEach((m) => S.read.add(m.id)); toast(`Maqueta: ${pl(n, "report marcado", "reports marcados")} como leído${n === 1 ? "" : "s"} solo en esta página.`); render(); } }, "Marcar todos como leídos")),
+    open ? h("div", { class: "reps" }, f.reports.map((m) => h("div", { class: "rep" },
+      h("div", { class: "h" }, h("b", { class: "wrap" }, m.title), h("span", { class: "m" }, `${m.from_project} · ${ago(m.created_at)}`)),
+      h("div", { class: "body" }, m.body)))) : null);
+}
+
+function track(f) {
+  return h("span", { class: "track", role: "img", "aria-label": `${f.done} de ${f.phases.length} fases hechas` },
+    f.phases.map((x, i) => h("i", { class: x.status === "done" ? "d" : waiting(x) ? "g" : i === f.ci ? "c" : "" })));
+}
+
+/* ---------------- top bar and bell */
+function bar(cur) {
+  const rows = allFacts();
+  const nAct = rows.reduce((s, r) => s + r.f.actions.length, 0);
+  const nRep = rows.reduce((s, r) => s + r.f.reports.length, 0);
+  const el = document.getElementById("bar");
+  el.replaceChildren(...[
+    h("a", { class: "wordmark", href: "#overview" }, "PROJECT-HUB"),
+    h("a", { class: "seg", href: "#overview", "aria-current": cur ? null : "page" }, "Resumen"),
+    ...rows.map(({ p, f }) => h("a", { class: "seg", href: "#p/" + encodeURIComponent(p.id), "aria-current": cur === p ? "page" : null },
+      p.name, f.actions.length ? h("span", { class: "n", "aria-label": pl(f.actions.length, "acción", "acciones") }, f.actions.length) : null)),
+    h("span", { class: "sp" }),
+    h("div", { class: "right" },
+      h("span", { class: "repcount", title: "Reports sin leer: información, no acciones" }, h("b", {}, nRep), " reports sin leer"),
+      h("button", { class: "bell" + (nAct ? " hot" : ""), type: "button", "data-k": "bell", "aria-haspopup": "true", "aria-expanded": String(S.bell),
+        "aria-label": `Para ti: ${pl(nAct, "acción", "acciones")}`, onclick: (e) => { e.stopPropagation(); S.bell = !S.bell; render("bell"); } },
+        svg(BELL), h("span", { class: "c" }, nAct)),
+      h("span", { class: "snap", title: "Hora de la copia de los datos" }, new Date(H.snapshot).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }))),
+    S.bell ? bellPanel(rows, nAct) : null].filter(Boolean));
+}
+function bellPanel(rows, nAct) {
+  const hot = byUrgency(rows).filter((r) => r.f.actions.length);
+  return h("div", { class: "bellpanel", role: "dialog", "aria-label": "Para ti", onclick: (e) => e.stopPropagation() },
+    h("div", { class: "bh" }, h("b", {}, "Para ti · " + nAct), h("span", { class: "muted", style: "font-size:var(--Type-SMALL)" }, "gates y mensajes que esperan tu acción")),
+    hot.length ? hot.map(({ p, f }) => h("div", { class: "grp" },
+      h("div", { class: "gh" }, h("a", { href: "#p/" + encodeURIComponent(p.id), onclick: () => { S.bell = false; } }, p.name), h("span", {}, "· " + f.actions.length)),
+      f.actions.map((a) => actionRow(p, a, "bell", false))))
+      : h("p", { class: "empty" }, "Nada espera tu acción."),
+    h("div", { class: "foot" }, "Los reports sin leer no cuentan aquí: son información y están en cada proyecto."));
+}
+
+/* ---------------- overview */
+function overview() {
+  const rows = allFacts(), urg = byUrgency(rows);
+  const acts = rows.flatMap((r) => r.f.actions.map((a) => ({ ...r, a })));
+  const nRep = rows.reduce((s, r) => s + r.f.reports.length, 0);
+  const rev = acts.filter((x) => x.a.kind === "gate" && x.a.ph.gate === "review").length;
+  const tst = acts.filter((x) => x.a.kind === "gate" && x.a.ph.gate === "manual_test").length;
+  const msg = acts.filter((x) => x.a.kind === "msg").length;
+  const what = [rev ? "aprobar " + pl(rev, "gate") : null, tst ? "probar " + pl(tst, "fase") : null, msg ? "atender " + pl(msg, "mensaje") : null].filter(Boolean);
+  const where = urg.filter((r) => r.f.actions.length).map((r) => `${r.f.actions.length} en ${r.p.name}`);
+  const lead = acts.length
+    ? [h("span", { class: "warn" }, `Tienes ${pl(acts.length, "cosa", "cosas")} que hacer`), `: ${listJoin(what)} (${listJoin(where)})`]
+    : [h("span", { class: "ok" }, "Nada espera tu acción")];
+  lead.push(nRep ? `; además hay ${pl(nRep, "report sin leer", "reports sin leer")}, solo para leer.` : ".");
+  const active = rows.filter((r) => r.p.status === "active").length;
+  const date = new Date(H.snapshot).toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+
+  document.getElementById("app").replaceChildren(
+    h("p", { class: "eyebrow" }, `Resumen · ${date} · ${pl(rows.length, "proyecto")}, ${active} activos`),
+    h("h1", { class: "lead" }, lead),
+    h("section", { class: "panel foryou ovact" + (acts.length ? " hot" : ""), "aria-label": "Para ti" },
+      h("div", { class: "ph" }, h("h2", {}, "Para ti · " + acts.length), h("span", { class: "meta" }, "gates que esperan tu acción y mensajes para ti, lo más urgente primero")),
+      acts.length ? [h("div", { class: "thead" }, h("span", {}, "Qué"), h("span", {}, "Proyecto"), h("span", {}, "Fase o mensaje"), h("span", { style: "text-align:right" }, "Acción")),
+        urg.flatMap(({ p, f }) => f.actions.map((a) => actionRow(p, a, "ov", true)))]
+        : h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Nada espera tu acción.")),
+    nRep ? h("section", { class: "panel replines", "aria-label": "Reports sin leer" },
+      h("div", { class: "ph" }, h("h2", {}, "Reports sin leer · " + nRep), h("span", { class: "meta" }, "información: léelos cuando puedas")),
+      urg.filter((r) => r.f.reports.length).map(({ p, f }) => reportLine(p, f, "ov", true))) : null,
+    h("section", { class: "panel ptab", "aria-label": "Proyectos" },
+      h("div", { class: "ph" }, h("h2", {}, "Proyectos · " + rows.length), h("span", { class: "meta" }, `${active} activos`)),
+      h("div", { class: "thead" }, ["Estado", "Proyecto", "Fases", "Fase actual", "Siguiente paso", "Para ti", "Reports", "Actualizado"].map((t, i) => h("span", { style: i >= 5 ? "text-align:right" : null }, t))),
+      urg.map(({ p, f }) => h("div", { class: "row", onclick: (e) => { if (!e.target.closest("a")) location.hash = "#p/" + encodeURIComponent(p.id); } },
+        h("span", { class: "st " + (p.status === "done" ? "pdone" : p.status) }, h("span", { class: "dot", style: `background:var(--${p.status === "active" ? "OK" : "IDLE"})` }), PROJ[p.status] || p.status),
+        h("div", { class: "nm" }, h("a", { href: "#p/" + encodeURIComponent(p.id) }, p.name), h("span", { class: "sub", title: p.description }, p.description)),
+        h("div", {}, track(f), " ", h("span", { class: "fr" }, `${f.done}/${f.phases.length}`)),
+        h("div", { class: "cp wrap" }, f.cur ? [h("span", { class: "n" }, nn(f.ci) + " "), f.cur.name, " ", h("span", { class: "st cur" }, f.cur.status === "in_progress" ? "▶ en curso" : "▶ siguiente")] : h("span", { class: "muted" }, "todas hechas")),
+        h("div", { class: "wrap dim" }, p.next_step || "—"),
+        h("span", { class: "num" + (f.actions.length ? " hot" : " muted"), style: "text-align:right" }, f.actions.length),
+        h("span", { class: "num muted", style: "text-align:right" }, f.reports.length),
+        h("span", { class: "num muted", style: "text-align:right" }, ago(p.updated_at))))),
+    resources());
+}
+function resources() {
+  const L = H.leases || [];
+  return h("section", { class: "panel res", "aria-label": "Recursos" },
+    h("div", { class: "ph" }, h("h2", {}, "Recursos en uso · " + L.length)),
+    L.length ? [h("div", { class: "thead" }, h("span", {}, "Recurso"), h("span", {}, "Proyecto"), h("span", {}, "Para qué"), h("span", {}, "Caduca")),
+      L.map((l) => h("div", { class: "row" }, h("span", { class: "mono wrap" }, l.resource),
+        h("a", { href: "#p/" + encodeURIComponent(l.project_id) }, nameOf(l.project_id)),
+        h("span", { class: "wrap dim" }, l.purpose),
+        h("span", { class: "mono muted" }, new Date(l.expires_at).toISOString().slice(11, 16) + " UTC")))]
+      : h("p", { class: "empty" }, "No hay recursos reservados."));
+}
+
+/* ---------------- project */
+function project(p) {
+  const f = facts(p);
+  const total = f.phases.length;
+  const sum = !total ? [h("b", {}, "Sin fases todavía")]
+    : !f.cur ? [h("b", {}, `Las ${total} fases están hechas`)]
+    : [h("b", {}, `Fase ${f.ci + 1} de ${total}`), f.cur.status === "in_progress" ? " en curso: " : ", la siguiente: ", h("b", {}, `«${f.cur.name}»`)];
+  sum.push(f.actions.length ? [": ", h("span", { class: "warn" }, `${pl(f.actions.length, "cosa espera", "cosas esperan")} tu acción`)] : ["; ", h("span", { class: "ok" }, "nada espera tu acción")]);
+  sum.push(f.reports.length ? `, y ${pl(f.reports.length, "report sin leer", "reports sin leer")}.` : ".");
+
+  document.getElementById("app").replaceChildren(
+    h("div", { class: "phead" }, h("h1", {}, p.name),
+      h("span", { class: "st " + (p.status === "done" ? "pdone" : p.status) }, h("span", { class: "dot", style: `background:var(--${p.status === "active" ? "OK" : "IDLE"})` }), PROJ[p.status] || p.status),
+      track(f), h("span", { class: "mono dim" }, `${f.done}/${total} hechas`),
+      h("span", { class: "repo wrap", title: p.description }, p.repo_path || ""),
+      h("a", { class: "back", href: "#overview" }, "← Resumen")),
+    h("p", { class: "lead" }, sum),
+    h("p", { class: "next wrap" }, h("b", {}, "Siguiente paso: "), p.next_step || "sin definir"),
+    h("section", { class: "panel foryou" + (f.actions.length ? " hot" : ""), "aria-label": "Para ti" },
+      h("div", { class: "ph" }, h("h2", {}, "Para ti · " + f.actions.length)),
+      f.actions.length ? f.actions.map((a) => actionRow(p, a, "pv", false)) : h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Nada espera tu acción en este proyecto."),
+      f.reports.length ? h("div", { class: "replines", style: "border-top:1px solid var(--BORDER)" }, reportLine(p, f, "pv", false)) : null),
+    h("div", { class: "grid" },
+      h("div", {}, phases(p, f), decisions(p)),
+      h("div", {}, items(p), inbox(p, f))));
+}
+
+function phases(p, f) {
+  const ph = f.phases;
+  const selId = S.sel[p.id] || (f.cur && f.cur.id);
+  const doneIdx = ph.map((x, i) => i).filter((i) => ph[i].status === "done" && (f.ci < 0 || i < f.ci));
+  const showDone = !!S.doneOpen[p.id];
+  const rows = [];
+  ph.forEach((x, i) => {
+    if (doneIdx.includes(i) && !showDone) return;
+    rows.push(phaseRow(p, f, x, i, x.id === selId));
+  });
+  return h("section", { class: "panel phases", "aria-label": "Fases" },
+    h("div", { class: "ph" }, h("h2", {}, "Fases · " + `${f.done}/${ph.length} hechas`), h("span", { class: "sp" }), h("span", { class: "meta" }, "clic en una fase para ver sus notas y su estado")),
+    ph.length ? [h("div", { class: "thead" }, h("span", {}, "№"), h("span", {}, "Fase"), h("span", {}, "Estado"), h("span", { style: "text-align:right" }, "Gate")),
+      doneIdx.length ? h("div", { class: "doneline" }, h("button", { type: "button", "aria-expanded": String(showDone), "data-k": "done|" + p.id,
+        onclick: () => { S.doneOpen[p.id] = !showDone; render("done|" + p.id); } }, chev(), `✓ ${pl(doneIdx.length, "fase hecha", "fases hechas")}`, showDone ? " · ocultar" : " · ver")) : null,
+      rows] : h("p", { class: "empty" }, "Sin fases todavía."));
+}
+function phaseRow(p, f, x, i, sel) {
+  const isCur = i === f.ci, w = waiting(x);
+  const ck = "ph|" + p.id + ":g:" + x.id;  // own key: the "Para ti" row above has its own confirmation
+  let word;
+  if (x.status === "done") word = h("span", { class: "st done" }, "✓ hecha");
+  else if (isCur) word = h("span", { class: "st cur" }, x.status === "in_progress" ? "▶ en curso" : "▶ siguiente");
+  else word = h("span", { class: "st todo" }, x.status === "in_progress" ? "en curso" : "pendiente");
+  let gate = null;
+  if (hasGate(x)) {
+    if (w) gate = [h("span", { class: "st gate" }, GATE[x.gate]),
+      h("button", { class: "btn primary small", type: "button", "data-k": "b|" + ck, "aria-expanded": String(S.confirm.has(ck)), onclick: () => toggleConfirm(ck) },
+        x.gate === "review" ? "Aprobar" : "Marcar como hecha")];
+    else gate = h("span", { class: "st quiet" }, GATE[x.gate] + " ✓");
+  }
+  const pk = p.id + ":" + x.id, pending = S.pend[pk];
+  const kids = [
+    h("span", { class: "n" }, nn(i)),
+    h("div", {}, h("button", { class: "nm", type: "button", "data-k": "sel|" + pk, "aria-pressed": String(sel), onclick: () => select(p, x) }, x.name),
+      !sel && x.notes ? h("div", { class: "nt", title: x.notes }, x.notes) : null),
+    word,
+    h("div", { class: "gc" }, gate)];
+  if (S.confirm.has(ck)) kids.push(confirmBox(ck, x.gate === "review"
+    ? [`¿Aprobar el gate de «${x.name}» en ${p.name}?`, "El trabajo autónomo podrá empezar esta fase."]
+    : [`¿Marcar como hecha la fase «${x.name}» en ${p.name}?`, "Confirma que has hecho la prueba manual."],
+    x.gate === "review" ? "Sí, aprobar" : "Sí, marcar como hecha"));
+  if (sel) {
+    const value = pending || x.status;
+    kids.push(h("div", { class: "detail" },
+      h("div", { class: "notes" }, x.notes ? x.notes : h("span", { class: "dim" }, "Sin notas para esta fase.")),
+      hasGate(x) ? h("div", { class: "gr" }, h("span", { class: "lbl" }, "Gate " + GATE[x.gate]), x.gate_reason || "", x.gate_set_by ? " · puesto por " + x.gate_set_by : "",
+        x.gate === "review" ? (x.gate_approved ? " · aprobado" : " · sin aprobar") : (x.status === "done" ? " · hecho" : " · sin hacer")) : null,
+      h("div", { class: "stline" }, h("label", { class: "lbl", for: "st-" + x.id }, "Estado"),
+        h("select", { id: "st-" + x.id, "data-k": "st|" + pk, onchange: (e) => setStatus(p, x, e.target.value) },
+          Object.entries(PSTATE).map(([v, t]) => h("option", { value: v, selected: v === value }, t))),
+        pending ? h("span", { class: "st gate" }, "sin guardar") : null),
+      pending ? confirmBox("st|" + pk, [`¿Cambiar «${x.name}» a hecha en ${p.name}?`,
+        `Esta fase tiene un gate ${GATE[x.gate]}${waiting(x) ? " que espera tu acción" : ""}; marcarla hecha lo da por cumplido.`], "Sí, cambiar a hecha",
+        () => { delete S.pend[pk]; }) : null));
+  }
+  return h("div", { class: "row" + (sel ? " sel" : "") + (x.status === "done" ? " isdone" : ""),
+    onclick: (e) => { if (!e.target.closest("button, select, a, .confirm, .detail")) select(p, x); } }, kids);
+}
+function select(p, x) { S.sel[p.id] = x.id; render("sel|" + p.id + ":" + x.id); }
+function setStatus(p, x, v) {
+  const pk = p.id + ":" + x.id;
+  if (v === "done" && hasGate(x) && x.status !== "done") { S.pend[pk] = v; S.confirm.add("st|" + pk); render("n|st|" + pk); return; }
+  delete S.pend[pk];
+  toast("Maqueta: el estado no se guarda en project-hub."); render("st|" + pk);
+}
+
+function items(p) {
+  const all = p.items || [];
+  const isOpen = (i) => i.status !== "done" && i.status !== "discarded";
+  const open = all.filter(isOpen), closedN = all.length - open.length;
+  const types = ["bug", "idea", "future_request"];
+  let list = (S.closed ? all : open).filter((i) => S.filter === "all" || i.type === S.filter);
+  list = [...list].sort((a, b) => isOpen(b) - isOpen(a) || (b.status === "planned") - (a.status === "planned"));
+  const tab = (key, label, n) => h("button", { class: "tab", type: "button", "aria-pressed": String(S.filter === key), "data-k": "tab|" + key,
+    onclick: () => { S.filter = key; render("tab|" + key); } }, label, " ", h("span", { class: "mono" }, n));
+  return h("section", { class: "panel items", "aria-label": "Ítems" },
+    h("div", { class: "ph" }, h("h2", {}, "Ítems · " + open.length + " abiertos"), h("span", { class: "sp" }),
+      h("div", { class: "tabs" }, tab("all", "todos", open.length), types.map((t) => tab(t, TYPES_PL[t], open.filter((i) => i.type === t).length)),
+        h("button", { class: "tab", type: "button", "aria-pressed": String(S.closed), "data-k": "tab|closed", onclick: () => { S.closed = !S.closed; render("tab|closed"); } }, "+cerrados ", h("span", { class: "mono" }, closedN)))),
+    list.length ? [h("div", { class: "thead" }, h("span", {}, "Tipo"), h("span", {}, "Título"), h("span", {}, "Estado"), h("span", { style: "text-align:right" }, "Edad")),
+      list.map((i) => h("div", { class: "row" + (isOpen(i) ? "" : " closed") },
+        h("span", { class: "st " + i.type }, TYPE[i.type] || i.type),
+        h("details", {}, h("summary", { class: "t", title: i.title }, i.title), h("div", { class: "det" }, i.details || "Sin detalles.")),
+        h("span", { class: "dim", style: "font-size:var(--Type-SMALL)" }, { open: "abierto", planned: "planificado", done: "hecho", discarded: "descartado" }[i.status] || i.status),
+        h("span", { class: "age" }, ago(i.created_at))))]
+      : h("p", { class: "empty" }, "No hay ítems con este filtro."));
+}
+function inbox(p, f) {
+  // Unread reports live in their collapsed line above; this is everything else addressed to the project.
+  const rest = f.inbox.filter((m) => !f.reports.includes(m)).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const unread = rest.filter((m) => m.status === "unread").length;
+  return h("section", { class: "panel inbox", "aria-label": "Bandeja" },
+    h("div", { class: "ph" }, h("h2", {}, "Bandeja · " + rest.length), h("span", { class: "meta" }, `${unread} sin leer · tareas y mensajes para el proyecto`)),
+    rest.length ? rest.map((m) => h("div", { class: "row " + m.status },
+      h("span", { class: "st " + m.kind }, KIND[m.kind] || m.kind),
+      h("details", {}, h("summary", { class: "t" }, m.title, h("span", { class: "from" }, ` · ${m.from_project} → ${m.to_project}`)), h("div", { class: "body" }, m.body)),
+      h("span", { class: "dim", style: "font-size:var(--Type-SMALL)" }, { unread: "sin leer", read: "leído", done: "hecho" }[m.status] || m.status),
+      h("span", { class: "age" }, ago(m.created_at))))
+      : h("p", { class: "empty" }, "La bandeja está vacía."));
+}
+function decisions(p) {
+  const d = [...(p.decisions || [])].reverse();
+  return h("section", { class: "panel dec", "aria-label": "Decisiones" },
+    h("div", { class: "ph" }, h("h2", {}, "Decisiones · " + d.length)),
+    d.length ? d.map((x) => h("div", { class: "row" }, h("time", { datetime: x.date }, x.date.slice(0, 10)),
+      h("div", { class: "wrap" }, x.decision, x.reason ? h("span", { class: "r" }, "porque " + x.reason) : null)))
+      : h("p", { class: "empty" }, "Sin decisiones todavía."));
+}
+
+/* ---------------- toast, render, routing */
+let toastT;
+function toast(text) {
+  const t = document.getElementById("toast");
+  t.replaceChildren(h("b", {}, "✓"), text); t.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3500);
+}
+function current() {
+  const m = location.hash.match(/^#p\/(.+)$/);
+  return m ? H.projects.find((x) => x.id === decodeURIComponent(m[1])) || null : null;
+}
+function render(focusK) {
+  const keep = focusK || (document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.k : null);
+  const p = current();
+  bar(p);
+  if (p) { project(p); document.title = p.name + " · project-hub"; } else { overview(); document.title = "Resumen · project-hub"; }
+  if (keep) { const el = document.querySelector(`[data-k="${CSS.escape(keep)}"]`); if (el) el.focus({ preventScroll: true }); }
+}
+function route() { S.bell = false; render(); window.scrollTo(0, 0); }
+window.addEventListener("hashchange", route);
+document.addEventListener("click", () => { if (S.bell) { S.bell = false; render(); } });
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (S.bell) { S.bell = false; render("bell"); return; }
+  if (S.confirm.size) { for (const k of [...S.confirm]) if (k.startsWith("st|")) delete S.pend[k.slice(3)]; S.confirm.clear(); render(); }
+});
+route();
+</script>
+</body>
+</html>
