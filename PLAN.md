@@ -105,6 +105,7 @@ Errors: HubError -> `{"error": msg}`, 404 if msg starts with "unknown ", else 40
 - 2026-10-16: top-bar unread now counts unique ids via new GET /api/unread {"count"}; per-project counts unchanged (include "all"). Phase card button pinned to top so labels align. 41 tests pass; click checks all PASS; fix_check.py confirms 4 unique vs 9 old sum and identical label tops.
 - 2026-10-16: overview sorted by status then updated_at desc (server side); phase column shows current phase position (current_phase_pos/total); repo already in project header before "next" (verified, unchanged). 42 tests pass; click checks + shots.py all PASS; screenshots retaken with repo paths and phase notes.
 - 2026-10-16: Danny's handover marks the dashboard approved (mockup B). README's suggested CLAUDE.md rule replaced with the "update as you go" rule. All four phases done. Remaining steps are setup on Danny's side (GitHub repos, Claude configs, Tailscale, real projects, dashboard autostart).
+- 2026-10-16 (Danny approved each): code repo initialised (first commit 57bd7fd on main, no remote yet); ~/project-hub-data created with git init + .gitignore, nothing committed; Startup-folder shortcut runs `project-hub dashboard` minimized at login (running now); Claude Desktop (Store config path) mcpServers.project-hub added; `claude mcp add --scope user project-hub` (connected); SessionStart hook appended in ~/.claude/settings.json. Backups of both JSON configs in the session scratchpad.
 
 ## Spec
 

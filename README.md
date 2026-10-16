@@ -41,7 +41,7 @@ Nothing in this repo modifies Claude config files. You paste the snippets yourse
 
 Edit `claude_desktop_config.json`:
 
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`, or for the Microsoft Store version `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude\claude_desktop_config.json`
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 ```json
