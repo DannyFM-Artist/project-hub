@@ -207,3 +207,24 @@ def test_over_limit_item_title_is_400(env):
     assert r.status_code == 400
     assert "101" in r.json()["error"] and "limit is 100" in r.json()["error"]
     assert h.get_project("alpha")["items"] == []
+
+
+def test_attention_fields(env):
+    """Overview rows carry every waiting gate, open messages to Danny and unread reports (bell and "Para ti")."""
+    h, c = env
+    one, two = [ph["id"] for ph in h.get_project("alpha")["phases"]]
+    h.set_gate("alpha", one, "look")
+    h.set_gate("alpha", two, "test it")
+    h.post_message("user", "message", "to danny", "b", "alpha")
+    done = h.post_message("user", "message", "done one", "b", "alpha")
+    h.mark_message(done["id"], "done")
+    h.post_message("alpha", "report", "rep", "body", "alpha")
+    h.post_message("all", "report", "rep all", "body", "beta")
+    h.post_message("alpha", "task", "not a report", "b")
+    rows = {r["id"]: r for r in c.get("/api/projects").json()}
+    a = rows["alpha"]
+    assert [ph["gate_state"] for ph in a["phases"]] == ["waiting", "waiting"]  # both gates, not only the first one
+    assert not any(k in ph for ph in a["phases"] for k in ("gate", "gate_approved"))  # no legacy keys
+    assert [m["title"] for m in a["user_messages"]] == ["to danny"]
+    assert sorted(m["title"] for m in a["reports"]) == ["rep", "rep all"]
+    assert rows["beta"]["user_messages"] == [] and [m["title"] for m in rows["beta"]["reports"]] == ["rep all"]

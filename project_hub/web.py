@@ -63,10 +63,17 @@ class MessagePatch(BaseModel):
     status: str
 
 
+def _phases(p):
+    # new gate fields only: the legacy gate/gate_approved keys are for old MCP servers, not the dashboard
+    return [{k: v for k, v in {**GATE_DEFAULTS, **ph}.items() if k not in ("gate", "gate_approved")} for ph in p["phases"]]
+
+
 @app.get("/api/projects")
 def list_projects():
     h = hub()
     out = []
+    with h._read_lock():
+        messages = h._messages()
     states = {s["id"]: s["state"] for s in h.summary()["projects"]}
     for p in h.list_projects():
         cur = current_phase(p)
@@ -78,6 +85,10 @@ def list_projects():
             "phases_done": sum(ph["status"] == "done" for ph in p["phases"]),
             "phases_total": len(p["phases"]),
             "unread_count": len(h.read_inbox(p["id"])),
+            # what the dashboard needs for "Para ti", the bell and the reports lines, on every view
+            "phases": _phases(p),
+            "user_messages": [m for m in messages if m["to_project"] == "user" and m["from_project"] == p["id"] and m["status"] != "done"],
+            "reports": [m for m in messages if m["to_project"] in (p["id"], "all") and m["kind"] == "report" and m["status"] == "unread"],
             "state": states[p["id"]],
             "state_rank": STATE_RANK[states[p["id"]]["kind"]],  # 0 = waiting for Danny (red)
         })
@@ -94,9 +105,7 @@ def unread_total():
 @app.get("/api/projects/{project_id}")
 def get_project(project_id: str):
     project = hub().get_project(project_id)
-    # new gate fields only: the legacy gate/gate_approved keys are for old MCP servers, not the dashboard
-    project["phases"] = [{k: v for k, v in {**GATE_DEFAULTS, **ph}.items() if k not in ("gate", "gate_approved")}
-                         for ph in project["phases"]]
+    project["phases"] = _phases(project)
     project["autonomy"] = autonomy_line(project)
     project["inbox"] = sorted(hub().read_inbox(project_id, unread_only=False),
                               key=lambda m: m["created_at"], reverse=True)

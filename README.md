@@ -151,12 +151,15 @@ python -m venv .venv-browser
 ```
 
 - `clicks.py` - every dashboard action by mouse and keyboard, polling, offline banner, focus, target sizes, headings
-- `shots.py` - overview order, phase position, repo in header; retakes `mockups/impl-B-overview.png` and `impl-B-project.png`
-- `unread_align_check.py` - unique unread count and phase label alignment
-- `longtext_check.py` - very long text at 1280/1440/1920 px: no horizontal scroll, clamps, expand
-- `res_check.py` - resources pane against the real API, force release
+- `gates_check.py` - read-only gates (waiting, resolved via chat, no controls), "Para ti", bell count and panel, "Marcar todos como leídos", selected-row look and marker, no browser dialogs
+- `summary_check.py` - Resumen: folded boxes, per-project copy marker, "nothing new", the four project states (Resumen, overview, header), period, mark as seen
+- `shots.py` - overview order, phase position, repo in header, phase row alignment
+- `unread_align_check.py` - reports counter counts each report once, phase row alignment
+- `longtext_check.py` - very long text at 1280/1440/1920 px: no horizontal scroll, clamps, selection
+- `res_check.py` - resources pane against the real API, force release with inline confirmation
 
-The screenshot-taking scripts overwrite the PNGs in `mockups/`; discard those changes with `git checkout -- mockups/` if nothing visual changed.
+Screenshots taken by the scripts go to their temp data folder (the path is printed), never to `mockups/`.
+The dashboard's look is described in `design-system/MASTER.md`.
 
 ## MCP tools
 
