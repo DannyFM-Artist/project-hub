@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from . import hub as hub_module  # module reference so a faked hub._utcnow applies here too
-from .biblia import GATE_DEFAULTS, autonomy_line, current_phase, waiting
+from .biblia import GATE_DEFAULTS, autonomy_line, blocking, current_phase, waiting
 from .hub import Hub, HubError, overview_order
 
 app = FastAPI(title="project-hub")
@@ -59,10 +59,17 @@ class MessagePatch(BaseModel):
     status: str
 
 
+def _phases(p):
+    """Phases with gate defaults and blocking: a gate that waits for Danny (review not approved, manual_test not done)."""
+    return [{**GATE_DEFAULTS, **ph, "blocking": blocking(ph)} for ph in p["phases"]]
+
+
 @app.get("/api/projects")
 def list_projects():
     h = hub()
     out = []
+    with h._read_lock():
+        messages = h._messages()
     for p in h.list_projects():
         cur = current_phase(p)
         out.append({
@@ -73,6 +80,10 @@ def list_projects():
             "phases_done": sum(ph["status"] == "done" for ph in p["phases"]),
             "phases_total": len(p["phases"]),
             "unread_count": len(h.read_inbox(p["id"])),
+            # what the dashboard needs for "Para ti", the bell and the reports lines, on every view
+            "phases": _phases(p),
+            "user_messages": [m for m in messages if m["to_project"] == "user" and m["from_project"] == p["id"] and m["status"] != "done"],
+            "reports": [m for m in messages if m["to_project"] in (p["id"], "all") and m["kind"] == "report" and m["status"] == "unread"],
         })
     return overview_order(out)
 
@@ -87,7 +98,7 @@ def unread_total():
 @app.get("/api/projects/{project_id}")
 def get_project(project_id: str):
     project = hub().get_project(project_id)
-    project["phases"] = [{**GATE_DEFAULTS, **ph} for ph in project["phases"]]
+    project["phases"] = _phases(project)
     project["autonomy"] = autonomy_line(project)
     project["inbox"] = sorted(hub().read_inbox(project_id, unread_only=False),
                               key=lambda m: m["created_at"], reverse=True)

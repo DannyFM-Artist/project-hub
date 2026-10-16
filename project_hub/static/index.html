@@ -1,342 +1,429 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>project-hub</title>
-<link rel="icon" href="data:,">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/icons/icon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#131313">
+<!-- Design D (design-system/MASTER.md): the Console B organisation, C's reading rules, dannyfm-ui theme "signal". -->
 <style>
-:root{
-  --bg:#0E1013; --p:#13161B; --p2:#1A1E25; --line:#2A2F38; --line2:#3A404B;
-  --text:#D7DBE2; --dim:#A0A8B5; --faint:#7A8190;
-  --amber:#FFB547; --cyan:#6CD3E8; --green:#8BD47C; --red:#FF7A7A; --violet:#C29BFF; --blue:#7AB6FF;
-  --mono:"Cascadia Mono","Cascadia Code",Consolas,"SF Mono",Menlo,ui-monospace,monospace;
+:root {
+  /* dannyfm-ui v0.2.0, theme "signal" */
+  --BASE: #131313; --SURFACE: #181818; --RAISED: #1F1F1F; --OVERLAY: #262626; --INPUT: #0E0E0E;
+  --BORDER: #2A2A2A; --BORDER_STRONG: #444748; --DIVIDER: #1F1F1F;
+  --TEXT: #E5E2E1; --TEXT_DIM: #A8ABAB; --TEXT_MUTED: #8E9192; --TEXT_ON_ACCENT: #0C2000;
+  --ACCENT: #88FE00; --ACCENT_HOVER: #A6FF3D; --ACCENT_PRESSED: #76DF00; --ACCENT_SOFT: #2A470D;
+  --OK: #3FC78B; --WARN: #EA7F2A; --ERROR: #FF2E4D; --IDLE: #6C7173;
+  /* hub extension tokens (dannyfm-ui rule R3: app-only tokens live in the app) */
+  --SELECTED: #213012;      /* blend(ACCENT_SOFT, SURFACE, 0.5): keeps WARN and TEXT_DIM above 4.5:1 on a selected row */
+  --TYPE_BUG: var(--ERROR); --TYPE_IDEA: #6CC4DC; --TYPE_REQUEST: #B7A1F2;
+  /* Type / Space / Radius at interface scale 7/6 */
+  --scale: 1.1667;
+  --Type-UI: "Segoe UI", Inter, system-ui, sans-serif;
+  --Type-MONO: "Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace;
+  --Type-H1: calc(19px * var(--scale)); --Type-H2: calc(15px * var(--scale)); --Type-H3: calc(12px * var(--scale));
+  --Type-BODY: calc(12px * var(--scale)); --Type-SMALL: calc(11px * var(--scale)); --Type-CAPTION: calc(10px * var(--scale));
+  --Space-XXS: calc(2px * var(--scale)); --Space-XS: calc(4px * var(--scale)); --Space-SM: calc(8px * var(--scale));
+  --Space-MD: calc(12px * var(--scale)); --Space-LG: calc(16px * var(--scale)); --Space-XL: calc(24px * var(--scale));
+  --Space-XXL: calc(32px * var(--scale));
+  --Radius-SM: 2px;
+  --TITLE_H: calc(32px * var(--scale));
+  color-scheme: dark;
 }
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font:13px/1.55 var(--mono);min-height:100vh;display:flex;flex-direction:column;font-variant-numeric:tabular-nums}
-a{color:inherit;text-decoration:none;cursor:pointer}
-button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
-button:disabled{opacity:.5;cursor:default}
-:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
-[hidden]{display:none!important}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--BASE); color: var(--TEXT); font: var(--Type-BODY)/1.45 var(--Type-UI); overflow-x: hidden; }
+a { color: inherit; }
+button, select, input, textarea { font: inherit; color: inherit; }
+button:disabled { opacity: .5; cursor: default; }
+[hidden] { display: none !important; }
+.mono { font-family: var(--Type-MONO); }
+.wrap { overflow-wrap: anywhere; min-width: 0; }
+.dim { color: var(--TEXT_DIM); } .muted { color: var(--TEXT_MUTED); }
+.small { font-size: var(--Type-SMALL); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:focus { outline: none; }
+:focus-visible { outline: 1px solid var(--ACCENT); outline-offset: 1px; }
 
-.bar{display:flex;align-items:stretch;background:var(--p);border-bottom:1px solid var(--line);min-height:34px;flex-wrap:wrap}
-.bar>*{display:flex;align-items:center;padding:0 14px;border-right:1px solid var(--line)}
-.bar .logo{background:var(--amber);color:#14110A;font-weight:700;border:0;font-size:13px;line-height:inherit}
-.bar .tab{color:var(--dim)}
-.bar .tab kbd{color:var(--faint);margin-right:6px;font:inherit}
-.bar .tab.on{color:var(--text);background:var(--bg);box-shadow:inset 0 -2px 0 var(--amber)}
-.bar .sp{flex:1;border:0;padding:0}
-.bar .st{color:var(--dim);gap:8px}
-.bar .st b{color:var(--green);font-weight:400}
-.bar .st.off b{color:var(--red)}
-.bar .st .u{color:var(--amber)}
+/* ---------------- title bar */
+.bar { position: sticky; top: 0; z-index: 20; height: var(--TITLE_H); display: flex; align-items: stretch;
+  background: var(--SURFACE); border-bottom: 1px solid var(--BORDER); }
+.wordmark { display: flex; align-items: center; padding: 0 var(--Space-MD); color: var(--TEXT_DIM); font-size: var(--Type-SMALL);
+  font-weight: 600; letter-spacing: 1.2px; text-decoration: none; white-space: nowrap; }
+.segs { display: flex; align-items: stretch; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.segs::-webkit-scrollbar { display: none; }
+.seg { white-space: nowrap; display: flex; align-items: center; gap: var(--Space-XS); padding: 0 var(--Space-MD); color: var(--TEXT_MUTED); font-weight: 600;
+  text-decoration: none; border-bottom: 2px solid transparent; }
+.seg:hover { color: var(--TEXT_DIM); }
+.seg[aria-current] { color: var(--TEXT); border-bottom-color: var(--ACCENT); }
+.seg .n { font: 600 var(--Type-CAPTION) var(--Type-MONO); color: var(--WARN); }
+.bar .sp { flex: 1; }
+.bar .right { display: flex; align-items: center; gap: var(--Space-SM); padding-right: var(--Space-MD); color: var(--TEXT_DIM); font-size: var(--Type-SMALL); flex-shrink: 0; }
+.repcount { white-space: nowrap; font-family: var(--Type-MONO); padding: 0 var(--Space-SM); border-right: 1px solid var(--BORDER); }
+.repcount b { color: var(--TEXT); font-weight: 600; }
+.bell { display: inline-flex; align-items: center; gap: var(--Space-XS); background: transparent; border: 1px solid var(--BORDER_STRONG);
+  border-radius: var(--Radius-SM); padding: var(--Space-XXS) var(--Space-SM); color: var(--TEXT_DIM); cursor: pointer; height: calc(var(--TITLE_H) - 10px); }
+.bell svg { width: 15px; height: 15px; }
+.bell .c { font: 600 var(--Type-SMALL) var(--Type-MONO); }
+.bell:hover { background: var(--RAISED); color: var(--TEXT); }
+.bell.hot { border-color: var(--WARN); color: var(--WARN); }
+.bell[aria-expanded="true"] { background: var(--OVERLAY); }
+.snap { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); white-space: nowrap; }
+.offline { position: sticky; top: var(--TITLE_H); z-index: 19; background: var(--RAISED); color: var(--WARN); border-bottom: 1px solid var(--WARN);
+  padding: var(--Space-XS) var(--Space-XL); font-weight: 600; }
 
-main{flex:1;padding:22px 24px 30px;min-width:0}
-.view{display:none}
-body[data-view=overview] #overview, body[data-view=project] #project, body[data-view=summary] #summary{display:block}
+/* bell panel: QMenu look */
+.bellpanel { position: absolute; right: var(--Space-MD); top: calc(var(--TITLE_H) - 2px); width: min(660px, calc(100vw - 32px)); max-height: calc(100vh - var(--TITLE_H) - 24px);
+  overflow: auto; background: var(--OVERLAY); border: 1px solid var(--BORDER_STRONG); border-radius: var(--Radius-SM); padding: var(--Space-XS) 0;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5); z-index: 30; }
+.bellpanel .bh { display: flex; justify-content: space-between; align-items: baseline; gap: var(--Space-SM); padding: var(--Space-SM) var(--Space-MD); border-bottom: 1px solid var(--BORDER_STRONG); }
+.bellpanel .bh b { font-size: var(--Type-SMALL); letter-spacing: 1px; text-transform: uppercase; }
+.bellpanel .grp { padding: var(--Space-SM) var(--Space-MD) var(--Space-XS); }
+.bellpanel .gh { display: flex; gap: var(--Space-SM); align-items: baseline; font-size: var(--Type-SMALL); color: var(--TEXT_DIM); font-weight: 600;
+  letter-spacing: .8px; text-transform: uppercase; padding-bottom: var(--Space-XS); border-bottom: 1px solid var(--BORDER); }
+.bellpanel .gh a { color: var(--TEXT); text-decoration: none; } .bellpanel .gh a:hover { text-decoration: underline; }
+.bellpanel .act { grid-template-columns: calc(86px * var(--scale)) minmax(0, 1fr) auto; padding-left: 0; padding-right: 0; }
+.bellpanel .act .why { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.bellpanel .act:hover { background: transparent; }
+.bellpanel .empty { padding: var(--Space-MD); }
+.bellpanel .foot { padding: var(--Space-SM) var(--Space-MD); border-top: 1px solid var(--BORDER_STRONG); color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
 
-.pane{border:1px solid var(--line);position:relative;padding:18px 16px 14px;margin-bottom:22px;background:var(--bg);min-width:0}
-.pane>.lbl{font:inherit;position:absolute;top:-10px;left:12px;background:var(--bg);padding:0 8px;color:var(--amber);display:flex;gap:10px;max-width:calc(100% - 24px)}
-.pane>.lbl span{color:var(--dim)}
-.pane>.rt{position:absolute;top:-10px;right:12px;background:var(--bg);padding:0 8px;color:var(--dim);display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end}
-.pane>.rt button{color:var(--dim)}
-.pane>.rt button:hover{color:var(--text)}
-.pane>.rt button.on{color:var(--text)}
-.pane>.rt button.on::before{content:"[";color:var(--amber)} .pane>.rt button.on::after{content:"]";color:var(--amber)}
+/* ---------------- page */
+main { padding: var(--Space-LG) var(--Space-XL) var(--Space-XXL); max-width: 1680px; margin: 0 auto; }
+.view { display: none; }
+body[data-view=overview] #overview, body[data-view=project] #project, body[data-view=summary] #summary { display: block; }
+.eyebrow { margin: 0; color: var(--TEXT_MUTED); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; }
+.lead { margin: var(--Space-XXS) 0 0; font-size: var(--Type-H2); line-height: 1.35; font-weight: 400; overflow-wrap: anywhere; }
+.lead b { font-weight: 600; }
+.lead .warn { color: var(--WARN); font-weight: 600; } .lead .ok { color: var(--OK); font-weight: 600; }
+h1.lead:focus { outline: none; }
 
-.prompt{color:var(--dim);margin-bottom:14px}
-.prompt b{color:var(--green);font-weight:400}
-.prompt i{font-style:normal;color:var(--text)}
-.caret{display:inline-block;width:8px;height:15px;background:var(--amber);vertical-align:-3px;animation:bl 1.1s steps(1) infinite}
-@keyframes bl{50%{opacity:0}}
-@media (prefers-reduced-motion:reduce){.caret{animation:none}*{transition:none!important}}
+/* panel = dock surface with a PanelHeader */
+.panel { background: var(--SURFACE); border: 1px solid var(--BORDER); border-radius: var(--Radius-SM); margin-top: var(--Space-MD); min-width: 0; }
+.ph { display: flex; align-items: center; gap: var(--Space-SM); padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--BORDER); min-height: calc(28px * var(--scale)); flex-wrap: wrap; }
+.ph h2 { white-space: nowrap; flex-shrink: 0; margin: 0; font-size: var(--Type-SMALL); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--TEXT); }
+.ph .meta { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); min-width: 0; }
+.ph .sp { flex: 1; }
+.panel.foryou { border-color: var(--BORDER_STRONG); }
+.panel.foryou.hot .ph h2 { color: var(--WARN); }
 
-.tag{display:inline-block;min-width:62px;color:var(--c)}
-.tag::before{content:"● "}
-.s-active{--c:var(--green)} .s-paused{--c:var(--amber)} .s-parked{--c:var(--violet)} .s-done{--c:var(--blue)}
+/* column header (QHeaderView) */
+.thead { display: grid; gap: var(--Space-MD); padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--BORDER);
+  color: var(--TEXT_MUTED); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; }
+.row { display: grid; gap: var(--Space-MD); align-items: baseline; padding: var(--Space-SM) var(--Space-MD) var(--Space-SM) calc(var(--Space-MD) - 2px);
+  border-left: 2px solid transparent; border-bottom: 1px solid var(--DIVIDER); min-width: 0; }
+.row > * { min-width: 0; }
+.row:last-child { border-bottom: none; }
+.row:hover { background: var(--RAISED); }
+/* selected row: tint + 2px accent edge (dannyfm-ui list selection) */
+.row.sel, .row.sel:hover { background: var(--SELECTED); border-left-color: var(--ACCENT); }
+.row.sel .muted, .row.sel .age, .row.sel .n { color: var(--TEXT_DIM); }
 
-.tw{overflow-x:auto}
-table{width:100%;border-collapse:collapse;table-layout:fixed}
-#ov-table th:nth-child(1){width:96px} #ov-table th:nth-child(2){width:22%} #ov-table th:nth-child(3){width:16%} #ov-table th:nth-child(4){width:210px} #ov-table th:nth-child(6){width:64px} #ov-table th:nth-child(7){width:72px}
-#rs-table th:nth-child(1){width:22%} #rs-table th:nth-child(2){width:20%} #rs-table th:nth-child(4){width:90px} #rs-table th:nth-child(5){width:140px}
-th{text-align:left;font-weight:400;color:var(--faint);padding:0 14px 8px 0;border-bottom:1px solid var(--line);text-transform:uppercase;font-size:11.5px;letter-spacing:.06em;white-space:nowrap}
-td{padding:11px 14px 11px 0;border-bottom:1px solid #1C2027;vertical-align:top;overflow-wrap:anywhere}
-td.nw{white-space:nowrap}
-tr.row{cursor:pointer}
-tr.row:hover td,tr.row.sel td{background:var(--p)}
-tr.row.sel td:first-child{box-shadow:inset 2px 0 var(--amber)}
-td.name{color:var(--text);font-weight:700}
-td.name a:hover{color:var(--amber)}
-td.name small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:400;color:var(--faint);font-size:11.5px}
-td.nx{color:var(--text)}
-td.dim{color:var(--dim)}
-.pb{display:inline-block;width:160px;height:14px;background:#262B33;vertical-align:-2px}
-.pb i{display:block;height:100%;background:var(--c)}
-.frac{color:var(--dim);margin-left:8px}
-.ph{color:var(--text)} .ph small{color:var(--faint);font-size:11.5px;margin-left:6px}
-.inb{color:var(--faint)}
-.inb.has{color:var(--bg);background:var(--amber);padding:0 6px;font-weight:700}
-.legend{display:flex;gap:22px;color:var(--faint);margin-top:14px;font-size:12px;flex-wrap:wrap}
-.empty{color:var(--faint);padding:8px 0}
-.empty::before{content:"# ";color:var(--line2)}
+/* state words (widgets.StateLabel): coloured word, no box */
+.st { font: 600 var(--Type-SMALL) var(--Type-MONO); letter-spacing: .6px; text-transform: uppercase; white-space: nowrap; }
+.st.done { color: var(--OK); } .st.cur { color: var(--ACCENT); } .st.todo { color: var(--TEXT_DIM); } .st.gate { color: var(--WARN); }
+.st.quiet { color: var(--TEXT_MUTED); font-weight: 400; }
+.st.active { color: var(--OK); } .st.paused { color: var(--TEXT_DIM); } .st.parked, .st.pdone { color: var(--TEXT_MUTED); }
+.st.bug { color: var(--TYPE_BUG); } .st.idea { color: var(--TYPE_IDEA); } .st.future_request { color: var(--TYPE_REQUEST); }
+.st.task, .st.message { color: var(--TEXT); } .st.report { color: var(--TEXT_DIM); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: var(--Space-XS); vertical-align: 1px; }
 
-.phead{display:flex;gap:6px 22px;align-items:baseline;margin-bottom:22px;flex-wrap:wrap}
-.phead h2{font-size:22px;font-weight:700;color:var(--text)}
-.phead .k{color:var(--faint)} .phead .v{color:var(--text)}
-.phead .nx{color:var(--amber)}
-.phead>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
-.phead .desc{flex-basis:100%;color:var(--dim)}
+/* buttons (QPushButton): outline weight; primary by weight; filled only for the confirm */
+.btn { background: transparent; color: var(--TEXT); border: 1px solid var(--BORDER_STRONG); border-radius: var(--Radius-SM);
+  padding: calc(var(--Space-SM) - 3px) var(--Space-MD); cursor: pointer; white-space: nowrap; line-height: 1.3; }
+.btn:hover { background: var(--RAISED); border-color: var(--TEXT_MUTED); }
+.btn:active { background: var(--OVERLAY); }
+.btn:focus-visible { outline: none; border-color: var(--ACCENT); box-shadow: 0 0 0 1px var(--ACCENT); }
+.btn.primary { border-color: var(--TEXT_DIM); font-weight: 600; }
+.btn.primary:hover { border-color: var(--TEXT); }
+.btn.primary[aria-expanded="true"] { background: var(--OVERLAY); border-color: var(--TEXT); }
+.btn.filled { background: var(--ACCENT); border-color: var(--ACCENT); color: var(--TEXT_ON_ACCENT); font-weight: 600; }
+.btn.filled:hover { background: var(--ACCENT_HOVER); border-color: var(--ACCENT_HOVER); }
+.btn.filled:active { background: var(--ACCENT_PRESSED); }
+.btn.filled:focus-visible { border-color: var(--TEXT); box-shadow: 0 0 0 1px var(--TEXT); }
+.btn.ghost { border-color: transparent; color: var(--TEXT_DIM); }
+.btn.ghost:hover { background: var(--RAISED); color: var(--TEXT); }
+.btn.small { padding: var(--Space-XXS) var(--Space-SM); font-size: var(--Type-SMALL); min-height: 24px; } /* 24px: WCAG 2.2 target size */
+.chev { display: inline-block; width: 10px; height: 10px; vertical-align: -1px; margin-right: var(--Space-XS); transition: transform .12s; }
+[aria-expanded="true"] > .chev { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
 
-.cues{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0}
-.cue{border:1px solid var(--line);margin:0 0 -1px -1px;padding:10px 12px;position:relative;min-height:112px;display:flex;flex-direction:column;min-width:0}
-.cue .main{display:flex;flex-direction:column;justify-content:flex-start;text-align:left;width:100%;flex:1} /* a stretched button centres its content; pin it to the top so labels align */
-.cue .n{color:var(--faint);font-size:11.5px;display:flex;justify-content:space-between}
-.cue h4{overflow-wrap:anywhere;font-size:13.5px;margin:4px 0;color:var(--text);font-weight:700}
-.cue p{color:var(--dim);font-size:12px;line-height:1.45;white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
-.cue.exp p{display:block;-webkit-line-clamp:unset;overflow:visible}
-.cue .s{font-size:11.5px}
-.cue.done .s{color:var(--green)} .cue.done h4{color:var(--dim)}
-.cue.todo .s{color:var(--faint)}
-.cue.in_progress{background:color-mix(in srgb,var(--amber) 8%,var(--bg));border-color:var(--amber);z-index:1}
-.cue.in_progress .s{color:var(--amber)}
-.cue.in_progress::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;background:var(--amber)}
-.cue.sel{box-shadow:inset 0 0 0 1px var(--amber);z-index:2}
-.cue .gt{font-size:11.5px;margin-top:6px;color:var(--c);font-weight:700;overflow-wrap:anywhere}
-.cue .gt::before{content:"◆ "}
-.cue .gt small{font-weight:400;color:var(--faint);font-size:inherit}
-.gate-review{--c:var(--violet)} .gate-review.ok{--c:var(--green)} .gate-manual_test{--c:var(--amber)}
-.cue p.gr{margin-top:2px}
-.cue .gf{display:grid;gap:6px;margin-top:8px;border-top:1px dashed var(--line2);padding-top:8px;font-size:12px}
-.cue .gf label{display:grid;gap:2px;color:var(--dim)}
-.cue .gf select,.cue .gf input{background:var(--p);border:1px solid var(--line);color:var(--text);font:inherit;padding:3px 6px;min-width:0;width:100%;min-height:24px}
-.cue .gf .btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.cue .gf .btns button{color:var(--bg);background:var(--amber);padding:2px 10px;font-weight:700;min-height:24px}
-.cue .gf .btns button.sec{background:none;color:var(--amber);border:1px solid var(--amber);font-weight:400}
-.cue .gf .ferr{font-size:12px}
-.aut{flex-basis:100%;color:var(--dim)} .aut::before{content:"# ";color:var(--line2)}
-#wt-table th:nth-child(1){width:20%} #wt-table th:nth-child(2){width:22%} #wt-table th:nth-child(3){width:130px} #wt-table th:nth-child(5){width:80px}
-.cue .selst{color:var(--dim);font-size:11.5px;margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
-.cue .selst button{color:var(--dim)} .cue .selst button:hover{color:var(--text)}
-.cue .selst button.on{color:var(--amber)}
-.cue .selst button.on::before{content:"["} .cue .selst button.on::after{content:"]"}
+/* action rows ("Para ti") */
+.act { grid-template-columns: calc(110px * var(--scale)) minmax(0, 1fr) auto; align-items: center; }
+.act .what { display: flex; flex-direction: column; gap: 1px; }
+.act .ti { font-weight: 600; }
+.act .ti .n { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); font-weight: 400; margin-right: var(--Space-XS); }
+.act .why { color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+.act .btns { display: flex; gap: var(--Space-SM); justify-content: flex-end; }
+.act .proj a { text-decoration: none; font-weight: 600; } .act .proj a:hover { text-decoration: underline; }
+.calm { margin: 0; padding: var(--Space-SM) var(--Space-MD); color: var(--TEXT_DIM); }
+.calm .st { margin-right: var(--Space-SM); }
 
-.cols{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:22px;align-items:start}
-.kb{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0}
-.kc{border-right:1px solid var(--line);padding:0 14px;min-width:0}
-.kc:first-child{padding-left:0} .kc:last-child{border-right:0;padding-right:0}
-.kc h4{font-size:.83em;font-weight:400;color:var(--dim);border-bottom:1px dashed var(--line);padding-bottom:6px;margin-bottom:6px;display:flex}
-.kc h4 b{color:var(--text);font-weight:700;margin-right:8px}
-.kc h4 span,.kc h4 button{margin-left:auto;color:var(--faint)}
-.kc h4 button:hover{color:var(--amber)}
-.it{display:grid;grid-template-columns:minmax(0,1fr) auto;padding:2px 4px;border-left:2px solid transparent;position:relative}
-.it:hover,.it:focus-within{background:var(--p);border-left-color:var(--line2)}
-.it.sel{background:var(--p);border-left-color:var(--amber)}
-.it .itbtn{display:grid;grid-template-columns:18px minmax(0,1fr);gap:0 6px;padding:4px 0;min-width:0}
-.it .ty{font-weight:700;color:var(--c)}
-.it .t{color:var(--text);white-space:normal;line-height:1.4;overflow-wrap:anywhere}
-.it .id{grid-column:2;color:var(--faint);font-size:11.5px}
-.it .det{grid-column:2;color:var(--dim);font-size:12px;white-space:normal;overflow-wrap:anywhere}
-.it .ia{display:none;gap:6px;align-items:flex-start;padding-top:4px}
-.it:hover .ia,.it:focus-within .ia,.it.sel .ia{display:flex}
-.it .ia button{color:var(--dim);padding:0 3px;border:1px solid var(--line)}
-.it .ia button:hover:not(:disabled){color:var(--amber);border-color:var(--amber)}
-.ty-bug{--c:var(--red)} .ty-idea{--c:var(--cyan)} .ty-future_request{--c:var(--violet)}
-.kc.dn .t,.kc.dc .t{color:var(--dim)}
-.kc.dc .t{text-decoration:line-through}
+/* inline confirmation (QDialog#framed, inline) */
+.confirm { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--Space-SM) var(--Space-MD);
+  margin-top: var(--Space-SM); padding: var(--Space-SM) var(--Space-MD); background: var(--INPUT); border: 1px solid var(--BORDER_STRONG); border-radius: var(--Radius-SM); }
+.confirm p { margin: 0; flex: 1 1 320px; min-width: 0; overflow-wrap: anywhere; }
+.confirm p small { display: block; color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+.confirm .btns { display: flex; gap: var(--Space-SM); }
+.ferr { color: var(--ERROR); font-size: var(--Type-SMALL); overflow-wrap: anywhere; }
+.ferr:empty { display: none; }
 
-.dl{display:grid;grid-template-columns:100px minmax(0,1fr);gap:2px 16px}
-.dl time{color:var(--faint)}
-.dl .d{color:var(--text);overflow-wrap:anywhere}
-.dl .r{grid-column:2;color:var(--dim);margin-bottom:10px;overflow-wrap:anywhere}
-.dl .r::before{content:"└ because ";color:var(--faint)}
+/* reports lines: information, collapsed */
+.replines .rl { border-bottom: 1px solid var(--DIVIDER); }
+.replines .rl:last-child { border-bottom: none; }
+.rlh { display: flex; align-items: center; gap: var(--Space-MD); padding: var(--Space-XS) var(--Space-MD); }
+.rlh .tog { background: none; border: none; padding: var(--Space-XS) 0; cursor: pointer; color: var(--TEXT_DIM); text-align: left; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rlh .tog:hover { color: var(--TEXT); }
+.rlh .tog b { color: var(--TEXT); font-weight: 600; }
+.rlh .tog .v { text-decoration: underline; }
+.reps { padding: 0 var(--Space-MD) var(--Space-SM) calc(var(--Space-MD) + 14px); }
+.rep { padding: var(--Space-SM) 0; border-top: 1px solid var(--DIVIDER); }
+.rep .h { display: flex; gap: var(--Space-SM); align-items: baseline; flex-wrap: wrap; }
+.rep .h b { font-weight: 600; }
+.rep .h .m { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); font-family: var(--Type-MONO); }
+.body { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--TEXT_DIM); font-size: var(--Type-SMALL); max-height: calc(130px * var(--scale)); overflow: auto;
+  margin-top: var(--Space-XS); padding: var(--Space-XS) var(--Space-SM); background: var(--INPUT); border: 1px solid var(--BORDER); border-radius: var(--Radius-SM); }
 
-.feed .m{padding:10px 0;border-bottom:1px solid #1C2027}
-.feed .m.sel{box-shadow:-2px 0 var(--amber)}
-.feed .h{display:flex;gap:8px;color:var(--faint);font-size:12px;flex-wrap:wrap}
-.feed .h .k{font-weight:700}
-.feed .h>span{min-width:0;overflow-wrap:anywhere}
-.feed .h .acts{margin-left:auto;display:flex;gap:10px}
-.feed .h .acts button{color:var(--dim)} .feed .h .acts button:hover{color:var(--amber)}
-.feed .ti{color:var(--text);margin-top:2px;overflow-wrap:anywhere}
-.feed .bd{color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere}
-.m.msg .k{color:var(--cyan)}
-.m.task .k{color:var(--violet)}
-.m.task .ti::before{content:"[ ] ";color:var(--violet)}
-.m.task.done .ti::before{content:"[x] "}
-.m.unread .ti{font-weight:700}
-.m.unread .h .stt::before{content:"●";color:var(--amber)}
-.m.read .ti,.m.done .ti{color:var(--dim)}
-.m.report{background:var(--p);border:1px solid var(--line);border-left:3px solid var(--amber);padding:10px 12px;margin:8px 0}
-.m.report .k{color:var(--bg);background:var(--amber);padding:0 5px}
-.m.report pre{font:inherit;color:var(--text);margin-top:6px;white-space:pre-wrap;line-height:1.5;overflow-wrap:anywhere}
-.m.report.read pre,.m.report.done pre{color:var(--dim)}
-.m.report pre .ok{color:var(--green)} .m.report pre .no{color:var(--red)} .m.report pre .ar{color:var(--amber)}
+/* phase track */
+.track { display: inline-flex; gap: 2px; vertical-align: middle; flex-wrap: wrap; max-width: 100%; }
+.track i { width: 7px; height: 11px; background: var(--BORDER_STRONG); }
+.track i.d { background: var(--OK); } .track i.c { background: var(--ACCENT); } .track i.g { background: var(--WARN); }
 
-.cmd{border:1px solid var(--line);padding:7px 10px;margin-top:10px;color:var(--dim)}
-.cmd>button{color:var(--dim)} .cmd>button b{color:var(--amber);font-weight:400}
-.frm{display:grid;gap:8px;margin-bottom:14px;border:1px dashed var(--line2);padding:12px}
-.cmd .frm{border:0;padding:8px 0 0;margin:0}
-.frm label{display:grid;gap:2px;color:var(--dim);font-size:12px}
-.frm label em{color:var(--amber);font-style:normal}
-.frm .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.frm input,.frm select,.frm textarea{background:var(--p);border:1px solid var(--line);color:var(--text);font:inherit;padding:5px 8px;min-width:0;width:100%}
-.frm textarea{resize:vertical;min-height:64px}
-.frm .btns{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-.frm .btns button{color:var(--bg);background:var(--amber);padding:0 10px;font-weight:700}
-.frm .btns button[type=button]{background:none;color:var(--dim);font-weight:400;padding:0}
-.frm .btns button:disabled{opacity:.5}
-.ferr{color:var(--red);font-size:12px}
+/* tabs (QTabBar), also used as filters */
+.tabs { display: flex; gap: 0; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; min-width: 0; }
+.tab { background: none; border: none; border-bottom: 2px solid transparent; color: var(--TEXT_MUTED); padding: var(--Space-XXS) var(--Space-SM);
+  font-size: var(--Type-SMALL); cursor: pointer; }
+.tab:hover { color: var(--TEXT_DIM); }
+.tab[aria-pressed="true"] { color: var(--TEXT); border-bottom-color: var(--ACCENT); }
+.tab .mono { color: inherit; }
 
-#toasts{position:fixed;right:16px;bottom:48px;display:grid;gap:8px;z-index:10;max-width:min(520px,calc(100vw - 32px))}
-.toast{background:var(--p2);border:1px solid var(--line2);border-left:3px solid var(--amber);padding:8px 12px;display:flex;gap:12px;overflow-wrap:anywhere}
-.toast.err{border-left-color:var(--red)} .toast.err b{color:var(--red)}
-.toast.ok b{color:var(--green)}
-.toast button{margin-left:auto;color:var(--dim)}
+/* overview tables */
+.ptab .thead, .ptab .row { grid-template-columns: calc(78px * var(--scale)) minmax(0, 1.2fr) calc(190px * var(--scale)) minmax(0, 1.4fr) minmax(0, 1.4fr) calc(56px * var(--scale)) calc(64px * var(--scale)) calc(76px * var(--scale)); }
+.ptab .row { cursor: pointer; }
+.ptab .nm a { font-weight: 600; text-decoration: none; } .ptab .nm a:hover { text-decoration: underline; }
+.ptab .sub { display: block; color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ptab .num { font-family: var(--Type-MONO); text-align: right; }
+.ptab .num.hot { color: var(--WARN); font-weight: 600; }
+.ptab .cp .n, .ptab .fr { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); }
+.ptab .r { text-align: right; }
+.ovact .thead, .ovact .row { grid-template-columns: calc(110px * var(--scale)) calc(120px * var(--scale)) minmax(0, 1fr) auto; }
+.res .thead, .res .row { grid-template-columns: calc(180px * var(--scale)) calc(120px * var(--scale)) minmax(0, 1fr) calc(80px * var(--scale)) auto; align-items: center; }
+.empty { padding: var(--Space-SM) var(--Space-MD); color: var(--TEXT_MUTED); margin: 0; }
 
-td.rl{text-align:right}
-td.rl button{color:var(--dim);padding:0 6px;min-width:24px;min-height:24px;border:1px solid var(--line)}
-td.rl button:hover{color:var(--amber);border-color:var(--amber)}
-.rt button,.acts button,.kc h4 button,.selst button,.keys button{padding:4px 5px;margin:-4px -5px}
-.kc h4 button{margin:-4px -5px -4px auto}
-#phead h2:focus{outline:none} /* programmatic focus target, not interactive */
-.it .ia button{min-width:24px;min-height:24px;text-align:center}
-.feed .h .k{position:relative}
-.feed .h .k::after{content:"";position:absolute;inset:-4px -3px}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.keys{border-top:1px solid var(--line);background:var(--p);padding:7px 24px;color:var(--dim);display:flex;gap:10px 22px;font-size:12px;flex-wrap:wrap}
-.keys button:hover{color:var(--text)}
-.keys kbd{font:inherit;color:var(--bg);background:var(--dim);padding:0 5px;margin-right:6px}
+/* project view */
+.phead { display: flex; align-items: baseline; gap: var(--Space-MD); flex-wrap: wrap; }
+.phead > * { min-width: 0; }
+.phead h1 { margin: 0; font-size: var(--Type-H1); font-weight: 600; overflow-wrap: anywhere; }
+.phead h1:focus { outline: none; }
+.phead .back { margin-left: auto; color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+.phead .repo { color: var(--TEXT_MUTED); font: var(--Type-SMALL) var(--Type-MONO); overflow-wrap: anywhere; }
+.next { margin: var(--Space-XXS) 0 0; color: var(--TEXT_DIM); overflow-wrap: anywhere; }
+.next b { color: var(--TEXT); font-weight: 600; }
+.aux { margin: var(--Space-XXS) 0 0; color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); overflow-wrap: anywhere; }
+.grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--Space-MD); align-items: start; }
+.grid > div { min-width: 0; }
 
-.su-h{font-size:.83em;color:var(--dim);border-bottom:1px dashed var(--line);padding-bottom:4px;margin:12px 0 6px}
-.su-l{overflow-wrap:anywhere;padding:2px 0}
-.su-l small{color:var(--faint);font-size:11.5px;margin-left:6px}
-.su-l pre{font:inherit;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0 8px 14px}
-.su-l summary{cursor:pointer}
-.su-k{color:var(--amber);font-weight:700}
-.su-n{color:var(--dim);overflow-wrap:anywhere;margin-bottom:6px}
-.su-idle{color:var(--faint);padding:2px 0}
-@media (max-width:900px){.cols{grid-template-columns:minmax(0,1fr)} main{padding:22px 14px 30px} .keys{padding:7px 14px}}
+.phases .thead, .phases .row { grid-template-columns: calc(26px * var(--scale)) minmax(0, 1fr) calc(84px * var(--scale)) calc(236px * var(--scale)); }
+.phases .row { cursor: pointer; align-items: start; }
+.phases .row.sel { cursor: default; }
+.phases .n { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); }
+.nm { background: none; border: none; padding: 0; text-align: left; cursor: pointer; font-weight: 600; display: block; width: 100%; overflow-wrap: anywhere; }
+.phases .nt { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.phases .row.isdone .nm { font-weight: 400; color: var(--TEXT_DIM); }
+.phases .row.sel .nm { color: var(--TEXT); }
+.phases .row.sel .st.quiet { color: var(--TEXT_DIM); }
+.phases .gc { display: flex; align-items: baseline; justify-content: flex-end; gap: var(--Space-SM); flex-wrap: wrap; }
+.phases .doneline { display: block; padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--DIVIDER); }
+.phases .doneline button { background: none; border: none; padding: var(--Space-XS) 0; cursor: pointer; color: var(--OK); font-weight: 600; }
+.phases .doneline button:hover { text-decoration: underline; }
+.detail { grid-column: 2 / -1; display: grid; gap: var(--Space-SM); padding-top: var(--Space-XS); min-width: 0; }
+.detail .lbl, .frm label > span { color: var(--TEXT_DIM); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; margin-right: var(--Space-SM); }
+.detail .notes { color: var(--TEXT); overflow-wrap: anywhere; white-space: pre-wrap; }
+.detail .gr { color: var(--TEXT_DIM); font-size: var(--Type-SMALL); overflow-wrap: anywhere; }
+.detail .stline { display: flex; align-items: center; gap: var(--Space-SM); flex-wrap: wrap; }
+.detail .gf { display: flex; align-items: center; gap: var(--Space-SM); flex-wrap: wrap; padding-top: var(--Space-SM); border-top: 1px solid var(--BORDER); }
+.detail .gf input { flex: 1 1 180px; }
+select { background: var(--INPUT); color: var(--TEXT); border: 1px solid var(--BORDER); border-radius: var(--Radius-SM);
+  padding: calc(var(--Space-XS) + 1px) var(--Space-SM); padding-right: calc(var(--Space-XL)); appearance: none; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M1 2.5 4 5.5 7 2.5' fill='none' stroke='%23A8ABAB' stroke-width='1.3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right var(--Space-SM) center; }
+select:hover { border-color: var(--BORDER_STRONG); }
+select:focus-visible { outline: none; border-color: var(--ACCENT); }
+select option { background: var(--OVERLAY); }
+input, textarea { background: var(--INPUT); color: var(--TEXT); border: 1px solid var(--BORDER); border-radius: var(--Radius-SM);
+  padding: calc(var(--Space-XS) + 1px) var(--Space-SM); min-width: 0; }
+input:hover, textarea:hover { border-color: var(--BORDER_STRONG); }
+input:focus-visible, textarea:focus-visible { outline: none; border-color: var(--ACCENT); }
+
+.items .thead, .items .row { grid-template-columns: calc(70px * var(--scale)) minmax(0, 1fr) calc(78px * var(--scale)) calc(40px * var(--scale)); }
+.items .row, .inbox .row { padding-top: var(--Space-XS); padding-bottom: var(--Space-XS); cursor: pointer; }
+.items .t { font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.items .row.sel .t { white-space: normal; overflow-wrap: anywhere; }
+.items .det { color: var(--TEXT_DIM); font-size: var(--Type-SMALL); overflow-wrap: anywhere; white-space: pre-wrap; }
+.items .age, .inbox .age { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); text-align: right; }
+.items .row.closed .t { color: var(--TEXT_MUTED); text-decoration: line-through; }
+.inbox .thead, .inbox .row { grid-template-columns: calc(66px * var(--scale)) minmax(0, 1fr) calc(54px * var(--scale)) calc(40px * var(--scale)); }
+.inbox .t { font-weight: 400; }
+.inbox .from { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); }
+.inbox .row.done .t { color: var(--TEXT_DIM); }
+.detail .acts { display: flex; gap: var(--Space-SM); flex-wrap: wrap; align-items: center; }
+.pfoot { padding: var(--Space-SM) var(--Space-MD); border-top: 1px solid var(--BORDER); }
+.dec .row { grid-template-columns: calc(84px * var(--scale)) minmax(0, 1fr); }
+.dec time { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); }
+.dec .r { display: block; color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+
+/* forms */
+.frm { display: grid; gap: var(--Space-SM); padding: var(--Space-SM) var(--Space-MD); border-bottom: 1px solid var(--BORDER); background: var(--RAISED); }
+.frm label { display: grid; gap: var(--Space-XXS); }
+.frm label em { color: var(--TEXT_MUTED); font-style: normal; text-transform: none; letter-spacing: 0; }
+.frm .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--Space-SM); }
+.frm input, .frm select, .frm textarea { width: 100%; }
+.frm textarea { resize: vertical; min-height: 64px; }
+.frm .btns { display: flex; gap: var(--Space-SM); align-items: center; flex-wrap: wrap; }
+.items .frm, .inbox .frm { border-bottom: 0; border-top: 1px solid var(--BORDER); }
+
+/* summary (Resumen) */
+.sutools .ph .tabs { margin-left: 0; }
+.su-n { margin: 0; padding: var(--Space-SM) var(--Space-MD); color: var(--TEXT_DIM); overflow-wrap: anywhere; }
+.su-n:empty { display: none; }
+.su-sec { padding: 0 var(--Space-MD) var(--Space-SM); }
+.su-h { margin: var(--Space-XS) 0 var(--Space-XXS); padding-bottom: var(--Space-XXS); border-bottom: 1px solid var(--DIVIDER); color: var(--TEXT_MUTED);
+  font-size: var(--Type-CAPTION); font-weight: 400; letter-spacing: .5px; text-transform: uppercase; }
+.su-l { overflow-wrap: anywhere; padding: var(--Space-XXS) 0; }
+.su-l small { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); margin-left: var(--Space-SM); }
+.su-l pre { font: var(--Type-SMALL)/1.45 var(--Type-UI); color: var(--TEXT_DIM); white-space: pre-wrap; overflow-wrap: anywhere; margin: var(--Space-XS) 0 var(--Space-SM) var(--Space-LG);
+  padding: var(--Space-XS) var(--Space-SM); background: var(--INPUT); border: 1px solid var(--BORDER); border-radius: var(--Radius-SM); }
+.su-l summary { cursor: pointer; }
+.su-k { color: var(--WARN); font: 600 var(--Type-SMALL) var(--Type-MONO); letter-spacing: .6px; text-transform: uppercase; }
+.su-idle { color: var(--TEXT_DIM); padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--DIVIDER); }
+.su-idle:last-child { border-bottom: none; }
+
+/* toasts: the aria-live line */
+#toasts { position: fixed; right: var(--Space-LG); bottom: var(--Space-LG); display: grid; gap: var(--Space-SM); z-index: 40; max-width: min(460px, calc(100vw - 32px)); }
+.toast { background: var(--OVERLAY); border: 1px solid var(--BORDER_STRONG); border-left: 3px solid var(--OK); border-radius: var(--Radius-SM);
+  padding: var(--Space-SM) var(--Space-MD); display: flex; gap: var(--Space-SM); align-items: baseline; box-shadow: 0 6px 18px rgba(0,0,0,.5); overflow-wrap: anywhere; }
+.toast b { color: var(--OK); }
+.toast.err { border-left-color: var(--ERROR); } .toast.err b { color: var(--ERROR); }
+.toast button { margin-left: auto; background: none; border: 0; color: var(--TEXT_DIM); cursor: pointer; min-width: 24px; min-height: 24px; }
+@media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) { main { padding-left: var(--Space-MD); padding-right: var(--Space-MD); } .repcount { display: none; } }
 </style>
 </head>
 <body data-view="overview">
 <header class="bar">
-  <h1 class="logo">project-hub</h1>
-  <a class="tab" id="tab-ov" href="#overview"><kbd>1</kbd>overview</a>
-  <a class="tab" id="tab-pr" href="#overview" hidden><kbd>2</kbd><span></span></a>
-  <a class="tab" id="tab-su" href="#resumen"><kbd>3</kbd>resumen</a>
+  <a class="wordmark" href="#overview">PROJECT-HUB</a>
+  <nav class="segs" id="segs" aria-label="Vistas"></nav>
   <span class="sp"></span>
-  <span class="st"><span class="u" id="unread">0 unread</span></span>
-  <span class="st" id="sync"><b>●</b> <span>poll 5s · --:--:--</span></span>
+  <div class="right">
+    <span class="repcount" id="repcount" title="Reports sin leer: información, no acciones"><b>0</b> reports sin leer</span>
+    <button class="bell" id="bell" type="button" data-fk="bell" aria-haspopup="true" aria-expanded="false" aria-controls="bellpanel" aria-label="Para ti: 0 acciones">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1.3 1.3H2.7Z M6.5 14h3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+      <span class="c">0</span>
+    </button>
+    <span class="snap" id="sync">--:--:--</span>
+  </div>
+  <div class="bellpanel" id="bellpanel" role="dialog" aria-label="Para ti" hidden></div>
 </header>
+<div class="offline" id="offline" role="status" hidden></div>
 
 <main>
 <div class="view" id="overview">
-  <div class="prompt"><b>danny@hub</b> ~ $ <i>list_projects</i> <span class="caret"></span></div>
-  <section class="pane" id="wt-pane" hidden>
-    <h2 class="lbl">waiting for you <span id="wt-count"></span></h2>
-    <div class="tw"><table id="wt-table">
-      <thead><tr><th>project</th><th>phase</th><th>gate</th><th>reason</th><th>set by</th></tr></thead>
-      <tbody id="wt-body"></tbody>
-    </table></div>
+  <p class="eyebrow" id="ov-eyebrow"></p>
+  <h1 class="lead" id="ov-lead"></h1>
+  <section class="panel foryou ovact" id="ov-act" aria-label="Para ti">
+    <div class="ph"><h2 id="ov-act-h">Para ti</h2><span class="meta">gates que esperan tu acción y mensajes para ti, lo más urgente primero</span></div>
+    <div id="ov-act-body"></div>
   </section>
-  <section class="pane">
-    <h2 class="lbl">projects <span id="ov-count"></span></h2>
-    <span class="rt" id="ov-filter"></span>
-    <div class="tw"><table id="ov-table">
-      <thead><tr><th>status</th><th>project</th><th>current phase</th><th>progress</th><th>next step</th><th>inbox</th><th>updated</th></tr></thead>
-      <tbody id="ov-body"></tbody>
-    </table></div>
-    <div class="empty" id="ov-empty" hidden></div>
-    <div class="legend"><span><b style="color:var(--green);font-weight:400">█</b> done</span><span><b style="color:#262B33;font-weight:400">█</b> to do</span><span style="margin-left:auto">enter = open · ↑↓ = select</span></div>
+  <section class="panel replines" id="ov-rep" aria-label="Reports sin leer" hidden>
+    <div class="ph"><h2 id="ov-rep-h">Reports sin leer</h2><span class="meta">información: léelos cuando puedas</span></div>
+    <div id="ov-rep-body"></div>
   </section>
-  <section class="pane">
-    <h2 class="lbl">resources <span id="rs-count"></span></h2>
-    <div class="tw"><table id="rs-table">
-      <thead><tr><th>resource</th><th>project</th><th>purpose</th><th>time left</th><th><span class="sr">actions</span></th></tr></thead>
-      <tbody id="rs-body"></tbody>
-    </table></div>
-    <div class="empty" id="rs-empty" hidden>No active resources.</div>
+  <section class="panel ptab" aria-label="Proyectos">
+    <div class="ph"><h2 id="ov-h">Proyectos</h2><span class="meta" id="ov-meta"></span><div class="tabs" id="ov-filter"></div></div>
+    <div class="thead"><span>Estado</span><span>Proyecto</span><span>Fases</span><span>Fase actual</span><span>Siguiente paso</span><span class="r">Para ti</span><span class="r">Reports</span><span class="r">Actualizado</span></div>
+    <div id="ov-body"></div>
+    <p class="empty" id="ov-empty" hidden></p>
+  </section>
+  <section class="panel res" aria-label="Recursos">
+    <div class="ph"><h2 id="rs-h">Recursos en uso</h2></div>
+    <div class="thead" id="rs-head"><span>Recurso</span><span>Proyecto</span><span>Para qué</span><span>Caduca en</span><span><span class="sr">Acciones</span></span></div>
+    <div id="rs-body"></div>
+    <p class="empty" id="rs-empty" hidden>No hay recursos reservados.</p>
   </section>
 </div>
 
 <div class="view" id="summary">
-  <section class="pane">
-    <h2 class="lbl">resumen <span id="su-since"></span></h2>
-    <span class="rt" id="su-period"></span>
-    <div class="su-n" id="su-note"></div>
-    <div class="btns" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
-      <button type="button" id="su-seen" style="color:var(--amber);border:1px solid var(--amber);padding:2px 10px">Marcar como visto</button>
-      <span class="dim" id="su-last" style="color:var(--dim)"></span>
-    </div>
+  <p class="eyebrow">Resumen · <span id="su-since"></span></p>
+  <h1 class="lead" id="su-title" tabindex="-1">Qué ha pasado en tus proyectos</h1>
+  <section class="panel sutools" aria-label="Periodo">
+    <div class="ph"><h2>Periodo</h2><div class="tabs" id="su-period"></div><span class="sp"></span>
+      <span class="meta" id="su-last"></span>
+      <button class="btn primary small" type="button" id="su-seen" data-fk="su-seen">Marcar como visto</button></div>
+    <p class="su-n" id="su-note"></p>
   </section>
   <div id="su-body"></div>
 </div>
 
 <div class="view" id="project">
   <div class="phead" id="phead"></div>
-
-  <section class="pane">
-    <h3 class="lbl">phases <span id="ph-count"></span></h3>
-    <span class="rt">space = cycle status</span>
-    <div class="cues" id="cues"></div>
+  <p class="lead" id="pr-lead"></p>
+  <p class="next" id="pr-next"></p>
+  <p class="aux" id="pr-desc" hidden></p>
+  <p class="aux" id="pr-aut" hidden></p>
+  <section class="panel foryou" id="pr-act" aria-label="Para ti">
+    <div class="ph"><h2 id="pr-act-h">Para ti</h2></div>
+    <div id="pr-act-body"></div>
+    <div class="replines" id="pr-rep" style="border-top:1px solid var(--BORDER)" hidden></div>
   </section>
-
-  <div class="cols">
-    <div style="min-width:0">
-      <section class="pane">
-        <h3 class="lbl">items <span id="it-count"></span></h3>
-        <span class="rt" id="chips"></span>
-        <form class="frm" id="f-item" hidden novalidate>
-          <div class="row2">
-            <label>type<select name="type"><option value="bug">bug</option><option value="idea">idea</option><option value="future_request">future_request</option></select></label>
-            <label>title <em>(required)</em><input name="title" required maxlength="200"></label>
-          </div>
-          <label>details<textarea name="details"></textarea></label>
-          <div class="btns"><button type="submit">Add item</button><button type="button" data-cancel>Cancel</button><span class="ferr" aria-live="polite"></span></div>
-        </form>
-        <div class="kb" id="board"></div>
+  <div class="grid">
+    <div>
+      <section class="panel phases" aria-label="Fases">
+        <div class="ph"><h2 id="ph-h">Fases</h2><span class="sp"></span><span class="meta">clic en una fase para ver sus notas y su estado · espacio cambia su estado</span></div>
+        <div id="phases"></div>
       </section>
-      <section class="pane">
-        <h3 class="lbl">decisions <span id="dec-count"></span></h3>
-        <div class="dl" id="decs"></div>
+      <section class="panel dec" aria-label="Decisiones">
+        <div class="ph"><h2 id="dec-h">Decisiones</h2></div>
+        <div id="decs"></div>
       </section>
     </div>
-
-    <section class="pane feed">
-      <h3 class="lbl">inbox <span id="in-count"></span></h3>
-      <div id="msgs"></div>
-      <div class="cmd">
-        <button type="button" id="msg-open" aria-expanded="false"><b>post msg ›</b> <span>Post message (m)</span></button>
+    <div>
+      <section class="panel items" aria-label="Ítems">
+        <div class="ph"><h2 id="it-h">Ítems</h2><span class="sp"></span><div class="tabs" id="chips"></div></div>
+        <div id="items"></div>
+        <form class="frm" id="f-item" hidden novalidate>
+          <div class="row2">
+            <label><span>Tipo</span><select name="type"><option value="bug">bug</option><option value="idea">idea</option><option value="future_request">petición</option></select></label>
+            <label><span>Título <em>(obligatorio)</em></span><input name="title" required maxlength="200"></label>
+          </div>
+          <label><span>Detalles</span><textarea name="details"></textarea></label>
+          <div class="btns"><button class="btn filled small" type="submit">Añadir ítem</button><button class="btn ghost small" type="button" data-cancel>Cancelar</button><span class="ferr" aria-live="polite"></span></div>
+        </form>
+        <div class="pfoot"><button class="btn small" type="button" id="item-open" aria-expanded="false" title="Atajo: a">Añadir ítem</button></div>
+      </section>
+      <section class="panel inbox" aria-label="Bandeja">
+        <div class="ph"><h2 id="in-h">Bandeja</h2><span class="meta" id="in-meta"></span></div>
+        <div id="msgs"></div>
         <form class="frm" id="f-msg" hidden novalidate>
           <div class="row2">
-            <label>to<select name="to"></select></label>
-            <label>kind<select name="kind"><option value="message">message</option><option value="task">task</option><option value="report">report</option></select></label>
+            <label><span>Para</span><select name="to"></select></label>
+            <label><span>Tipo</span><select name="kind"><option value="message">mensaje</option><option value="task">tarea</option><option value="report">report</option></select></label>
           </div>
-          <label>title <em>(required)</em><input name="title" required maxlength="200"></label>
-          <label>body <em>(required)</em><textarea name="body" required></textarea></label>
-          <div class="btns"><button type="submit">Post message</button><button type="button" data-cancel>Cancel</button><span class="ferr" aria-live="polite"></span></div>
+          <label><span>Título <em>(obligatorio)</em></span><input name="title" required maxlength="200"></label>
+          <label><span>Cuerpo <em>(obligatorio)</em></span><textarea name="body" required></textarea></label>
+          <div class="btns"><button class="btn filled small" type="submit">Publicar mensaje</button><button class="btn ghost small" type="button" data-cancel>Cancelar</button><span class="ferr" aria-live="polite"></span></div>
         </form>
-      </div>
-    </section>
+        <div class="pfoot"><button class="btn small" type="button" id="msg-open" aria-expanded="false" title="Atajo: m">Publicar mensaje</button></div>
+      </section>
+    </div>
   </div>
 </div>
 </main>
 
 <div id="toasts" aria-live="polite"></div>
-
-<nav class="keys" aria-label="shortcuts">
-  <button data-k="1" aria-label="overview"><kbd>1</kbd>overview</button>
-  <button data-k="2" aria-label="project"><kbd>2</kbd>project</button>
-  <button data-k="3" aria-label="resumen"><kbd>3</kbd>resumen</button>
-  <button data-k="a" aria-label="add item"><kbd>a</kbd>add item</button>
-  <button data-k="ArrowLeft" aria-label="move selected item left"><kbd>←</kbd>move left</button>
-  <button data-k="ArrowRight" aria-label="move selected item right"><kbd>→</kbd>move right</button>
-  <button data-k="m" aria-label="post message"><kbd>m</kbd>post message</button>
-  <button data-k="r" aria-label="mark read"><kbd>r</kbd>mark read</button>
-  <button data-k="d" aria-label="mark done"><kbd>d</kbd>mark done</button>
-  <button data-k="x" aria-label="show discarded"><kbd>x</kbd>show discarded</button>
-</nav>
 
 <script>
 "use strict";
@@ -351,31 +438,40 @@ const h = (tag, props, ...kids) => {
   e.append(...kids.flat(Infinity).filter((x) => x != null && x !== false)); // strings become text nodes, never HTML
   return e;
 };
-const fill = (el, ...kids) => el.replaceChildren(...kids.flat().filter((x) => x != null && x !== false));
+const fill = (el, ...kids) => el.replaceChildren(...kids.flat(Infinity).filter((x) => x != null && x !== false));
+const enc = encodeURIComponent;
+const chev = () => { const t = document.createElement("template"); t.innerHTML = '<svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path d="M3.5 1.5 7 5 3.5 8.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>'; return t.content.firstChild; };
 
 const STATUSES = ["active", "paused", "parked", "done"];
+const PROJ = { active: "activo", paused: "en pausa", parked: "aparcado", done: "terminado" };
 const COLS = ["open", "planned", "done"];
-const TYPE = { bug: ["B", "bug"], idea: ["I", "idea"], future_request: ["F", "future"] };
+const ITEM_ST = { open: "abierto", planned: "planificado", done: "hecho", discarded: "descartado" };
+const TYPE = { bug: "bug", idea: "idea", future_request: "petición" };
+const TYPES_PL = { bug: "bugs", idea: "ideas", future_request: "peticiones" };
 const PHASE_ST = ["todo", "in_progress", "done"];
-const PH_SYM = { todo: "○", in_progress: "▶", done: "✓" };
-const S = { focusNext: false, projects: [], d: null, pid: null, last: null, res: [], wait: [], gd: {}, filter: "all", ovSel: 0, sel: null, tf: "all", disc: false, offline: false, sum: false, key: "", exp: new Set() };
+const PSTATE = { todo: "pendiente", in_progress: "en curso", done: "hecha" };
+const KIND = { task: "tarea", message: "mensaje", report: "report" };
+const MSG_ST = { unread: "sin leer", read: "leído", done: "hecho" };
+const GATE = { review: "review", manual_test: "test manual" };
+const S = { projects: [], d: null, pid: null, last: null, res: [], filter: "all", ovSel: 0, sel: null, phSel: {}, tf: "all", closed: false,
+  ovMark: false, offline: false, sum: false, key: "", gd: {}, confirm: new Set(), pend: {}, repOpen: new Set(), msgOpen: new Set(), doneOpen: {}, bell: false, focusNext: false };
 
+const pl = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
+const nn = (i) => String(i + 1).padStart(2, "0");
+const listJoin = (a) => a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " y " + a[a.length - 1];
 function ago(iso) {
-  const m = (Date.now() - new Date(iso).getTime()) / 60000;
-  if (!(m >= 1)) return "now";
-  const hr = m / 60, d = hr / 24;
-  if (m < 60) return Math.floor(m) + "m";
-  if (hr < 24) return Math.floor(hr) + "h";
-  if (d < 7) return Math.floor(d) + "d";
-  if (d < 30) return Math.floor(d / 7) + "w";
-  if (d < 365) return Math.floor(d / 30) + "mo";
-  return Math.floor(d / 365) + "y";
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (!(s >= 90)) return "ahora";
+  if (s < 3600) return Math.round(s / 60) + " min";
+  if (s < 86400) return Math.round(s / 3600) + " h";
+  return Math.round(s / 86400) + " d";
 }
+const nameOf = (id) => (S.projects.find((p) => p.id === id) || { name: id }).name;
 
-/* ---------- API + toasts ---------- */
+/* ---------- API + toasts (the aria-live line) ---------- */
 function toast(text, kind) {
-  const t = h("div", { class: "toast " + kind }, h("b", {}, kind === "err" ? "error" : "ok"), h("span", {}, text),
-    h("button", { type: "button", "aria-label": "dismiss", onclick: () => t.remove() }, "×"));
+  const t = h("div", { class: "toast " + kind }, h("b", {}, kind === "err" ? "error" : "✓"), h("span", {}, text),
+    h("button", { type: "button", "aria-label": "Cerrar aviso", onclick: () => t.remove() }, "×"));
   $("#toasts").append(t);
   setTimeout(() => t.remove(), kind === "err" ? 10000 : 3500);
 }
@@ -386,14 +482,15 @@ async function api(method, url, body) {
   if (!r.ok) {
     let msg = j && j.error;
     if (!msg && j && Array.isArray(j.detail)) msg = j.detail.map((x) => (x.loc || []).slice(1).join(".") + ": " + x.msg).join("; ");
-    throw new Error(msg || "The hub sent an unexpected response. Reload the page.");
+    throw new Error(msg || "El hub ha enviado una respuesta inesperada. Recarga la página.");
   }
   return j;
 }
-// run a write, toast errors, refresh; returns true on success
-async function act(fn, okText, errEl) {
+// run a write, toast errors, refresh; onOk runs before the refresh so the re-render already reflects it
+async function act(fn, okText, errEl, onOk) {
   try {
     await fn();
+    if (onOk) onOk();
     if (okText) toast(okText, "ok");
     await refresh(true);
     return true;
@@ -405,19 +502,24 @@ async function act(fn, okText, errEl) {
 }
 
 /* ---------- data ---------- */
+function left(sec) {
+  const m = Math.floor(sec / 60);
+  return m < 1 ? "<1m" : m < 60 ? m + "m" : Math.floor(m / 60) + "h " + String(m % 60).padStart(2, "0") + "m";
+}
 async function refresh(force) {
   try {
-    const [list, unread, res, wait] = await Promise.all([api("GET", "/api/projects"), api("GET", "/api/unread"), api("GET", "/api/resources"), api("GET", "/api/waiting")]);
-    S.unread = unread.count;
+    const [list, res] = await Promise.all([api("GET", "/api/projects"), api("GET", "/api/resources")]);
     let d = null;
-    if (S.pid) d = await api("GET", "/api/projects/" + encodeURIComponent(S.pid));
+    if (S.pid) d = await api("GET", "/api/projects/" + enc(S.pid));
     S.offline = false;
-    const key = JSON.stringify([list, d, res.map((r) => ({ ...r, seconds_left: left(r.seconds_left) })), wait]); // time left as shown, so the pane re-renders only when the text changes
-    S.projects = list; S.d = d; S.res = res; S.wait = wait;
-    if (S.pid && !d) return;
+    const key = JSON.stringify([list, d, res.map((r) => ({ ...r, seconds_left: left(r.seconds_left) }))]); // time left as shown, so it re-renders only when the text changes
+    S.projects = list; S.d = d; S.res = res;
     syncBar();
-    if (S.sum) return; // the summary view is never re-rendered by polling
-    if (force || key !== S.key) { S.key = key; render(); }
+    if (S.pid && !d) return;
+    if (!force && key === S.key) return;
+    S.key = key;
+    if (S.sum) { paint(renderBar); return; } // the summary itself is never re-rendered by polling; only the top bar
+    render();
   } catch (e) {
     if (S.pid && /^unknown /.test(e.message)) { toast(e.message, "err"); S.pid = null; S.last = null; location.hash = "#overview"; return; }
     S.offline = true;
@@ -425,176 +527,374 @@ async function refresh(force) {
   }
 }
 function syncBar() {
-  $("#sync").className = "st" + (S.offline ? " off" : "");
-  $("#sync").lastChild.textContent = S.offline ? `Can't reach the hub at ${location.host}. Retrying every 5 s. ` : `${location.host} · poll 5s · ` + new Date().toTimeString().slice(0, 8);
-  $("#unread").textContent = (S.unread || 0) + " unread";
+  $("#offline").hidden = !S.offline;
+  $("#offline").textContent = S.offline ? `No se puede conectar con el hub en ${location.host}. Reintentando cada 5 s.` : "";
+  $("#sync").textContent = new Date().toTimeString().slice(0, 8);
+  $("#sync").title = `${location.host} · poll 5s` + (S.offline ? " · sin conexión" : "");
 }
+
+/* what needs Danny: blocking gates (server flag) and open messages to "user"; reports are information only */
+function facts(p) {
+  const phases = p.phases || [];
+  let ci = p.current_phase_pos ? p.current_phase_pos - 1 : -1;
+  if (ci >= 0 && (!phases[ci] || phases[ci].status === "done")) ci = -1; // all phases done
+  const gates = phases.map((ph, i) => ({ ph, i })).filter((g) => g.ph.blocking)
+    .sort((a, b) => (a.ph.gate === "review" ? 0 : 1) - (b.ph.gate === "review" ? 0 : 1) || a.i - b.i);
+  const actions = [...gates.map((g) => ({ kind: "gate", key: p.id + ":g:" + g.ph.id, ...g })),
+    ...(p.user_messages || []).map((m) => ({ kind: "msg", key: p.id + ":m:" + m.id, m }))];
+  return { phases, ci, cur: ci >= 0 ? phases[ci] : null, done: phases.filter((x) => x.status === "done").length, reports: p.reports || [], actions };
+}
+const allFacts = () => S.projects.map((p, i) => ({ p, f: facts(p), i }));
+const byUrgency = (rows) => [...rows].sort((a, b) => b.f.actions.length - a.f.actions.length || b.f.reports.length - a.f.reports.length || a.i - b.i);
+const uniqueReports = (rows) => new Set(rows.flatMap((r) => r.f.reports.map((m) => m.id))).size;
 
 /* ---------- render ---------- */
-function render() {
-  const a = document.activeElement, fk = a && a.dataset && a.dataset.fk;
-  S.caret = a && a.tagName === "INPUT" ? a.selectionStart : null;
-  document.body.dataset.view = S.pid ? "project" : "overview";
-  $("#tab-su").classList.remove("on");
-  $("#tab-ov").classList.toggle("on", !S.pid);
-  $("#tab-pr").classList.toggle("on", !!S.pid);
-  const pid = S.pid || S.last;
-  $("#tab-pr").hidden = !pid;
-  if (pid) { $("#tab-pr").href = "#p/" + encodeURIComponent(pid); $("#tab-pr span").textContent = (S.projects.find((p) => p.id === pid) || { name: pid }).name; }
-  S.pid ? renderProject() : renderOverview();
+function paint(fn, focusK) {
+  const a = document.activeElement, fk = focusK || (a && a.dataset && a.dataset.fk);
+  const caret = !focusK && a && /^(INPUT|TEXTAREA)$/.test(a.tagName) ? [a.selectionStart, a.selectionEnd] : null;
+  fn();
   if (S.focusNext) {
-    const t = S.pid ? (S.d && S.d.id === S.pid && $("#phead h2")) : document.querySelector("tr.sel a");
+    const t = S.sum ? $("#su-title") : S.pid ? (S.d && S.d.id === S.pid && $("#phead h1")) : $(".ptab .row.sel a");
     if (t) { t.focus(); S.focusNext = false; }
-  } else if (fk) { const n = document.querySelector(`[data-fk="${CSS.escape(fk)}"]`); if (n) { n.focus(); if (n.tagName === "INPUT" && S.caret != null) try { n.setSelectionRange(S.caret, S.caret); } catch (e) { /* ignore */ } } }
+  } else if (fk) {
+    const n = document.querySelector(`[data-fk="${CSS.escape(fk)}"]`);
+    if (n && n !== document.activeElement) { n.focus({ preventScroll: true }); if (caret) try { n.setSelectionRange(caret[0], caret[1]); } catch (e) { /* ignore */ } }
+  }
 }
-const visibleProjects = () => S.projects.filter((p) => S.filter === "all" || p.status === S.filter);
-const COLOR = { active: "green", paused: "amber", parked: "violet", done: "blue" };
+function render(focusK) {
+  paint(() => {
+    document.body.dataset.view = S.pid ? "project" : "overview";
+    renderBar();
+    if (S.pid) renderProject(); else { renderOverview(); document.title = "Proyectos · project-hub"; }
+  }, focusK);
+}
+function renderBar() {
+  const rows = allFacts(), nAct = rows.reduce((s, r) => s + r.f.actions.length, 0), nRep = uniqueReports(rows);
+  const seg = (href, label, cur, attrs, n) => h("a", { class: "seg", href, "aria-current": cur ? "page" : null, ...attrs }, label,
+    n ? h("span", { class: "n", "aria-label": pl(n, "acción", "acciones") }, n) : null);
+  fill($("#segs"), seg("#overview", "Proyectos", !S.pid && !S.sum, { id: "tab-ov", "data-fk": "tab-ov", title: "Proyectos (1)" }),
+    rows.map(({ p, f }) => seg("#p/" + enc(p.id), p.name, S.pid === p.id, { "data-fk": "seg" + p.id, "data-pid": p.id, title: p.id === (S.pid || S.last) ? "Último proyecto (2)" : null }, f.actions.length)),
+    seg("#resumen", "Resumen", S.sum, { id: "tab-su", "data-fk": "tab-su", title: "Resumen (3)" }));
+  $("#repcount b").textContent = nRep;
+  const bell = $("#bell");
+  bell.classList.toggle("hot", nAct > 0);
+  bell.querySelector(".c").textContent = nAct;
+  bell.setAttribute("aria-label", `Para ti: ${pl(nAct, "acción", "acciones")}`);
+  bell.setAttribute("aria-expanded", String(S.bell));
+  $("#bellpanel").hidden = !S.bell;
+  if (S.bell) {
+    const hot = byUrgency(rows).filter((r) => r.f.actions.length);
+    fill($("#bellpanel"), h("div", { class: "bh" }, h("b", {}, "Para ti · " + nAct), h("span", { class: "muted small" }, "gates y mensajes que esperan tu acción")),
+      hot.length ? hot.map(({ p, f }) => h("div", { class: "grp", "data-pid": p.id },
+        h("div", { class: "gh" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "bg" + p.id }, p.name), h("span", {}, "· " + f.actions.length)),
+        f.actions.map((a) => actionRow(p, a, "bell", false))))
+        : h("p", { class: "empty" }, "Nada espera tu acción."),
+      h("div", { class: "foot" }, "Los reports sin leer no cuentan aquí: son información y están en cada proyecto."));
+  }
+}
 
+/* ---------- gate and message actions, with their inline confirmation ---------- */
+function toggleConfirm(ck) {
+  if (S.confirm.has(ck)) { S.confirm.delete(ck); render("b|" + ck); } else { S.confirm.add(ck); render("n|" + ck); }
+}
+const toggleBtn = (ck, label, cls) => h("button", { class: cls, type: "button", "data-fk": "b|" + ck, "aria-expanded": String(S.confirm.has(ck)), onclick: () => toggleConfirm(ck) }, label);
+function confirmBox(ck, q, sub, yes, run, okText, onClose) {
+  const err = h("span", { class: "ferr", role: "alert" });
+  const close = () => { S.confirm.delete(ck); if (onClose) onClose(); };
+  return h("div", { class: "confirm", role: "group", "aria-label": "Confirmación", "data-ck": ck },
+    h("p", {}, q, sub ? h("small", {}, sub) : null),
+    h("div", { class: "btns" },
+      h("button", { class: "btn filled", type: "button", "data-fk": "y|" + ck, onclick: async (e) => {
+        const b = e.currentTarget; b.disabled = true; err.textContent = "";
+        if (!await act(run, okText, err, close)) b.disabled = false;
+      } }, yes),
+      h("button", { class: "btn ghost", type: "button", "data-fk": "n|" + ck, onclick: () => { close(); render("b|" + ck); } }, "Cancelar")),
+    err);
+}
+const approve = (pid, ph) => api("POST", `/api/projects/${enc(pid)}/phases/${enc(ph.id)}/gate/approve`);
+const phaseStatus = (pid, phid, status) => api("POST", `/api/projects/${enc(pid)}/phases/${enc(phid)}`, { status });
+function gateConfirm(ck, p, ph) {
+  const review = ph.gate === "review";
+  return review
+    ? confirmBox(ck, `¿Aprobar el gate de «${ph.name}» en ${p.name}?`, "El trabajo autónomo podrá empezar esta fase.", "Sí, aprobar", () => approve(p.id, ph), "Gate aprobado")
+    : confirmBox(ck, `¿Marcar como hecha la fase «${ph.name}» en ${p.name}?`, "Confirma que has hecho la prueba manual.", "Sí, marcar como hecha", () => phaseStatus(p.id, ph.id, "done"), "Fase marcada como hecha");
+}
+function actionRow(p, a, ctx, showProject) {
+  const ck = ctx + "|" + a.key, open = S.confirm.has(ck);
+  let word, title, why, btns, conf = null;
+  if (a.kind === "gate") {
+    word = h("span", { class: "st gate" }, GATE[a.ph.gate]);
+    title = h("div", { class: "ti wrap" }, h("span", { class: "n" }, nn(a.i)), a.ph.name);
+    why = a.ph.gate_reason ? h("div", { class: "why wrap" }, a.ph.gate_reason, a.ph.gate_set_by ? h("span", { class: "muted" }, " · puesto por " + a.ph.gate_set_by) : null) : null;
+    btns = [toggleBtn(ck, a.ph.gate === "review" ? "Aprobar" : "Marcar como hecha", "btn primary")];
+    if (open) conf = gateConfirm(ck, p, a.ph);
+  } else {
+    const m = a.m, mo = S.msgOpen.has(ck);
+    word = h("span", { class: "st message" }, KIND[m.kind] || m.kind);
+    title = h("div", { class: "ti wrap" }, m.title);
+    why = h("div", { class: "why wrap" }, `de ${m.from_project} · `, h("span", { class: "mono" }, ago(m.created_at)), mo ? h("div", { class: "body" }, m.body) : null);
+    btns = [h("button", { class: "btn ghost", type: "button", "data-fk": "v|" + ck, "aria-expanded": String(mo), onclick: () => { mo ? S.msgOpen.delete(ck) : S.msgOpen.add(ck); render("v|" + ck); } }, mo ? "Ocultar" : "Leer"),
+      toggleBtn(ck, "Marcar como hecho", "btn primary")];
+    if (open) conf = confirmBox(ck, `¿Marcar como hecho el mensaje «${m.title}» de ${p.name}?`, "Desaparece de tus acciones.", "Sí, marcar como hecho",
+      () => api("PATCH", `/api/messages/${enc(m.id)}`, { status: "done" }), "Mensaje marcado como hecho");
+  }
+  return h("div", { class: "row act", "data-ck": ck },
+    word,
+    showProject ? h("div", { class: "proj wrap" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "pa|" + ck }, p.name)) : null,
+    h("div", { class: "what" }, title, why),
+    h("div", { class: "btns" }, btns),
+    conf);
+}
+/* reports: one collapsed line per project; "Marcar todos" marks each unread report read */
+function reportLine(p, f, ctx, showProject) {
+  const k = ctx + "|" + p.id, open = S.repOpen.has(k), n = f.reports.length;
+  return h("div", { class: "rl", "data-pid": p.id },
+    h("div", { class: "rlh" },
+      h("button", { class: "tog", type: "button", "aria-expanded": String(open), "data-fk": "r|" + k, onclick: () => { open ? S.repOpen.delete(k) : S.repOpen.add(k); render("r|" + k); } },
+        chev(), showProject ? [h("b", {}, p.name), " · "] : null, pl(n, "report sin leer", "reports sin leer"), " · ", h("span", { class: "v" }, open ? "ocultar" : "ver")),
+      h("button", { class: "btn ghost small", type: "button", "data-fk": "ra|" + k, onclick: () => act(() => Promise.all(f.reports.map((m) => api("PATCH", `/api/messages/${enc(m.id)}`, { status: "read" }))),
+        `${pl(n, "report marcado", "reports marcados")} como leído${n === 1 ? "" : "s"}`) }, "Marcar todos como leídos")),
+    open ? h("div", { class: "reps" }, f.reports.map((m) => h("div", { class: "rep" },
+      h("div", { class: "h" }, h("b", { class: "wrap" }, m.title), h("span", { class: "m" }, `${m.from_project} · ${ago(m.created_at)}`)),
+      h("div", { class: "body" }, m.body)))) : null);
+}
+function track(f) {
+  return h("span", { class: "track", role: "img", "aria-label": `${f.done} de ${f.phases.length} fases hechas` },
+    f.phases.map((x, i) => h("i", { class: x.status === "done" ? "d" : x.blocking ? "g" : i === f.ci ? "c" : "" })));
+}
+const stateWord = (status) => h("span", { class: "st " + (status === "done" ? "pdone" : status) },
+  h("span", { class: "dot", style: `background:var(--${status === "active" ? "OK" : "IDLE"})` }), PROJ[status] || status);
+
+/* ---------- overview ---------- */
+const visibleProjects = () => byUrgency(allFacts()).filter((r) => S.filter === "all" || r.p.status === S.filter).map((r) => r.p);
 function renderOverview() {
-  renderWaiting();
-  renderResources();
-  const ps = S.projects;
-  const cnt = STATUSES.map((s) => [s, ps.filter((p) => p.status === s).length]).filter((x) => x[1]).map((x) => `${x[1]} ${x[0]}`);
-  $("#ov-count").textContent = [ps.length, ...cnt].join(" · ");
-  fill($("#ov-filter"), ["all", ...STATUSES].map((f) => h("button", { type: "button", class: S.filter === f ? "on" : "", "aria-pressed": S.filter === f, onclick: () => { S.filter = f; S.ovSel = 0; render(); } }, f)));
+  const rows = allFacts(), urg = byUrgency(rows);
+  const acts = urg.flatMap((r) => r.f.actions.map((a) => ({ ...r, a })));
+  const nRep = uniqueReports(rows);
+  const rev = acts.filter((x) => x.a.kind === "gate" && x.a.ph.gate === "review").length;
+  const tst = acts.filter((x) => x.a.kind === "gate" && x.a.ph.gate === "manual_test").length;
+  const msg = acts.filter((x) => x.a.kind === "msg").length;
+  const what = [rev ? "aprobar " + pl(rev, "gate") : null, tst ? "probar " + pl(tst, "fase") : null, msg ? "atender " + pl(msg, "mensaje") : null].filter(Boolean);
+  const where = urg.filter((r) => r.f.actions.length).map((r) => `${r.f.actions.length} en ${r.p.name}`);
+  const lead = acts.length ? [h("span", { class: "warn" }, `Tienes ${pl(acts.length, "cosa", "cosas")} que hacer`), `: ${listJoin(what)} (${listJoin(where)})`]
+    : [h("span", { class: "ok" }, "Nada espera tu acción")];
+  lead.push(nRep ? `; además hay ${pl(nRep, "report sin leer", "reports sin leer")}, solo para leer.` : ".");
+  const active = rows.filter((r) => r.p.status === "active").length;
+  const date = new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+  $("#ov-eyebrow").textContent = `Proyectos · ${date} · ${pl(rows.length, "proyecto")}, ${pl(active, "activo")}`;
+  fill($("#ov-lead"), lead);
+
+  $("#ov-act").classList.toggle("hot", acts.length > 0);
+  $("#ov-act-h").textContent = "Para ti · " + acts.length;
+  fill($("#ov-act-body"), acts.length ? [h("div", { class: "thead" }, h("span", {}, "Qué"), h("span", {}, "Proyecto"), h("span", {}, "Fase o mensaje"), h("span", { style: "text-align:right" }, "Acción")),
+    acts.map((x) => actionRow(x.p, x.a, "ov", true))]
+    : h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Nada espera tu acción."));
+
+  $("#ov-rep").hidden = !nRep;
+  $("#ov-rep-h").textContent = "Reports sin leer · " + nRep;
+  fill($("#ov-rep-body"), urg.filter((r) => r.f.reports.length).map(({ p, f }) => reportLine(p, f, "ov", true)));
+
+  $("#ov-h").textContent = "Proyectos · " + rows.length;
+  $("#ov-meta").textContent = pl(active, "activo");
+  fill($("#ov-filter"), [["all", "todos", rows.length], ...STATUSES.map((s) => [s, PROJ[s], rows.filter((r) => r.p.status === s).length])].map(([f, l, n]) =>
+    h("button", { class: "tab", type: "button", "data-f": f, "data-fk": "ovf" + f, "aria-pressed": String(S.filter === f), onclick: () => { S.filter = f; S.ovSel = 0; render("ovf" + f); } }, l, " ", h("span", { class: "mono" }, n))));
   const vis = visibleProjects();
   S.ovSel = Math.min(S.ovSel, Math.max(0, vis.length - 1));
   $("#ov-empty").hidden = vis.length > 0;
-  $("#ov-empty").textContent = ps.length ? "No projects with this status." : "No projects yet. Create one from Claude with create_project.";
-  fill($("#ov-body"), vis.map((p, i) => h("tr", { class: `row s-${p.status}` + (i === S.ovSel ? " sel" : ""), onclick: (e) => { S.ovSel = i; if (!e.target.closest("a")) open(p.id); } },
-    h("td", { class: "nw" }, h("span", { class: "tag" }, p.status)),
-    h("td", { class: "name" }, h("a", { href: "#p/" + encodeURIComponent(p.id), "data-fk": "r" + p.id }, p.name), h("small", { title: p.description }, p.description)),
-    h("td", { class: "ph" }, p.current_phase || "-", p.current_phase ? h("small", { title: `Phase ${p.current_phase_pos} of ${p.phases_total}` }, `${p.current_phase_pos}/${p.phases_total}`) : null),
-    h("td", { class: "nw" }, h("span", { class: "pb", style: `--c:var(--${COLOR[p.status]})`, role: "img", "aria-label": `${p.phases_done} of ${p.phases_total} phases done` },
-      h("i", { style: `width:${p.phases_total ? (100 * p.phases_done) / p.phases_total : 0}%` })), h("span", { class: "frac" }, `${p.phases_done}/${p.phases_total}`)),
-    h("td", { class: "nx", style: p.next_step ? "" : "color:var(--faint)" }, p.next_step || "-"),
-    h("td", { class: "nw" }, h("span", { class: "inb" + (p.unread_count ? " has" : ""), "aria-label": p.unread_count + " unread" }, p.unread_count || "-")),
-    h("td", { class: "dim nw" }, ago(p.updated_at)))));
-}
-
-const GATE = { review: "REVIEW", manual_test: "MANUAL TEST" };
-function renderWaiting() {
-  $("#wt-pane").hidden = !S.wait.length; // quiet when nothing waits
-  $("#wt-count").textContent = S.wait.length;
-  fill($("#wt-body"), S.wait.map((w) => h("tr", { class: "wrow", style: "cursor:pointer", onclick: (e) => { if (!e.target.closest("a")) open(w.project_id); } },
-    h("td", { class: "name" }, h("a", { href: "#p/" + encodeURIComponent(w.project_id), "data-fk": "w" + w.project_id + w.phase_id }, w.project_name)),
-    h("td", {}, w.phase_name),
-    h("td", { class: "nw" }, h("span", { class: "gt gate-" + w.gate, style: "color:var(--c);font-weight:700" }, GATE[w.gate] || w.gate)),
-    h("td", { class: "dim" }, w.gate_reason || "-"),
-    h("td", { class: "dim nw" }, w.gate_set_by || "-"))));
-}
-function left(sec) {
-  const m = Math.floor(sec / 60);
-  return m < 1 ? "<1m" : m < 60 ? m + "m" : Math.floor(m / 60) + "h " + String(m % 60).padStart(2, "0") + "m";
+  $("#ov-empty").textContent = rows.length ? "No hay proyectos con este estado." : "Todavía no hay proyectos. Crea uno desde Claude con create_project.";
+  fill($("#ov-body"), vis.map((p, i) => {
+    const f = facts(p);
+    return h("div", { class: "row" + (S.ovMark && i === S.ovSel ? " sel" : ""), "data-pid": p.id, onclick: (e) => { S.ovSel = i; S.ovMark = true; if (!e.target.closest("a")) open(p.id); } },
+      stateWord(p.status),
+      h("div", { class: "nm" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "r" + p.id }, p.name), h("span", { class: "sub", title: p.description }, p.description)),
+      h("div", {}, track(f), " ", h("span", { class: "fr" }, `${f.done}/${f.phases.length}`)),
+      h("div", { class: "cp wrap" }, f.cur ? [h("span", { class: "n" }, nn(f.ci) + " "), f.cur.name, " ", h("span", { class: "st cur" }, f.cur.status === "in_progress" ? "▶ en curso" : "▶ siguiente")]
+        : h("span", { class: "muted" }, f.phases.length ? "todas hechas" : "sin fases")),
+      h("div", { class: "wrap dim" }, p.next_step || "—"),
+      h("span", { class: "num" + (f.actions.length ? " hot" : " muted") }, f.actions.length),
+      h("span", { class: "num muted" }, f.reports.length),
+      h("span", { class: "num muted" }, ago(p.updated_at)));
+  }));
+  renderResources();
 }
 function renderResources() {
-  const name = (id) => (S.projects.find((p) => p.id === id) || { name: id }).name;
-  $("#rs-count").textContent = S.res.length;
+  $("#rs-h").textContent = "Recursos en uso · " + S.res.length;
   $("#rs-empty").hidden = S.res.length > 0;
-  fill($("#rs-body"), S.res.map((r) => h("tr", {},
-    h("td", { class: "name" }, r.resource), h("td", {}, name(r.project_id)), h("td", { class: "dim" }, r.purpose || "-"), h("td", { class: "nw" }, left(r.seconds_left)),
-    h("td", { class: "rl nw" }, h("button", { type: "button", "data-fk": "rl" + r.resource, "aria-label": `Force release ${r.resource} held by ${name(r.project_id)}`, onclick: () => forceRelease(r) }, "force release")))));
-}
-function forceRelease(r) {
-  const p = (S.projects.find((x) => x.id === r.project_id) || { name: r.project_id }).name;
-  if (window.confirm(`Force release ${r.resource} held by ${p}?`)) act(() => api("POST", "/api/resources/release", { resource: r.resource }), "Resource released");
+  $("#rs-head").hidden = !S.res.length;
+  fill($("#rs-body"), S.res.map((r) => {
+    const ck = "rs|" + r.resource, who = nameOf(r.project_id);
+    return h("div", { class: "row", "data-res": r.resource },
+      h("span", { class: "mono wrap" }, r.resource),
+      h("a", { class: "wrap", href: "#p/" + enc(r.project_id), "data-fk": "rp" + r.resource }, who),
+      h("span", { class: "wrap dim" }, r.purpose || "—"),
+      h("span", { class: "mono muted" }, left(r.seconds_left)),
+      h("button", { class: "btn ghost small", type: "button", "data-fk": "b|" + ck, "aria-expanded": String(S.confirm.has(ck)), "aria-label": `Forzar liberación de ${r.resource} (de ${who})`, onclick: () => toggleConfirm(ck) }, "Liberar"),
+      S.confirm.has(ck) ? confirmBox(ck, `¿Forzar la liberación de ${r.resource}, reservado por ${who}?`, "El proyecto que lo tiene pierde la reserva.", "Sí, liberar",
+        () => api("POST", "/api/resources/release", { resource: r.resource }), "Recurso liberado") : null);
+  }));
 }
 
+/* ---------- project ---------- */
 function renderProject() {
   const d = S.d;
   if (!d || d.id !== S.pid) return;
-  const items = d.items, inbox = d.inbox;
-  fill($("#phead"), h("h2", { tabindex: "-1" }, d.name), h("span", { class: "tag s-" + d.status }, d.status),
-    d.repo_path ? h("span", {}, h("span", { class: "k" }, "repo "), h("span", { class: "v" }, d.repo_path)) : null,
-    h("span", {}, h("span", { class: "k" }, "next → "), h("span", { class: "nx" }, d.next_step || "-")),
-    d.autonomy ? h("p", { class: "aut" }, d.autonomy) : null,
-    d.description ? h("p", { class: "desc" }, d.description) : null);
+  const row = S.projects.find((p) => p.id === d.id) || {};
+  const p = { ...row, ...d, phases: d.phases }, f = facts(p), total = f.phases.length;
+  document.title = d.name + " · project-hub";
+  fill($("#phead"), h("h1", { tabindex: "-1" }, d.name), stateWord(d.status), track(f), h("span", { class: "mono dim" }, `${f.done}/${total} hechas`),
+    d.repo_path ? h("span", { class: "repo", title: "repo" }, d.repo_path) : null,
+    h("a", { class: "back", href: "#overview", "data-fk": "back" }, "← Proyectos"));
+  const sum = !total ? [h("b", {}, "Sin fases todavía")]
+    : !f.cur ? [h("b", {}, `Las ${total} fases están hechas`)]
+    : [h("b", {}, `Fase ${f.ci + 1} de ${total}`), f.cur.status === "in_progress" ? " en curso: " : ", la siguiente: ", h("b", {}, `«${f.cur.name}»`)];
+  sum.push(f.actions.length ? [": ", h("span", { class: "warn" }, `${pl(f.actions.length, "cosa espera", "cosas esperan")} tu acción`)] : ["; ", h("span", { class: "ok" }, "nada espera tu acción")]);
+  sum.push(f.reports.length ? `, y ${pl(f.reports.length, "report sin leer", "reports sin leer")}.` : ".");
+  fill($("#pr-lead"), sum);
+  fill($("#pr-next"), h("b", {}, "Siguiente paso: "), d.next_step || "sin definir");
+  $("#pr-desc").hidden = !d.description; $("#pr-desc").textContent = d.description || "";
+  $("#pr-aut").hidden = !d.autonomy; $("#pr-aut").textContent = d.autonomy || "";
 
-  $("#ph-count").textContent = `${d.phases.filter((p) => p.status === "done").length}/${d.phases.length} done`;
-  fill($("#cues"), d.phases.length ? d.phases.map((p, i) => {
-    const sel = S.sel && S.sel.kind === "phase" && S.sel.id === p.id;
-    return h("div", { class: `cue ${p.status}` + (sel ? " sel" : "") + (S.exp.has(p.id) ? " exp" : "") },
-      h("button", { type: "button", class: "main", "data-fk": "ph" + p.id, "aria-pressed": sel, "aria-expanded": S.exp.has(p.id), onclick: () => { S.sel = { kind: "phase", id: p.id }; S.exp.has(p.id) ? S.exp.delete(p.id) : S.exp.add(p.id); render(); } },
-        h("span", { class: "n" }, h("span", {}, String(i + 1).padStart(2, "0")), h("span", { class: "s" }, `${PH_SYM[p.status]} ${p.status.replace("_", " ")}`)),
-        h("h4", {}, p.name), h("p", {}, p.notes || ""),
-        p.gate && p.gate !== "none" ? [h("div", { class: `gt gate-${p.gate}` + (p.gate === "review" && p.gate_approved ? " ok" : "") }, GATE[p.gate], p.gate === "review" ? (p.gate_approved ? " · approved" : " · not approved") : null, h("small", {}, p.gate_set_by ? ` · set by ${p.gate_set_by}` : "")),
-          p.gate_reason ? h("p", { class: "gr" }, p.gate_reason) : null] : null),
-      sel ? h("div", { class: "selst" }, "status:", PHASE_ST.map((s) => h("button", { type: "button", class: p.status === s ? "on" : "", onclick: () => setPhase(p.id, s) }, s))) : null,
-      sel ? gateForm(p) : null);
-  }) : h("div", { class: "empty" }, "No phases yet. Add them from Claude with add_phase."));
+  $("#pr-act").classList.toggle("hot", f.actions.length > 0);
+  $("#pr-act-h").textContent = "Para ti · " + f.actions.length;
+  fill($("#pr-act-body"), f.actions.length ? f.actions.map((a) => actionRow(p, a, "pv", false)) : h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Nada espera tu acción en este proyecto."));
+  $("#pr-rep").hidden = !f.reports.length;
+  fill($("#pr-rep"), f.reports.length ? reportLine(p, f, "pv", false) : null);
 
-  const live = items.filter((i) => i.status !== "discarded"), disc = items.filter((i) => i.status === "discarded");
-  const n = (t) => live.filter((i) => i.type === t).length;
-  $("#it-count").textContent = `${live.length} · B bug ${n("bug")} · I idea ${n("idea")} · F future request ${n("future_request")}`;
-  fill($("#chips"), [["all", "all"], ["bug", "bug"], ["idea", "idea"], ["future_request", "future"]].map(([f, l]) =>
-    h("button", { type: "button", class: S.tf === f ? "on" : "", "aria-pressed": S.tf === f, onclick: () => { S.tf = f; render(); } }, l)),
-    h("button", { type: "button", "aria-pressed": S.disc, onclick: toggleDisc }, `${S.disc ? "-" : "+"}discarded(${disc.length})`));
-  const cols = S.disc ? [...COLS, "discarded"] : COLS;
-  fill($("#board"), cols.map((c) => {
-    const its = colItems(c);
-    const idx = COLS.indexOf(c);
-    return h("div", { class: "kc " + (c === "done" ? "dn" : c === "discarded" ? "dc" : "") },
-      h("h4", {}, h("b", {}, c), String(its.length), c === "open" ? h("button", { type: "button", "aria-label": "add item", onclick: () => openForm("item") }, "[a]dd") : h("span", {}, c === "planned" ? "→ move" : c === "done" ? "✓" : "")),
-      its.length ? its.map((it) => {
-        const sel = S.sel && S.sel.kind === "item" && S.sel.id === it.id, [L, name] = TYPE[it.type];
-        const mv = (st, lab, txt) => h("button", { type: "button", title: lab, "aria-label": `${lab}: ${it.title}`, onclick: () => setItem(it.id, st) }, txt);
-        return h("div", { class: `it ty-${it.type}` + (sel ? " sel" : ""), "data-id": it.id },
-          h("button", { type: "button", class: "itbtn", "data-fk": "i" + it.id, "aria-pressed": sel, onclick: () => { S.sel = { kind: "item", id: it.id }; render(); } },
-            h("span", { class: "ty", title: name }, L), h("span", { class: "t" }, it.title),
-            h("span", { class: "id" }, `${name} · #${it.id.slice(0, 8)} · ${ago(it.created_at)}`), it.details && sel ? h("span", { class: "det" }, it.details) : null),
-          h("span", { class: "ia" },
-            c === "discarded" ? mv("open", "Restore to open", "↺") : [idx > 0 ? mv(COLS[idx - 1], "Move to " + COLS[idx - 1], "←") : null, idx < 2 ? mv(COLS[idx + 1], "Move to " + COLS[idx + 1], "→") : null,
-              mv("discarded", "Discard item", "✕")]));
-      }) : h("div", { class: "empty" }, c === "open" ? "No open items. Press a to add one." : c === "discarded" ? "No discarded items." : `No ${c} items.`));
-  }));
-
-  $("#dec-count").textContent = d.decisions.length;
-  fill($("#decs"), d.decisions.length ? [...d.decisions].reverse().flatMap((x) => [h("time", {}, x.date.slice(0, 10)), h("span", { class: "d" }, x.decision), h("span", { class: "r" }, x.reason)]) : h("div", { class: "empty", style: "grid-column:1/-1" }, "No decisions logged yet."));
-
-  const unread = inbox.filter((m) => m.status === "unread").length;
-  $("#in-count").textContent = `${unread} unread / ${inbox.length}`;
-  fill($("#msgs"), inbox.length ? inbox.map((m) => {
-    const sel = S.sel && S.sel.kind === "msg" && S.sel.id === m.id, cls = { message: "msg", task: "task", report: "report" }[m.kind];
-    const body = m.kind === "report" ? h("pre", {}, m.body.split("\n").map((ln, i) => {
-      const c = { "+": "ok", "-": "no", "→": "ar", ">": "ar" }[ln[0]];
-      return [i ? "\n" : "", c ? h("span", { class: c }, ln[0]) : null, c ? ln.slice(1) : ln];
-    })) : h("div", { class: "bd" }, m.body);
-    return h("div", { class: `m ${cls} ${m.status}` + (sel ? " sel" : ""), "data-id": m.id },
-      h("div", { class: "h" }, h("button", { type: "button", class: "k", "data-fk": "m" + m.id, title: "Select message", "aria-pressed": sel, onclick: () => { S.sel = { kind: "msg", id: m.id }; render(); } }, m.kind === "message" ? "MSG" : m.kind.toUpperCase()),
-        h("span", {}, `${m.from_project} → ${m.to_project} · ${ago(m.created_at)} · `, m.status === "unread" ? h("span", { class: "stt" }, h("span", { class: "sr" }, "unread")) : h("span", { class: "stt" }, m.status)),
-        h("span", { class: "acts" },
-          m.status === "unread" ? h("button", { type: "button", title: "Mark read", "aria-label": "Mark read", onclick: () => setMsg(m.id, "read") }, "[r]ead") : null,
-          m.status !== "done" ? h("button", { type: "button", title: "Mark done", "aria-label": "Mark done", onclick: () => setMsg(m.id, "done") }, "[d]one") : null)),
-      h("div", { class: "ti" }, m.title), body);
-  }) : h("div", { class: "empty" }, "Inbox is empty."));
-
-  const to = $("#f-msg [name=to]"), cur = to.value;
-  fill(to, h("option", { value: d.id }, "this project (" + d.id + ")"), h("option", { value: "all" }, "all"));
-  to.value = cur === "all" ? "all" : d.id;
+  renderPhases(p, f);
+  renderItems(d);
+  $("#dec-h").textContent = "Decisiones · " + d.decisions.length;
+  fill($("#decs"), d.decisions.length ? [...d.decisions].reverse().map((x) => h("div", { class: "row" }, h("time", { datetime: x.date }, x.date.slice(0, 10)),
+    h("div", { class: "wrap" }, x.decision, x.reason ? h("span", { class: "r" }, "porque " + x.reason) : null))) : h("p", { class: "empty" }, "Sin decisiones todavía."));
+  renderInbox(d, f);
 }
-function gateForm(p) {
-  const k = S.pid + "/" + p.id, base = { gate: p.gate || "none", reason: p.gate_reason || "" };
-  const dr = S.gd[k] || base, edit = (f, v) => { S.gd[k] = { ...dr, [f]: v }; Object.assign(dr, S.gd[k]); }; // draft exists only once the user typed, so polling never overwrites it and untouched forms follow the server
+
+function renderPhases(p, f) {
+  const ph = f.phases;
+  const selId = S.phSel[p.id] || (f.cur && f.cur.id);
+  const doneIdx = ph.map((x, i) => i).filter((i) => ph[i].status === "done" && (f.ci < 0 || i < f.ci));
+  const showDone = !!S.doneOpen[p.id];
+  $("#ph-h").textContent = `Fases · ${f.done}/${ph.length} hechas`;
+  fill($("#phases"), ph.length ? [h("div", { class: "thead" }, h("span", {}, "№"), h("span", {}, "Fase"), h("span", {}, "Estado"), h("span", { style: "text-align:right" }, "Gate")),
+    doneIdx.length ? h("div", { class: "doneline" }, h("button", { type: "button", "aria-expanded": String(showDone), "data-fk": "done|" + p.id,
+      onclick: () => { S.doneOpen[p.id] = !showDone; render("done|" + p.id); } }, chev(), `✓ ${pl(doneIdx.length, "fase hecha", "fases hechas")}`, showDone ? " · ocultar" : " · ver")) : null,
+    ph.map((x, i) => doneIdx.includes(i) && !showDone ? null : phaseRow(p, f, x, i, x.id === selId))]
+    : h("p", { class: "empty" }, "Sin fases todavía. Añádelas desde Claude con add_phase."));
+}
+function phaseRow(p, f, x, i, sel) {
+  const isCur = i === f.ci, gated = x.gate && x.gate !== "none";
+  const ck = "ph|" + p.id + ":g:" + x.id, pk = p.id + ":" + x.id, pending = S.pend[pk];
+  const word = x.status === "done" ? h("span", { class: "st done" }, "✓ hecha")
+    : isCur ? h("span", { class: "st cur" }, x.status === "in_progress" ? "▶ en curso" : "▶ siguiente")
+    : h("span", { class: "st todo" }, PSTATE[x.status]);
+  const gate = !gated ? null : x.blocking ? [h("span", { class: "st gate" }, GATE[x.gate]), toggleBtn(ck, x.gate === "review" ? "Aprobar" : "Marcar como hecha", "btn primary small")]
+    : h("span", { class: "st quiet" }, GATE[x.gate] + " ✓");
+  const kids = [
+    h("span", { class: "n" }, nn(i)),
+    h("div", {}, h("button", { class: "nm", type: "button", "data-fk": "ph" + x.id, "aria-pressed": String(sel), onclick: () => selectPhase(p.id, x.id) }, x.name),
+      !sel && x.notes ? h("div", { class: "nt", title: x.notes }, x.notes) : null),
+    word,
+    h("div", { class: "gc" }, gate)];
+  if (S.confirm.has(ck)) kids.push(gateConfirm(ck, p, x));
+  if (sel) {
+    kids.push(h("div", { class: "detail" },
+      h("div", { class: "notes" }, x.notes ? x.notes : h("span", { class: "dim" }, "Sin notas para esta fase.")),
+      gated ? h("div", { class: "gr" }, h("span", { class: "lbl" }, "Gate " + GATE[x.gate]), x.gate_reason || "", x.gate_set_by ? " · puesto por " + x.gate_set_by : "",
+        x.gate === "review" ? (x.gate_approved ? " · aprobado" : " · sin aprobar") : (x.status === "done" ? " · hecho" : " · sin hacer")) : null,
+      h("div", { class: "stline" }, h("label", { class: "lbl", for: "st-" + x.id }, "Estado"),
+        h("select", { id: "st-" + x.id, "data-fk": "st" + x.id, onchange: (e) => setStatus(p.id, x, e.target.value) },
+          PHASE_ST.map((v) => h("option", { value: v, selected: v === (pending || x.status) }, PSTATE[v]))),
+        pending ? h("span", { class: "st gate" }, "sin guardar") : null),
+      pending ? confirmBox("st|" + pk, `¿Cambiar «${x.name}» a hecha en ${p.name}?`,
+        `Esta fase tiene un gate ${GATE[x.gate]}${x.blocking ? " que espera tu acción" : ""}; marcarla hecha lo da por cumplido.`, "Sí, cambiar a hecha",
+        () => phaseStatus(p.id, x.id, "done"), "Fase cambiada a hecha", () => { delete S.pend[pk]; }) : null,
+      gateForm(p, x)));
+  }
+  return h("div", { class: "row" + (sel ? " sel" : "") + (x.status === "done" ? " isdone" : ""), "data-id": x.id,
+    onclick: (e) => { if (!e.target.closest("button, select, input, a, .confirm, .detail")) selectPhase(p.id, x.id); } }, kids);
+}
+function selectPhase(pid, id) { S.phSel[pid] = id; S.sel = { kind: "phase", id }; render("ph" + id); }
+// the one way a phase status changes: done on a gated phase always asks first (selector and space key)
+function setStatus(pid, x, v) {
+  const pk = pid + ":" + x.id;
+  if (v === x.status) { delete S.pend[pk]; S.confirm.delete("st|" + pk); render(); return; }
+  if (v === "done" && x.gate && x.gate !== "none") { S.pend[pk] = v; S.confirm.add("st|" + pk); render("n|st|" + pk); return; }
+  delete S.pend[pk]; S.confirm.delete("st|" + pk);
+  act(() => phaseStatus(pid, x.id, v), "Fase cambiada a " + PSTATE[v]);
+}
+function gateForm(p, x) {
+  const k = p.id + "/" + x.id, base = { gate: x.gate || "none", reason: x.gate_reason || "" };
+  const dr = S.gd[k] || base, edit = (f, v) => { S.gd[k] = { ...dr, [f]: v }; Object.assign(dr, S.gd[k]); }; // a draft exists only once the user typed, so polling never overwrites it
   const err = h("span", { class: "ferr", role: "alert" });
-  const sel = h("select", { "data-fk": "gs" + p.id, id: "gs" + p.id, onchange: (e) => { edit("gate", e.target.value); } },
-    [["none", "none"], ["review", "review"], ["manual_test", "manual test"]].map(([v, l]) => h("option", { value: v, selected: dr.gate === v }, l)));
-  const inp = h("input", { "data-fk": "gr" + p.id, id: "gr" + p.id, maxlength: "160", value: dr.reason, oninput: (e) => { edit("reason", e.target.value); } });
-  const gated = p.gate && p.gate !== "none";
+  const inp = h("input", { "data-fk": "gr" + x.id, id: "gr" + x.id, maxlength: "160", value: dr.reason, "aria-label": "Motivo del gate (máx. 160)", placeholder: "motivo (máx. 160)", oninput: (e) => edit("reason", e.target.value) });
   const set = async () => {
     err.textContent = "";
-    if (dr.gate !== "none" && !dr.reason.trim()) { err.textContent = "Reason is required."; inp.focus(); return; }
-    const ok = await act(() => api("POST", `/api/projects/${S.pid}/phases/${p.id}/gate`, { gate: dr.gate, reason: dr.gate === "none" ? "" : dr.reason }), dr.gate === "none" ? "Gate removed" : "Gate set", err);
-    if (ok) delete S.gd[k]; // saved; show server values again
+    if (dr.gate !== "none" && !dr.reason.trim()) { err.textContent = "Falta el motivo."; inp.focus(); return; }
+    const ok = await act(() => api("POST", `/api/projects/${enc(p.id)}/phases/${enc(x.id)}/gate`, { gate: dr.gate, reason: dr.gate === "none" ? "" : dr.reason }),
+      dr.gate === "none" ? "Gate quitado" : "Gate guardado", err, () => { delete S.gd[k]; });
+    return ok;
   };
-  return h("div", { class: "gf", onclick: (e) => e.stopPropagation() },
-    h("label", {}, "gate", sel), h("label", {}, "reason (max 160)", inp), err,
-    h("div", { class: "btns" }, h("button", { type: "button", "data-fk": "gset" + p.id, onclick: set }, "Set gate"),
-      gated && p.gate === "review" && !p.gate_approved ? h("button", { type: "button", class: "sec", "data-fk": "gap" + p.id, onclick: () => act(() => api("POST", `/api/projects/${S.pid}/phases/${p.id}/gate/approve`), "Gate approved", err) }, "Approve") : null,
-      gated && p.gate === "manual_test" && p.status !== "done" ? h("button", { type: "button", class: "sec", "data-fk": "gdone" + p.id, onclick: () => act(() => api("POST", `/api/projects/${S.pid}/phases/${p.id}`, { status: "done" }), "Phase marked done", err) }, "Mark done") : null));
+  return h("div", { class: "gf" },
+    h("label", { class: "lbl", for: "gs" + x.id }, "Gate"),
+    h("select", { "data-fk": "gs" + x.id, id: "gs" + x.id, onchange: (e) => edit("gate", e.target.value) },
+      [["none", "sin gate"], ["review", "review"], ["manual_test", "test manual"]].map(([v, l]) => h("option", { value: v, selected: dr.gate === v }, l))),
+    inp,
+    h("button", { class: "btn small", type: "button", "data-fk": "gset" + x.id, onclick: set }, "Guardar gate"),
+    err);
 }
-function colItems(c) {
-  return S.d.items.filter((i) => i.status === c && (S.tf === "all" || i.type === S.tf)).sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+const isOpenItem = (i) => i.status === "open" || i.status === "planned";
+function itemList(d) {
+  return (S.closed ? d.items : d.items.filter(isOpenItem)).filter((i) => S.tf === "all" || i.type === S.tf)
+    .sort((a, b) => isOpenItem(b) - isOpenItem(a) || (b.status === "planned") - (a.status === "planned") || b.created_at.localeCompare(a.created_at));
 }
+function renderItems(d) {
+  const open = d.items.filter(isOpenItem), closedN = d.items.length - open.length;
+  $("#it-h").textContent = `Ítems · ${open.length} abiertos`;
+  const tab = (key, label, n) => h("button", { class: "tab", type: "button", "data-f": key, "data-fk": "tf" + key, "aria-pressed": String(S.tf === key), onclick: () => { S.tf = key; render("tf" + key); } }, label, " ", h("span", { class: "mono" }, n));
+  fill($("#chips"), tab("all", "todos", open.length), ["bug", "idea", "future_request"].map((t) => tab(t, TYPES_PL[t], open.filter((i) => i.type === t).length)),
+    h("button", { class: "tab", type: "button", "data-f": "closed", "data-fk": "tfclosed", "aria-pressed": String(S.closed), title: "Atajo: x", onclick: toggleClosed }, "+cerrados ", h("span", { class: "mono" }, closedN)));
+  const list = itemList(d);
+  fill($("#items"), list.length ? [h("div", { class: "thead" }, h("span", {}, "Tipo"), h("span", {}, "Título"), h("span", {}, "Estado"), h("span", { style: "text-align:right" }, "Edad")),
+    list.map((it) => {
+      const sel = S.sel && S.sel.kind === "item" && S.sel.id === it.id, idx = COLS.indexOf(it.status);
+      const mv = (st, txt) => h("button", { class: "btn small", type: "button", "data-fk": "mv" + st + it.id, "aria-label": `${st === "discarded" ? "Descartar" : st === "open" && it.status === "discarded" ? "Restaurar" : "Mover a " + ITEM_ST[st]}: ${it.title}`, onclick: () => setItem(it.id, st) }, txt);
+      return h("div", { class: "row" + (isOpenItem(it) ? "" : " closed") + (sel ? " sel" : ""), "data-id": it.id, onclick: (e) => { if (!e.target.closest("button, a")) selectItem(it.id); } },
+        h("span", { class: "st " + it.type }, TYPE[it.type] || it.type),
+        h("button", { class: "nm t", type: "button", "data-fk": "i" + it.id, "aria-pressed": String(sel), title: it.title, onclick: () => selectItem(it.id) }, it.title),
+        h("span", { class: "dim small" }, ITEM_ST[it.status] || it.status),
+        h("span", { class: "age" }, ago(it.created_at)),
+        sel ? h("div", { class: "detail" }, h("div", { class: "det" }, it.details || "Sin detalles."), h("div", { class: "muted small mono" }, "#" + it.id),
+          h("div", { class: "acts" }, it.status === "discarded" ? mv("open", "Restaurar")
+            : [idx > 0 ? mv(COLS[idx - 1], "← " + ITEM_ST[COLS[idx - 1]]) : null, idx < 2 ? mv(COLS[idx + 1], ITEM_ST[COLS[idx + 1]] + " →") : null, mv("discarded", "Descartar")])) : null);
+    })]
+    : h("p", { class: "empty" }, d.items.length ? "No hay ítems con este filtro." : "Sin ítems. Pulsa a o «Añadir ítem» para crear uno."));
+}
+function selectItem(id) { S.sel = { kind: "item", id }; render("i" + id); }
+
+function renderInbox(d, f) {
+  // unread reports live in their collapsed line in "Para ti"; this is everything else addressed to the project
+  const rep = new Set(f.reports.map((m) => m.id)), rest = d.inbox.filter((m) => !rep.has(m.id));
+  const unread = rest.filter((m) => m.status === "unread").length;
+  $("#in-h").textContent = "Bandeja · " + rest.length;
+  $("#in-meta").textContent = `${unread} sin leer · tareas y mensajes para el proyecto`;
+  fill($("#msgs"), rest.length ? rest.map((m) => {
+    const sel = S.sel && S.sel.kind === "msg" && S.sel.id === m.id;
+    return h("div", { class: `row ${m.status}` + (sel ? " sel" : ""), "data-id": m.id, onclick: (e) => { if (!e.target.closest("button, a")) selectMsg(m.id); } },
+      h("span", { class: "st " + m.kind }, KIND[m.kind] || m.kind),
+      h("div", {}, h("button", { class: "nm t", type: "button", "data-fk": "m" + m.id, "aria-pressed": String(sel), onclick: () => selectMsg(m.id) }, m.title,
+        h("span", { class: "from" }, ` · ${m.from_project} → ${m.to_project}`))),
+      h("span", { class: "dim small" }, MSG_ST[m.status] || m.status),
+      h("span", { class: "age" }, ago(m.created_at)),
+      sel ? h("div", { class: "detail" }, h("div", { class: "body" }, m.body),
+        h("div", { class: "acts" },
+          m.status === "unread" ? h("button", { class: "btn small", type: "button", "data-fk": "mr" + m.id, title: "Atajo: r", onclick: () => setMsg(m.id, "read") }, "Marcar leído") : null,
+          m.status !== "done" ? h("button", { class: "btn small", type: "button", "data-fk": "md" + m.id, title: "Atajo: d", onclick: () => setMsg(m.id, "done") }, "Marcar hecho") : null)) : null);
+  }) : h("p", { class: "empty" }, "La bandeja está vacía."));
+  const to = $("#f-msg [name=to]"), cur = to.value;
+  fill(to, h("option", { value: d.id }, "este proyecto (" + d.id + ")"), h("option", { value: "all" }, "todos"));
+  to.value = cur === "all" ? "all" : d.id;
+}
+function selectMsg(id) { S.sel = { kind: "msg", id }; render("m" + id); }
 
 /* ---------- summary (Resumen) ---------- */
 const fdt = (iso) => new Date(iso).toLocaleString();
@@ -609,15 +909,15 @@ async function loadSummary() {
 }
 function showSummary() {
   document.body.dataset.view = "summary";
-  $("#tab-su").classList.add("on"); $("#tab-ov").classList.remove("on"); $("#tab-pr").classList.remove("on");
-  renderSummaryHead();
-  refresh(false); // fills S.projects/unread only
+  document.title = "Resumen · project-hub";
+  paint(() => { renderBar(); renderSummaryHead(); });
+  refresh(false); // keeps the top bar current
   loadSummary();
 }
 function renderSummaryHead() {
   const d = S.sumD;
   fill($("#su-period"), [[0, "desde el último resumen"], [24, "últimas 24 h"]].map(([hrs, l]) =>
-    h("button", { type: "button", class: S.sumHours === hrs ? "on" : "", "aria-pressed": S.sumHours === hrs, "data-p": hrs, onclick: () => { if (S.sumHours !== hrs) { S.sumHours = hrs; renderSummaryHead(); loadSummary(); } } }, l)));
+    h("button", { class: "tab", type: "button", "aria-pressed": String(S.sumHours === hrs), "data-p": hrs, "data-fk": "sp" + hrs, onclick: () => { if (S.sumHours !== hrs) { S.sumHours = hrs; renderSummaryHead(); loadSummary(); } } }, l)));
   $("#su-since").textContent = d ? "desde " + fdt(d.since) : "";
   $("#su-note").textContent = d && d.note ? d.note : "";
   $("#su-last").textContent = d ? "último visto: " + (d.last_seen ? fdt(d.last_seen) : "nunca") : "";
@@ -632,24 +932,25 @@ async function copyText(t) {
 }
 function sumProject(p) {
   const c = p.current || {}, a = p.action || { gates: [], user_messages: [] };
-  const sec = (title, rows) => rows.length ? [h("h3", { class: "su-h" }, title), rows] : null;
+  const sec = (title, rows) => rows.length ? h("div", { class: "su-sec" }, h("h3", { class: "su-h" }, title), rows) : null;
   const L = (...k) => h("div", { class: "su-l" }, ...k);
-  return h("section", { class: "pane su-proj", "data-id": p.id },
-    h("h2", { class: "lbl" }, p.name, h("span", {}, c.phase ? `${c.n}/${c.total}` : "")),
-    h("span", { class: "rt" }, h("button", { type: "button", "data-copy": p.id, onclick: async () => toast(await copyText(p.chat_text) ? `Copiado para el chat: ${p.name}` : "No se pudo copiar", "ok") }, "Copiar para el chat")),
-    h("div", { class: "su-n" }, c.phase ? `${c.phase} · ` : "", "next → ", c.next_step || "-"),
+  return h("section", { class: "panel su-proj", "data-id": p.id },
+    h("div", { class: "ph" }, h("h2", {}, p.name), h("span", { class: "meta mono" }, c.phase ? `${c.n}/${c.total}` : ""), h("span", { class: "sp" }),
+      h("button", { class: "btn small", type: "button", "data-copy": p.id, "data-fk": "cp" + p.id, onclick: async () => toast(await copyText(p.chat_text) ? `Copiado para el chat: ${p.name}` : "No se pudo copiar", "ok") }, "Copiar para el chat")),
+    h("p", { class: "su-n" }, c.phase ? `${c.phase} · ` : "", "siguiente paso: ", c.next_step || "—"),
     sec("esperan a Danny", [...a.gates.map((g) => L(h("span", { class: "su-k" }, GATE[g.gate] || g.gate), ` ${g.phase} `, h("small", {}, g.reason || ""))),
-      ...a.user_messages.map((m) => L(h("span", { class: "su-k" }, "MSG"), ` ${m.title} `, h("small", {}, `${m.from_project} · ${fdt(m.created_at)}`)))]),
+      ...a.user_messages.map((m) => L(h("span", { class: "su-k" }, "mensaje"), ` ${m.title} `, h("small", {}, `${m.from_project} · ${fdt(m.created_at)}`)))]),
     sec("reports", p.reports.map((r) => h("details", { class: "su-l" }, h("summary", {}, r.title, h("small", {}, `${r.from_project} · ${fdt(r.created_at)}`)), h("pre", {}, r.body)))),
     sec("fases", p.phase_changes.map((x) => L(`${x.phase}: ${x.text}`, h("small", {}, `${x.by || ""} · ${fdt(x.at)}`)))),
     sec("decisiones", p.decisions.map((x) => L(x.decision, x.reason ? h("small", {}, `porque ${x.reason}`) : null))),
-    sec("items", [...p.items_opened.map((x) => L(`+ ${x.title}`, h("small", {}, x.type))), ...p.items_closed.map((x) => L(`✓ ${x.title}`, x.text ? h("small", {}, x.text) : null))]),
+    sec("ítems", [...p.items_opened.map((x) => L(`+ ${x.title}`, h("small", {}, TYPE[x.type] || x.type))), ...p.items_closed.map((x) => L(`✓ ${x.title}`, x.text ? h("small", {}, x.text) : null))]),
     sec("bloqueado", p.blocked.map((b) => L(b))));
 }
 function renderSummary() {
   renderSummaryHead();
-  const d = S.sumD, act = d.projects.filter((p) => p.has_activity), idle = d.projects.filter((p) => !p.has_activity);
-  fill($("#su-body"), act.map(sumProject), idle.length ? h("section", { class: "pane" }, h("h2", { class: "lbl" }, "sin actividad ", h("span", {}, idle.length)), idle.map((p) => h("div", { class: "su-idle" }, `${p.name}: sin actividad`))) : null);
+  const d = S.sumD, busy = d.projects.filter((p) => p.has_activity), idle = d.projects.filter((p) => !p.has_activity);
+  fill($("#su-body"), busy.map(sumProject), idle.length ? h("section", { class: "panel" }, h("div", { class: "ph" }, h("h2", {}, "Sin actividad · " + idle.length)),
+    idle.map((p) => h("div", { class: "su-idle" }, `${p.name}: sin actividad`))) : null);
 }
 $("#su-seen").addEventListener("click", async () => {
   const d = S.sumD; if (!d) return;
@@ -660,12 +961,11 @@ $("#su-seen").addEventListener("click", async () => {
 });
 
 /* ---------- actions ---------- */
-const open = (id) => { location.hash = "#p/" + encodeURIComponent(id); };
-const setPhase = (id, status) => act(() => api("POST", `/api/projects/${S.pid}/phases/${id}`, { status }), "Phase set to " + status);
-const setItem = (id, status) => act(() => api("PATCH", `/api/projects/${S.pid}/items/${id}`, { status }), "Item moved to " + status);
-const setMsg = (id, status) => act(() => api("PATCH", `/api/messages/${id}`, { status }), "Message marked " + status);
-function toggleDisc() { S.disc = !S.disc; render(); }
-function syncExp() { $("#msg-open").setAttribute("aria-expanded", String(!$("#f-msg").hidden)); }
+const open = (id) => { location.hash = "#p/" + enc(id); };
+const setItem = (id, status) => act(() => api("PATCH", `/api/projects/${enc(S.pid)}/items/${enc(id)}`, { status }), "Ítem cambiado a " + ITEM_ST[status]);
+const setMsg = (id, status) => act(() => api("PATCH", `/api/messages/${enc(id)}`, { status }), "Mensaje marcado como " + MSG_ST[status]);
+function toggleClosed() { S.closed = !S.closed; render("tfclosed"); }
+function syncExp() { $("#msg-open").setAttribute("aria-expanded", String(!$("#f-msg").hidden)); $("#item-open").setAttribute("aria-expanded", String(!$("#f-item").hidden)); }
 function openForm(which) {
   const f = $(which === "item" ? "#f-item" : "#f-msg");
   f.hidden = false; syncExp();
@@ -673,13 +973,14 @@ function openForm(which) {
   f.scrollIntoView({ block: "nearest" });
 }
 function closeForm(f) { f.hidden = true; syncExp(); }
+const FIELD = { title: "el título", body: "el cuerpo", details: "los detalles" };
 function bindForm(f, send, okText) {
   f.addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = f.querySelector("[type=submit]"), err = f.querySelector(".ferr"), v = Object.fromEntries(new FormData(f));
     err.textContent = "";
     const empty = [...f.querySelectorAll("[required]")].find((x) => !x.value.trim());
-    if (empty) { err.textContent = `${empty.name[0].toUpperCase() + empty.name.slice(1)} is required.`; empty.focus(); return; }
+    if (empty) { err.textContent = `Campo obligatorio: falta ${FIELD[empty.name] || empty.name}.`; empty.focus(); return; }
     btn.disabled = true;
     const ok = await act(() => send(v), okText, err);
     btn.disabled = false;
@@ -687,43 +988,52 @@ function bindForm(f, send, okText) {
     if (ok) { f.querySelectorAll("[name=title],[name=details],[name=body]").forEach((x) => (x.value = "")); closeForm(f); }
   });
   f.querySelector("[data-cancel]").addEventListener("click", () => closeForm(f));
-  f.addEventListener("keydown", (e) => { if (e.key === "Escape") closeForm(f); });
+  f.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); closeForm(f); } });
 }
-bindForm($("#f-item"), (v) => api("POST", `/api/projects/${S.pid}/items`, { type: v.type, title: v.title, details: v.details }), "Item added");
-bindForm($("#f-msg"), (v) => api("POST", "/api/messages", { to_project: v.to, kind: v.kind, title: v.title, body: v.body }), "Message posted");
+bindForm($("#f-item"), (v) => api("POST", `/api/projects/${enc(S.pid)}/items`, { type: v.type, title: v.title, details: v.details }), "Ítem añadido");
+bindForm($("#f-msg"), (v) => api("POST", "/api/messages", { to_project: v.to, kind: v.kind, title: v.title, body: v.body }), "Mensaje publicado");
 $("#msg-open").addEventListener("click", () => ($("#f-msg").hidden ? openForm("msg") : closeForm($("#f-msg"))));
+$("#item-open").addEventListener("click", () => ($("#f-item").hidden ? openForm("item") : closeForm($("#f-item"))));
 
-/* ---------- keyboard ---------- */
+/* ---------- bell ---------- */
+function setBell(on) { S.bell = on; paint(renderBar, "bell"); }
+$("#bell").addEventListener("click", (e) => { e.stopPropagation(); setBell(!S.bell); });
+$("#bellpanel").addEventListener("click", (e) => e.stopPropagation()); // the panel's own clicks never close it
+document.addEventListener("click", () => { if (S.bell) setBell(false); });
+
+/* ---------- keyboard: every key also has a mouse path (tabs, buttons, selector) ---------- */
 function step(dir) {
   if (!S.pid) {
     const n = visibleProjects().length;
-    if (n) { S.ovSel = Math.max(0, Math.min(n - 1, S.ovSel + dir)); render(); const r = document.querySelector("tr.sel"); if (r) r.scrollIntoView({ block: "nearest" }); }
+    // the first arrow only shows the selection; the row stays marked once you navigate or come back from a project
+    if (n) { S.ovSel = S.ovMark ? Math.max(0, Math.min(n - 1, S.ovSel + dir)) : Math.min(S.ovSel, n - 1); S.ovMark = true; render(); const r = $(".ptab .row.sel"); if (r) { r.scrollIntoView({ block: "nearest" }); r.querySelector("a").focus({ preventScroll: true }); } } // focus follows the selection, so Enter opens it
     return;
   }
-  const fl = S.d ? (S.disc ? [...COLS, "discarded"] : COLS).flatMap(colItems) : [];
+  const fl = S.d ? itemList(S.d) : [];
   if (!fl.length) return;
   const i = S.sel && S.sel.kind === "item" ? fl.findIndex((x) => x.id === S.sel.id) : -1;
   S.sel = { kind: "item", id: fl[Math.max(0, Math.min(fl.length - 1, i + dir))].id };
   render();
-  const n = document.querySelector(".it.sel"); if (n) n.scrollIntoView({ block: "nearest" });
+  const n = $(".items .row.sel"); if (n) n.scrollIntoView({ block: "nearest" });
 }
 function key(k, target) {
   const inBtn = target && target.closest && target.closest("button,a");
   if (k === "1") { location.hash = "#overview"; return; }
   if (k === "3") { location.hash = "#resumen"; return; }
   if (k === "2") { const p = S.pid || S.last || (visibleProjects()[S.ovSel] || {}).id; if (p) open(p); return; }
+  if (S.sum) return;
   if (k === "ArrowUp") return step(-1);
   if (k === "ArrowDown") return step(1);
-  if (k === "Enter") { if (!S.pid && !inBtn) { const p = visibleProjects()[S.ovSel]; if (p) open(p.id); } return; }
+  if (k === "Enter") { if (!S.pid && !inBtn && S.ovMark) { const p = visibleProjects()[S.ovSel]; if (p) open(p.id); } return; }
   if (!S.pid || !S.d) return;
   const sel = S.sel;
   if (k === "a") return openForm("item");
   if (k === "m") return openForm("msg");
-  if (k === "x") return toggleDisc();
-  if (k === " ") { if (sel && sel.kind === "phase" && !inBtn) { const p = S.d.phases.find((x) => x.id === sel.id); if (p) setPhase(p.id, PHASE_ST[(PHASE_ST.indexOf(p.status) + 1) % 3]); } return; }
+  if (k === "x") return toggleClosed();
+  if (k === " ") { if (sel && sel.kind === "phase" && !inBtn) { const p = S.d.phases.find((x) => x.id === sel.id); if (p) setStatus(S.pid, p, PHASE_ST[(PHASE_ST.indexOf(p.status) + 1) % 3]); } return; }
   if (k === "ArrowLeft" || k === "ArrowRight") {
     const it = sel && sel.kind === "item" && S.d.items.find((x) => x.id === sel.id);
-    if (!it) { toast("Select an item first: use ↑↓ or click one.", "err"); return; }
+    if (!it) { toast("Primero selecciona un ítem: usa ↑↓ o haz clic en uno.", "err"); return; }
     if (it.status === "discarded") return k === "ArrowLeft" ? setItem(it.id, "open") : undefined;
     const to = COLS[COLS.indexOf(it.status) + (k === "ArrowRight" ? 1 : -1)];
     return to ? setItem(it.id, to) : undefined;
@@ -731,33 +1041,39 @@ function key(k, target) {
   if (k === "r" || k === "d") {
     let m = sel && sel.kind === "msg" && S.d.inbox.find((x) => x.id === sel.id);
     if (!m) m = S.d.inbox.find((x) => x.status === "unread");
-    if (!m) { toast("No unread message to mark.", "err"); return; }
+    if (!m) { toast("No hay ningún mensaje sin leer para marcar.", "err"); return; }
     return setMsg(m.id, k === "r" ? "read" : "done");
   }
 }
 addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (S.bell) { setBell(false); return; }
+    if (S.confirm.size) { for (const k of S.confirm) if (k.startsWith("st|")) delete S.pend[k.slice(3)]; S.confirm.clear(); S.sum ? null : render(); }
+    return;
+  }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   if (!["1", "2", "3", "a", "m", "r", "d", "x", " ", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
   if (e.key === "a" || e.key === "m" || e.key.startsWith("Arrow") || (e.key === " " && !e.target.closest("button,a"))) e.preventDefault();
   key(e.key, e.target);
 });
-document.querySelectorAll(".keys [data-k]").forEach((b) => b.addEventListener("click", () => key(b.dataset.k)));
 
 /* ---------- routing ---------- */
 function route() {
   const m = location.hash.match(/^#p\/(.+)$/);
   const wasSum = S.sum;
+  S.bell = false;
   S.sum = location.hash === "#resumen";
-  if (S.sum) { if (!wasSum) { S.sumD = null; S.sumHours = 0; S.pid = null; } showSummary(); return; }
+  if (S.sum) { if (!wasSum) { S.sumD = null; S.sumHours = 0; S.pid = null; S.focusNext = true; } showSummary(); return; }
   const pid = m ? decodeURIComponent(m[1]) : null;
   if (pid !== S.pid || wasSum) {
-    S.pid = pid; S.sel = null; S.gd = {}; S.exp.clear(); S.d = null; S.key = "";
+    S.pid = pid; S.sel = null; S.gd = {}; S.d = null; S.key = ""; S.confirm.clear(); S.pend = {};
     if (pid) S.last = pid;
-    else { const i = visibleProjects().findIndex((x) => x.id === S.last); if (i >= 0) S.ovSel = i; }
+    else { const i = visibleProjects().findIndex((x) => x.id === S.last); if (i >= 0) { S.ovSel = i; S.ovMark = true; } }
     S.focusNext = true;
     for (const f of [$("#f-item"), $("#f-msg")]) { f.hidden = true; f.reset(); f.querySelector(".ferr").textContent = ""; }
     syncExp();
+    window.scrollTo(0, 0);
   }
   refresh(true);
 }
