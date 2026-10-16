@@ -8,7 +8,8 @@ REAL_DEFAULT = Path.home() / "project-hub-data"  # captured before any test patc
 def _snapshot(folder):
     if not folder.exists():
         return None
-    return sorted((str(p), p.stat().st_mtime_ns) for p in folder.rglob("*"))
+    # logs/ is written by the running tray dashboard, never by tests
+    return sorted((str(p), p.stat().st_mtime_ns) for p in folder.rglob("*") if "logs" not in p.relative_to(folder).parts)
 
 
 @pytest.fixture(scope="session", autouse=True)
