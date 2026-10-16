@@ -6,11 +6,15 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import hub as hub_module  # module reference so a faked hub._utcnow applies here too
 from .biblia import GATE_DEFAULTS, autonomy_line, blocking, current_phase, waiting
 from .hub import Hub, HubError, overview_order
+
+STATIC = Path(__file__).parent / "static"
+ICONS = STATIC / "icons"  # app icons and web manifest; regenerate the PNGs with tools/make_icons.py
 
 app = FastAPI(title="project-hub")
 _hub: Hub | None = None  # tests may replace this with Hub(tmp_path)
@@ -183,7 +187,25 @@ def summary_seen(body: SeenIn | None = None):
 
 @app.get("/")
 def index():
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
+    return FileResponse(STATIC / "index.html")
+
+
+@app.get("/favicon.svg")
+def favicon_svg():
+    return FileResponse(ICONS / "favicon.svg", media_type="image/svg+xml")
+
+
+@app.get("/favicon.ico")
+def favicon_ico():
+    return FileResponse(ICONS / "icon-32.png", media_type="image/png")
+
+
+@app.get("/manifest.webmanifest")
+def manifest():
+    return FileResponse(ICONS / "manifest.webmanifest", media_type="application/manifest+json")
+
+
+app.mount("/icons", StaticFiles(directory=ICONS), name="icons")
 
 
 def main():

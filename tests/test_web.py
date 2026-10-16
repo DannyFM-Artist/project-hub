@@ -115,6 +115,30 @@ def test_index(env):
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
 
 
+@pytest.mark.parametrize("url, ctype", [
+    ("/favicon.svg", "image/svg+xml"),
+    ("/favicon.ico", "image/png"),
+    ("/manifest.webmanifest", "application/manifest+json"),
+    *[(f"/icons/{n}", "image/png") for n in (
+        "icon-16.png", "icon-32.png", "icon-48.png", "apple-touch-icon.png",
+        "icon-192.png", "icon-512.png", "icon-512-maskable.png")],
+])
+def test_icon_routes(env, url, ctype):
+    r = env[1].get(url)
+    assert r.status_code == 200 and r.headers["content-type"].startswith(ctype)
+
+
+def test_manifest_lists_icons(env):
+    c = env[1]
+    m = c.get("/manifest.webmanifest").json()
+    assert (m["name"], m["start_url"], m["display"]) == ("project-hub", "/", "standalone")
+    got = {(i["src"], i["sizes"], i["purpose"]) for i in m["icons"]}
+    assert got == {("/icons/icon-192.png", "192x192", "any"), ("/icons/icon-512.png", "512x512", "any"),
+                   ("/icons/icon-512-maskable.png", "512x512", "maskable")}
+    for src, *_ in got:
+        assert c.get(src).status_code == 200
+
+
 def test_resources_routes(env):
     h, c = env
     assert c.get("/api/resources").json() == []

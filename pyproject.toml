@@ -19,4 +19,4 @@ project-hub = "project_hub.cli:main"
 packages = ["project_hub"]
 
 [tool.setuptools.package-data]
-project_hub = ["static/*"]
+project_hub = ["static/*", "static/icons/*"]
