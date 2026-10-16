@@ -183,7 +183,7 @@ def test_summary_grouping_and_content(hub, clock):
     assert [p["id"] for p in s["projects"]] == ["alpha", "gamma", "beta"]
     a, g, b = s["projects"]
     assert set(a) == {"id", "name", "status", "has_activity", "current", "action", "reports", "phase_changes", "decisions",
-                      "items_opened", "items_closed", "blocked", "chat_text", "copied_at", "counts", "copy"}
+                      "items_opened", "items_closed", "blocked", "chat_text", "copied_at", "counts", "copy", "state"}
     assert a["current"] == {"phase": "Two", "n": 2, "total": 3, "next_step": None}
     assert a["action"]["gates"] == [{"phase_id": ph["alpha"][1], "phase": "Two", "gate": "review", "reason": "look at the API"}]
     assert [m["title"] for m in a["action"]["user_messages"]] == ["Need a decision"]
@@ -207,13 +207,20 @@ def test_chat_text(hub, clock):
     a = hub.summary()["projects"][0]
     lines = a["chat_text"].split("\n")
     assert lines[0].startswith("Periodo: ")
-    assert lines[1:] == ["1 informe nuevo: Session report", "1 fase terminada: One", "1 decisión de los agentes",
-                         "1 gate esperando a Danny", LAST.format("alpha")]
+    assert lines[1:] == ["Gate esperando a Danny: Two (review)", "Reports nuevos: Session report", "1 fase terminada: One",
+                         "1 decisión de los agentes", LAST.format("alpha")]
     assert "Long body" not in a["chat_text"]
-    for i in range(3):
+    for i in range(7):
+        clock[0] += timedelta(minutes=1)
         hub.post_message("alpha", "report", f"R{i}", "b", from_project="alpha")
+    hub.set_gate("alpha", hub.get_project("alpha")["phases"][2]["id"], "manual_test", "r")
+    clock[0] += timedelta(minutes=1)
+    hub.post_message("alpha", "report", "x" * 100, "b", from_project="alpha")
     lines = hub.summary()["projects"][0]["chat_text"].split("\n")
-    assert len(lines) <= 6 and lines[1] == "4 informes nuevos" and lines[-1] == LAST.format("alpha")
+    assert lines[1:3] == ["Gate esperando a Danny: Three (prueba manual)", "Gate esperando a Danny: Two (review)"]
+    # 9 reports, newest first: the 70-char shortening, then R6..R2, and 3 more
+    assert lines[3] == "Reports nuevos: " + "x" * 69 + "… · R6 · R5 · R4 · R3 · R2 y 3 más"
+    assert len(lines) <= 10 and lines[-1] == LAST.format("alpha")
 
 
 def test_since_hours_and_default(hub, clock):

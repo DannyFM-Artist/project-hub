@@ -44,7 +44,7 @@ def test_copy_before_any_copy(hub, clock):
     assert a["copy"]["new"] == 8
     assert a["copy"]["chat_text"] == a["chat_text"] and a["copy"]["chat_text"].endswith(LAST.format("alpha"))
     # gamma: its gate was set before the window but waits now
-    assert g["copy"]["new"] == 1 and "1 gate esperando a Danny" in g["copy"]["chat_text"]
+    assert g["copy"]["new"] == 1 and "Gate esperando a Danny: One (prueba manual)" in g["copy"]["chat_text"]
     assert b["copy"] == {"since": a["copy"]["since"], "new": 0, "chat_text": None}
 
 
@@ -55,7 +55,7 @@ def test_after_copy_only_new_things(hub, clock):
     clock[0] += timedelta(minutes=5)
     a = proj(hub)
     assert a["copied_at"] == until and a["copy"] == {"since": until, "new": 0, "chat_text": None}
-    assert a["chat_text"].count("informe") == 1  # the summary period keeps its old text
+    assert a["chat_text"].count("Reports nuevos") == 1  # the summary period keeps its old text
 
     hub.post_message("alpha", "report", "Fresh report", "b", from_project="alpha")
     clock[0] += timedelta(minutes=5)
@@ -76,7 +76,7 @@ def test_after_copy_only_new_things(hub, clock):
     clock[0] += timedelta(minutes=5)
     hub.set_gate("alpha", hub.get_project("alpha")["phases"][2]["id"], "review", "r")
     c = proj(hub)["copy"]
-    assert c["new"] == 1 and "1 gate esperando a Danny" in c["chat_text"]
+    assert c["new"] == 1 and "Gate esperando a Danny: Three (review)" in c["chat_text"]
 
 
 def test_hours_and_since_do_not_touch_markers(hub, clock):

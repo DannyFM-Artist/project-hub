@@ -32,7 +32,7 @@ def test_summaries(env):
 def test_overview_order_and_phase_position(env, monkeypatch):
     h, c = env
     ticks = iter(range(1000))  # updated_at has 1 s resolution; a fake clock makes the order deterministic
-    monkeypatch.setattr(hub_module, "_now", lambda: f"2030-01-01T00:{next(ticks):04d}+00:00")
+    monkeypatch.setattr(hub_module, "_now", lambda: "2030-01-01T00:{:02d}:{:02d}+00:00".format(*divmod(next(ticks), 60)))
     h.create_project("gamma", "Gamma", "", phases=["a", "b", "c", "d", "e", "f"])
     gamma = h.get_project("gamma")["phases"]
     for ph in gamma[:2]:

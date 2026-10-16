@@ -67,6 +67,7 @@ class MessagePatch(BaseModel):
 def list_projects():
     h = hub()
     out = []
+    states = {s["id"]: s["state"] for s in h.summary()["projects"]}
     for p in h.list_projects():
         cur = current_phase(p)
         out.append({
@@ -77,6 +78,7 @@ def list_projects():
             "phases_done": sum(ph["status"] == "done" for ph in p["phases"]),
             "phases_total": len(p["phases"]),
             "unread_count": len(h.read_inbox(p["id"])),
+            "state": states[p["id"]],
         })
     return overview_order(out)
 
