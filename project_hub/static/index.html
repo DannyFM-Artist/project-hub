@@ -34,7 +34,7 @@ button:disabled{opacity:.5;cursor:default}
 
 main{flex:1;padding:22px 24px 30px;min-width:0}
 .view{display:none}
-body[data-view=overview] #overview, body[data-view=project] #project{display:block}
+body[data-view=overview] #overview, body[data-view=project] #project, body[data-view=summary] #summary{display:block}
 
 .pane{border:1px solid var(--line);position:relative;padding:18px 16px 14px;margin-bottom:22px;background:var(--bg);min-width:0}
 .pane>.lbl{font:inherit;position:absolute;top:-10px;left:12px;background:var(--bg);padding:0 8px;color:var(--amber);display:flex;gap:10px;max-width:calc(100% - 24px)}
@@ -208,6 +208,14 @@ td.rl button:hover{color:var(--amber);border-color:var(--amber)}
 .keys button:hover{color:var(--text)}
 .keys kbd{font:inherit;color:var(--bg);background:var(--dim);padding:0 5px;margin-right:6px}
 
+.su-h{font-size:.83em;color:var(--dim);border-bottom:1px dashed var(--line);padding-bottom:4px;margin:12px 0 6px}
+.su-l{overflow-wrap:anywhere;padding:2px 0}
+.su-l small{color:var(--faint);font-size:11.5px;margin-left:6px}
+.su-l pre{font:inherit;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0 8px 14px}
+.su-l summary{cursor:pointer}
+.su-k{color:var(--amber);font-weight:700}
+.su-n{color:var(--dim);overflow-wrap:anywhere;margin-bottom:6px}
+.su-idle{color:var(--faint);padding:2px 0}
 @media (max-width:900px){.cols{grid-template-columns:minmax(0,1fr)} main{padding:22px 14px 30px} .keys{padding:7px 14px}}
 </style>
 </head>
@@ -216,6 +224,7 @@ td.rl button:hover{color:var(--amber);border-color:var(--amber)}
   <h1 class="logo">project-hub</h1>
   <a class="tab" id="tab-ov" href="#overview"><kbd>1</kbd>overview</a>
   <a class="tab" id="tab-pr" href="#overview" hidden><kbd>2</kbd><span></span></a>
+  <a class="tab" id="tab-su" href="#resumen"><kbd>3</kbd>resumen</a>
   <span class="sp"></span>
   <span class="st"><span class="u" id="unread">0 unread</span></span>
   <span class="st" id="sync"><b>●</b> <span>poll 5s · --:--:--</span></span>
@@ -249,6 +258,19 @@ td.rl button:hover{color:var(--amber);border-color:var(--amber)}
     </table></div>
     <div class="empty" id="rs-empty" hidden>No active resources.</div>
   </section>
+</div>
+
+<div class="view" id="summary">
+  <section class="pane">
+    <h2 class="lbl">resumen <span id="su-since"></span></h2>
+    <span class="rt" id="su-period"></span>
+    <div class="su-n" id="su-note"></div>
+    <div class="btns" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+      <button type="button" id="su-seen" style="color:var(--amber);border:1px solid var(--amber);padding:2px 10px">Marcar como visto</button>
+      <span class="dim" id="su-last" style="color:var(--dim)"></span>
+    </div>
+  </section>
+  <div id="su-body"></div>
 </div>
 
 <div class="view" id="project">
@@ -306,6 +328,7 @@ td.rl button:hover{color:var(--amber);border-color:var(--amber)}
 <nav class="keys" aria-label="shortcuts">
   <button data-k="1" aria-label="overview"><kbd>1</kbd>overview</button>
   <button data-k="2" aria-label="project"><kbd>2</kbd>project</button>
+  <button data-k="3" aria-label="resumen"><kbd>3</kbd>resumen</button>
   <button data-k="a" aria-label="add item"><kbd>a</kbd>add item</button>
   <button data-k="ArrowLeft" aria-label="move selected item left"><kbd>←</kbd>move left</button>
   <button data-k="ArrowRight" aria-label="move selected item right"><kbd>→</kbd>move right</button>
@@ -335,7 +358,7 @@ const COLS = ["open", "planned", "done"];
 const TYPE = { bug: ["B", "bug"], idea: ["I", "idea"], future_request: ["F", "future"] };
 const PHASE_ST = ["todo", "in_progress", "done"];
 const PH_SYM = { todo: "○", in_progress: "▶", done: "✓" };
-const S = { focusNext: false, projects: [], d: null, pid: null, last: null, res: [], wait: [], gd: {}, filter: "all", ovSel: 0, sel: null, tf: "all", disc: false, offline: false, key: "", exp: new Set() };
+const S = { focusNext: false, projects: [], d: null, pid: null, last: null, res: [], wait: [], gd: {}, filter: "all", ovSel: 0, sel: null, tf: "all", disc: false, offline: false, sum: false, key: "", exp: new Set() };
 
 function ago(iso) {
   const m = (Date.now() - new Date(iso).getTime()) / 60000;
@@ -393,6 +416,7 @@ async function refresh(force) {
     S.projects = list; S.d = d; S.res = res; S.wait = wait;
     if (S.pid && !d) return;
     syncBar();
+    if (S.sum) return; // the summary view is never re-rendered by polling
     if (force || key !== S.key) { S.key = key; render(); }
   } catch (e) {
     if (S.pid && /^unknown /.test(e.message)) { toast(e.message, "err"); S.pid = null; S.last = null; location.hash = "#overview"; return; }
@@ -411,6 +435,7 @@ function render() {
   const a = document.activeElement, fk = a && a.dataset && a.dataset.fk;
   S.caret = a && a.tagName === "INPUT" ? a.selectionStart : null;
   document.body.dataset.view = S.pid ? "project" : "overview";
+  $("#tab-su").classList.remove("on");
   $("#tab-ov").classList.toggle("on", !S.pid);
   $("#tab-pr").classList.toggle("on", !!S.pid);
   const pid = S.pid || S.last;
@@ -571,6 +596,69 @@ function colItems(c) {
   return S.d.items.filter((i) => i.status === c && (S.tf === "all" || i.type === S.tf)).sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
+/* ---------- summary (Resumen) ---------- */
+const fdt = (iso) => new Date(iso).toLocaleString();
+let sumTok = 0;
+async function loadSummary() {
+  const tok = ++sumTok, q = S.sumHours ? "?hours=" + S.sumHours : "";
+  try {
+    const d = await api("GET", "/api/summary" + q);
+    if (tok !== sumTok || !S.sum) return;
+    S.sumD = d; renderSummary();
+  } catch (e) { toast(e.message, "err"); }
+}
+function showSummary() {
+  document.body.dataset.view = "summary";
+  $("#tab-su").classList.add("on"); $("#tab-ov").classList.remove("on"); $("#tab-pr").classList.remove("on");
+  renderSummaryHead();
+  refresh(false); // fills S.projects/unread only
+  loadSummary();
+}
+function renderSummaryHead() {
+  const d = S.sumD;
+  fill($("#su-period"), [[0, "desde el último resumen"], [24, "últimas 24 h"]].map(([hrs, l]) =>
+    h("button", { type: "button", class: S.sumHours === hrs ? "on" : "", "aria-pressed": S.sumHours === hrs, "data-p": hrs, onclick: () => { if (S.sumHours !== hrs) { S.sumHours = hrs; renderSummaryHead(); loadSummary(); } } }, l)));
+  $("#su-since").textContent = d ? "desde " + fdt(d.since) : "";
+  $("#su-note").textContent = d && d.note ? d.note : "";
+  $("#su-last").textContent = d ? "último visto: " + (d.last_seen ? fdt(d.last_seen) : "nunca") : "";
+  $("#su-seen").disabled = !d;
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; } catch (e) { /* fall back */ }
+  const ta = h("textarea", { style: "position:fixed;opacity:0" }); ta.value = t;
+  document.body.append(ta); ta.select();
+  let ok = false; try { ok = document.execCommand("copy"); } catch (e) { /* ignore */ }
+  ta.remove(); return ok;
+}
+function sumProject(p) {
+  const c = p.current || {}, a = p.action || { gates: [], user_messages: [] };
+  const sec = (title, rows) => rows.length ? [h("h3", { class: "su-h" }, title), rows] : null;
+  const L = (...k) => h("div", { class: "su-l" }, ...k);
+  return h("section", { class: "pane su-proj", "data-id": p.id },
+    h("h2", { class: "lbl" }, p.name, h("span", {}, c.phase ? `${c.n}/${c.total}` : "")),
+    h("span", { class: "rt" }, h("button", { type: "button", "data-copy": p.id, onclick: async () => toast(await copyText(p.chat_text) ? `Copiado para el chat: ${p.name}` : "No se pudo copiar", "ok") }, "Copiar para el chat")),
+    h("div", { class: "su-n" }, c.phase ? `${c.phase} · ` : "", "next → ", c.next_step || "-"),
+    sec("esperan a Danny", [...a.gates.map((g) => L(h("span", { class: "su-k" }, GATE[g.gate] || g.gate), ` ${g.phase} `, h("small", {}, g.reason || ""))),
+      ...a.user_messages.map((m) => L(h("span", { class: "su-k" }, "MSG"), ` ${m.title} `, h("small", {}, `${m.from_project} · ${fdt(m.created_at)}`)))]),
+    sec("reports", p.reports.map((r) => h("details", { class: "su-l" }, h("summary", {}, r.title, h("small", {}, `${r.from_project} · ${fdt(r.created_at)}`)), h("pre", {}, r.body)))),
+    sec("fases", p.phase_changes.map((x) => L(`${x.phase}: ${x.text}`, h("small", {}, `${x.by || ""} · ${fdt(x.at)}`)))),
+    sec("decisiones", p.decisions.map((x) => L(x.decision, x.reason ? h("small", {}, `porque ${x.reason}`) : null))),
+    sec("items", [...p.items_opened.map((x) => L(`+ ${x.title}`, h("small", {}, x.type))), ...p.items_closed.map((x) => L(`✓ ${x.title}`, x.text ? h("small", {}, x.text) : null))]),
+    sec("bloqueado", p.blocked.map((b) => L(b))));
+}
+function renderSummary() {
+  renderSummaryHead();
+  const d = S.sumD, act = d.projects.filter((p) => p.has_activity), idle = d.projects.filter((p) => !p.has_activity);
+  fill($("#su-body"), act.map(sumProject), idle.length ? h("section", { class: "pane" }, h("h2", { class: "lbl" }, "sin actividad ", h("span", {}, idle.length)), idle.map((p) => h("div", { class: "su-idle" }, `${p.name}: sin actividad`))) : null);
+}
+$("#su-seen").addEventListener("click", async () => {
+  const d = S.sumD; if (!d) return;
+  try {
+    const r = await api("POST", "/api/summary/seen", { at: d.until });
+    d.last_seen = r.last_seen; renderSummaryHead(); toast("Marcado como visto: " + fdt(r.last_seen), "ok");
+  } catch (e) { toast(e.message, "err"); }
+});
+
 /* ---------- actions ---------- */
 const open = (id) => { location.hash = "#p/" + encodeURIComponent(id); };
 const setPhase = (id, status) => act(() => api("POST", `/api/projects/${S.pid}/phases/${id}`, { status }), "Phase set to " + status);
@@ -622,6 +710,7 @@ function step(dir) {
 function key(k, target) {
   const inBtn = target && target.closest && target.closest("button,a");
   if (k === "1") { location.hash = "#overview"; return; }
+  if (k === "3") { location.hash = "#resumen"; return; }
   if (k === "2") { const p = S.pid || S.last || (visibleProjects()[S.ovSel] || {}).id; if (p) open(p); return; }
   if (k === "ArrowUp") return step(-1);
   if (k === "ArrowDown") return step(1);
@@ -649,7 +738,7 @@ function key(k, target) {
 addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-  if (!["1", "2", "a", "m", "r", "d", "x", " ", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
+  if (!["1", "2", "3", "a", "m", "r", "d", "x", " ", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
   if (e.key === "a" || e.key === "m" || e.key.startsWith("Arrow") || (e.key === " " && !e.target.closest("button,a"))) e.preventDefault();
   key(e.key, e.target);
 });
@@ -658,8 +747,11 @@ document.querySelectorAll(".keys [data-k]").forEach((b) => b.addEventListener("c
 /* ---------- routing ---------- */
 function route() {
   const m = location.hash.match(/^#p\/(.+)$/);
+  const wasSum = S.sum;
+  S.sum = location.hash === "#resumen";
+  if (S.sum) { if (!wasSum) { S.sumD = null; S.sumHours = 0; S.pid = null; } showSummary(); return; }
   const pid = m ? decodeURIComponent(m[1]) : null;
-  if (pid !== S.pid) {
+  if (pid !== S.pid || wasSum) {
     S.pid = pid; S.sel = null; S.gd = {}; S.exp.clear(); S.d = null; S.key = "";
     if (pid) S.last = pid;
     else { const i = visibleProjects().findIndex((x) => x.id === S.last); if (i >= 0) S.ovSel = i; }
