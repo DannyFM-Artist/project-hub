@@ -41,8 +41,8 @@ Hub-only tokens live in the app (dannyfm-ui rule R3).
 - `--scale: 1.1667` (dannyfm-ui's opt-in 7/6 interface scale: 12 px body becomes 14 px in a browser). Every size and space is `calc(n px * var(--scale))`.
 - One sans font for content: `"Segoe UI", Inter, system-ui, sans-serif`, state words included. Mono (`"Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace`) only for numbers, ids, timestamps and paths. The bell panel and Resumen keep their mono state words.
 - Sizes: H1 19 (project name), H2 15 (card project name), H3 12, BODY 12, SMALL 11, CAPTION 10 (all × scale). Weights 400 and 600 only.
-- Panel titles and column headers: uppercase, letter-spaced; panel titles H3 600 `--TEXT` (one step above the old SMALL), column headers CAPTION `--TEXT_MUTED`.
-- Space steps XXS 2, XS 4, SM 8, MD 12, LG 16, XL 24, XXL 32 (× scale). Page padding LG / XL; blocks XL apart (grid columns too), cards LG apart; max width 1680.
+- Panel titles and column headers: uppercase, letter-spaced; panel titles H3 600 `--TEXT` in the overview and project views (one step above the old SMALL; Resumen keeps SMALL), column headers CAPTION `--TEXT_MUTED`.
+- Space steps XXS 2, XS 4, SM 8, MD 12, LG 16, XL 24, XXL 32 (× scale). Page padding LG / XL; in the overview and project views blocks are XL apart (grid columns too), cards LG apart; Resumen keeps its boxes MD apart and SMALL panel titles; max width 1680.
 - Text contrast 4.5:1 or better on SURFACE, RAISED and SELECTED (muted text turns TEXT_DIM on a selected row or card).
 
 ## Layout

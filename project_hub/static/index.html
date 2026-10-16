@@ -110,6 +110,8 @@ h1.lead:focus { outline: none; }
 .ph { display: flex; align-items: center; gap: var(--Space-SM); padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--BORDER); min-height: calc(32px * var(--scale)); flex-wrap: wrap; }
 .ph h2 { white-space: nowrap; flex-shrink: 0; margin: 0; font-size: var(--Type-H3); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--TEXT); }
 .panel.folded .ph { border-bottom: 0; }
+#summary .panel { margin-top: var(--Space-MD); } /* Resumen keeps its D spacing and title size */
+#summary .ph { min-height: calc(28px * var(--scale)); } #summary .ph h2 { font-size: var(--Type-SMALL); }
 /* a folded block: its title is the toggle, with the count */
 .fold { display: inline-flex; align-items: center; min-height: 24px; background: none; border: 0; padding: 0; cursor: pointer;
   color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; }
