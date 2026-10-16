@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 sys.stdout.reconfigure(encoding="utf-8"); sys.stderr.reconfigure(encoding="utf-8")  # Windows consoles default to cp1252
-from hubserver import BASE, PORT, SERVE, real_error, until
+from hubserver import BASE, PORT, SERVE, until
 
 S = Path(__file__).resolve().parent
 D = Path(tempfile.mkdtemp(prefix="hub-browser-"))  # never the real data folder
@@ -42,7 +42,7 @@ errors = []
 with sync_playwright() as p:
     b = p.chromium.launch(channel="chrome")
     pg = b.new_page(viewport={"width": 1440, "height": 1000})
-    pg.on("console", lambda m: errors.append(m.text) if real_error(m) else None)
+    pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.goto(BASE + "/"); pg.wait_for_selector("#ov-body .row")
     # 1

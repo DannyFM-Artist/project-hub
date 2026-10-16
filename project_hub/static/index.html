@@ -4,8 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>project-hub</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/icons/icon-16.png" sizes="16x16" type="image/png">
 <link rel="icon" href="/icons/icon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="/icons/icon-48.png" sizes="48x48" type="image/png">
+<link rel="icon" href="/favicon.svg" sizes="any" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#131313">
@@ -176,10 +178,10 @@ h1.lead:focus { outline: none; }
 .replines .rl { border-bottom: 1px solid var(--DIVIDER); }
 .replines .rl:last-child { border-bottom: none; }
 .rlh { display: flex; align-items: center; gap: var(--Space-MD); padding: var(--Space-XS) var(--Space-MD); }
-.rlh .tog { background: none; border: none; padding: var(--Space-XS) 0; cursor: pointer; color: var(--TEXT_DIM); text-align: left; flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.rlh .tog:hover { color: var(--TEXT); }
-.rlh .tog b { color: var(--TEXT); font-weight: 600; }
-.rlh .tog .v { text-decoration: underline; }
+.tog { background: none; border: none; padding: var(--Space-XS) 0; cursor: pointer; color: var(--TEXT_DIM); text-align: left; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tog:hover { color: var(--TEXT); }
+.tog b { color: var(--TEXT); font-weight: 600; }
+.tog .v { text-decoration: underline; }
 .reps { padding: 0 var(--Space-MD) var(--Space-SM) calc(var(--Space-MD) + 14px); }
 .rep { padding: var(--Space-SM) 0; border-top: 1px solid var(--DIVIDER); }
 .rep .h { display: flex; gap: var(--Space-SM); align-items: baseline; flex-wrap: wrap; }
@@ -290,17 +292,19 @@ input:focus-visible, textarea:focus-visible { outline: none; border-color: var(-
 .sutools .ph .tabs { margin-left: 0; }
 .su-n { margin: 0; padding: var(--Space-SM) var(--Space-MD); color: var(--TEXT_DIM); overflow-wrap: anywhere; }
 .su-n:empty { display: none; }
-.su-sec { padding: 0 var(--Space-MD) var(--Space-SM); }
-.su-h { margin: var(--Space-XS) 0 var(--Space-XXS); padding-bottom: var(--Space-XXS); border-bottom: 1px solid var(--DIVIDER); color: var(--TEXT_MUTED);
-  font-size: var(--Type-CAPTION); font-weight: 400; letter-spacing: .5px; text-transform: uppercase; }
+.su-head { flex-wrap: wrap; }
+.su-c.hot { color: var(--WARN); font-weight: 600; }
+.su-cs { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); white-space: nowrap; }
+.su-cs.new { color: var(--TEXT); }
+.su-in { border-top: 1px solid var(--BORDER); padding-bottom: var(--Space-SM); }
+.su-sec { padding: 0 var(--Space-MD); }
+.su-rows { padding: 0 0 var(--Space-SM) calc(14px + var(--Space-XS)); }
 .su-l { overflow-wrap: anywhere; padding: var(--Space-XXS) 0; }
 .su-l small { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); margin-left: var(--Space-SM); }
 .su-l pre { font: var(--Type-SMALL)/1.45 var(--Type-UI); color: var(--TEXT_DIM); white-space: pre-wrap; overflow-wrap: anywhere; margin: var(--Space-XS) 0 var(--Space-SM) var(--Space-LG);
   padding: var(--Space-XS) var(--Space-SM); background: var(--INPUT); border: 1px solid var(--BORDER); border-radius: var(--Radius-SM); }
 .su-l summary { cursor: pointer; }
 .su-k { color: var(--WARN); font: 600 var(--Type-SMALL) var(--Type-MONO); letter-spacing: .6px; text-transform: uppercase; }
-.su-idle { color: var(--TEXT_DIM); padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--DIVIDER); }
-.su-idle:last-child { border-bottom: none; }
 
 /* toasts: the aria-live line */
 #toasts { position: fixed; right: var(--Space-LG); bottom: var(--Space-LG); display: grid; gap: var(--Space-SM); z-index: 40; max-width: min(460px, calc(100vw - 32px)); }
@@ -362,7 +366,7 @@ input:focus-visible, textarea:focus-visible { outline: none; border-color: var(-
   <section class="panel sutools" aria-label="Periodo">
     <div class="ph"><h2>Periodo</h2><div class="tabs" id="su-period"></div><span class="sp"></span>
       <span class="meta" id="su-last"></span>
-      <button class="btn primary small" type="button" id="su-seen" data-fk="su-seen">Marcar como visto</button></div>
+      <button class="btn ghost small" type="button" id="su-seen" data-fk="su-seen" title="Mueve el inicio de «desde el último resumen» a ahora">Marcar como visto</button></div>
     <p class="su-n" id="su-note"></p>
   </section>
   <div id="su-body"></div>
@@ -454,7 +458,7 @@ const KIND = { task: "tarea", message: "mensaje", report: "report" };
 const MSG_ST = { unread: "sin leer", read: "leído", done: "hecho" };
 const GATE = { review: "review", manual_test: "test manual" };
 const S = { projects: [], d: null, pid: null, last: null, res: [], filter: "all", ovSel: 0, sel: null, phSel: {}, tf: "all", closed: false,
-  ovMark: false, offline: false, sum: false, key: "", gd: {}, confirm: new Set(), pend: {}, repOpen: new Set(), msgOpen: new Set(), doneOpen: {}, bell: false, focusNext: false };
+  ovMark: false, offline: false, sum: false, suOpen: new Set(), copiedNow: new Set(), key: "", gd: {}, confirm: new Set(), pend: {}, repOpen: new Set(), msgOpen: new Set(), doneOpen: {}, bell: false, focusNext: false };
 
 const pl = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
 const nn = (i) => String(i + 1).padStart(2, "0");
@@ -904,7 +908,7 @@ async function loadSummary() {
   try {
     const d = await api("GET", "/api/summary" + q);
     if (tok !== sumTok || !S.sum) return;
-    S.sumD = d; renderSummary();
+    S.sumD = d; paint(renderSummary);
   } catch (e) { toast(e.message, "err"); }
 }
 function showSummary() {
@@ -930,27 +934,53 @@ async function copyText(t) {
   let ok = false; try { ok = document.execCommand("copy"); } catch (e) { /* ignore */ }
   ta.remove(); return ok;
 }
+function copyState(p) {
+  const cp = p.copy || { new: 0 };
+  if (cp.new) return p.copied_at ? pl(cp.new, "novedad", "novedades") + " desde la última copia" : pl(cp.new, "novedad", "novedades");
+  if (!p.copied_at) return "";
+  return (Date.now() - new Date(p.copied_at).getTime()) < 90000 ? "copiado ahora" : "copiado hace " + ago(p.copied_at);
+}
+// copies only what is new since this project's last copy, then stores the copy marker at the until of the summary on screen
+async function copyProject(p) {
+  if (!await copyText(p.copy.chat_text)) { toast("No se pudo copiar", "err"); return; }
+  try {
+    await api("POST", "/api/summary/copied", { project_id: p.id, at: S.sumD.until });
+    S.copiedNow.add(p.id); toast(`Copiado para el chat: ${p.name}`, "ok"); loadSummary();
+  } catch (e) { toast(e.message, "err"); }
+}
 function sumProject(p) {
-  const c = p.current || {}, a = p.action || { gates: [], user_messages: [] };
-  const sec = (title, rows) => rows.length ? h("div", { class: "su-sec" }, h("h3", { class: "su-h" }, title), rows) : null;
+  const c = p.current || {}, a = p.action || { gates: [], user_messages: [] }, n = p.counts || {}, cp = p.copy || { new: 0 };
   const L = (...k) => h("div", { class: "su-l" }, ...k);
+  const tog = (k, kids) => h("button", { class: "tog", type: "button", "aria-expanded": String(S.suOpen.has(k)), "data-fk": "su|" + k,
+    onclick: () => { S.suOpen.has(k) ? S.suOpen.delete(k) : S.suOpen.add(k); paint(renderSummary, "su|" + k); } }, chev(), kids);
+  const sec = (k, title, rows) => rows.length ? h("div", { class: "su-sec", "data-sec": k }, tog(p.id + "|" + k, [title, " · ", h("span", { class: "mono" }, rows.length)]),
+    S.suOpen.has(p.id + "|" + k) ? h("div", { class: "su-rows" }, rows) : null) : null;
+  const counts = [[n.gates, "gate esperando", "gates esperando", true], [n.reports, "report", "reports"], [n.decisions, "decisión", "decisiones"],
+    [n.items_opened, "ítem abierto", "ítems abiertos"], [n.items_closed, "ítem cerrado", "ítems cerrados"], [n.phase_changes, "cambio de fase", "cambios de fase"]]
+    .filter((x) => x[0]).map(([k, one, many, hot]) => h("span", { class: "su-c" + (hot ? " hot" : "") }, pl(k, one, many)));
   return h("section", { class: "panel su-proj", "data-id": p.id },
-    h("div", { class: "ph" }, h("h2", {}, p.name), h("span", { class: "meta mono" }, c.phase ? `${c.n}/${c.total}` : ""), h("span", { class: "sp" }),
-      h("button", { class: "btn small", type: "button", "data-copy": p.id, "data-fk": "cp" + p.id, onclick: async () => toast(await copyText(p.chat_text) ? `Copiado para el chat: ${p.name}` : "No se pudo copiar", "ok") }, "Copiar para el chat")),
-    h("p", { class: "su-n" }, c.phase ? `${c.phase} · ` : "", "siguiente paso: ", c.next_step || "—"),
-    sec("esperan a Danny", [...a.gates.map((g) => L(h("span", { class: "su-k" }, GATE[g.gate] || g.gate), ` ${g.phase} `, h("small", {}, g.reason || ""))),
-      ...a.user_messages.map((m) => L(h("span", { class: "su-k" }, "mensaje"), ` ${m.title} `, h("small", {}, `${m.from_project} · ${fdt(m.created_at)}`)))]),
-    sec("reports", p.reports.map((r) => h("details", { class: "su-l" }, h("summary", {}, r.title, h("small", {}, `${r.from_project} · ${fdt(r.created_at)}`)), h("pre", {}, r.body)))),
-    sec("fases", p.phase_changes.map((x) => L(`${x.phase}: ${x.text}`, h("small", {}, `${x.by || ""} · ${fdt(x.at)}`)))),
-    sec("decisiones", p.decisions.map((x) => L(x.decision, x.reason ? h("small", {}, `porque ${x.reason}`) : null))),
-    sec("ítems", [...p.items_opened.map((x) => L(`+ ${x.title}`, h("small", {}, TYPE[x.type] || x.type))), ...p.items_closed.map((x) => L(`✓ ${x.title}`, x.text ? h("small", {}, x.text) : null))]),
-    sec("bloqueado", p.blocked.map((b) => L(b))));
+    h("div", { class: "rlh su-head" },
+      tog(p.id, [h("b", {}, p.name), c.phase ? ` · ${c.n}/${c.total} ${c.phase}` : null, counts.flatMap((x) => [" · ", x])]),
+      h("span", { class: "su-cs" + (cp.new && p.copied_at ? " new" : "") }, copyState(p)),
+      cp.new ? h("button", { class: "btn small", type: "button", "data-copy": p.id, "data-fk": "cp" + p.id, onclick: () => copyProject(p) }, "Copiar para el chat")
+        : h("button", { class: "btn small", type: "button", "data-copy": p.id, disabled: true }, p.copied_at ? "Nada nuevo desde la última copia" : "Nada nuevo que copiar")),
+    S.suOpen.has(p.id) ? h("div", { class: "su-in" },
+      h("p", { class: "su-n" }, c.phase ? `${c.phase} · ` : "", "siguiente paso: ", c.next_step || "—"),
+      sec("wait", "Esperan a Danny", [...a.gates.map((g) => L(h("span", { class: "su-k" }, GATE[g.gate] || g.gate), ` ${g.phase} `, h("small", {}, g.reason || ""))),
+        ...a.user_messages.map((m) => L(h("span", { class: "su-k" }, "mensaje"), ` ${m.title} `, h("small", {}, `${m.from_project} · ${fdt(m.created_at)}`)))]),
+      sec("reports", "Reports", p.reports.map((r) => h("details", { class: "su-l" }, h("summary", {}, r.title, h("small", {}, `${r.from_project} · ${fdt(r.created_at)}`)), h("pre", {}, r.body)))),
+      sec("dec", "Decisiones", p.decisions.map((x) => L(x.decision, x.reason ? h("small", {}, `porque ${x.reason}`) : null))),
+      sec("items", "Ítems", [...p.items_opened.map((x) => L(`+ ${x.title}`, h("small", {}, TYPE[x.type] || x.type))), ...p.items_closed.map((x) => L(`✓ ${x.title}`, x.text ? h("small", {}, x.text) : null))]),
+      sec("phases", "Fases", p.phase_changes.map((x) => L(`${x.phase}: ${x.text}`, h("small", {}, `${x.by || ""} · ${fdt(x.at)}`)))),
+      sec("blocked", "Bloqueado", p.blocked.map((b) => L(b)))) : null);
 }
 function renderSummary() {
   renderSummaryHead();
-  const d = S.sumD, busy = d.projects.filter((p) => p.has_activity), idle = d.projects.filter((p) => !p.has_activity);
-  fill($("#su-body"), busy.map(sumProject), idle.length ? h("section", { class: "panel" }, h("div", { class: "ph" }, h("h2", {}, "Sin actividad · " + idle.length)),
-    idle.map((p) => h("div", { class: "su-idle" }, `${p.name}: sin actividad`))) : null);
+  // a box per project with something new since its last copy (or copied in this visit, to show "copiado"); "últimas 24 h" shows every active one
+  const d = S.sumD, boxed = (p) => p.has_activity && (S.sumHours || (p.copy && p.copy.new > 0) || S.copiedNow.has(p.id));
+  const quiet = d.projects.filter((p) => !boxed(p));
+  fill($("#su-body"), d.projects.filter(boxed).map(sumProject),
+    quiet.length ? h("section", { class: "panel su-quiet" }, h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Sin novedades: ", quiet.map((p) => p.name).join(", "))) : null);
 }
 $("#su-seen").addEventListener("click", async () => {
   const d = S.sumD; if (!d) return;
@@ -1064,7 +1094,7 @@ function route() {
   const wasSum = S.sum;
   S.bell = false;
   S.sum = location.hash === "#resumen";
-  if (S.sum) { if (!wasSum) { S.sumD = null; S.sumHours = 0; S.pid = null; S.focusNext = true; } showSummary(); return; }
+  if (S.sum) { if (!wasSum) { S.sumD = null; S.sumHours = 0; S.pid = null; S.focusNext = true; S.suOpen = new Set(); S.copiedNow = new Set(); } showSummary(); return; }
   const pid = m ? decodeURIComponent(m[1]) : null;
   if (pid !== S.pid || wasSum) {
     S.pid = pid; S.sel = null; S.gd = {}; S.d = null; S.key = ""; S.confirm.clear(); S.pend = {};
