@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 sys.stdout.reconfigure(encoding="utf-8"); sys.stderr.reconfigure(encoding="utf-8")
-from hubserver import BASE, SERVE
+from hubserver import BASE, SERVE, serve
 
 S = Path(__file__).resolve().parent
 D = Path(tempfile.mkdtemp(prefix="hub-browser-"))  # never the real data folder
@@ -14,7 +14,7 @@ hub = Hub(D)
 hub.log_decision("cuedeck", "Use OSC over UDP", "Companion speaks it natively")
 hub.post_message("cuedeck", "report", "Report: macros " + "long " * 80, "+ done\n" + "wrapme " * 60, "cuedeck")
 
-# one project per copy state: working (a read task), waiting (working + a message to Danny), ready (only news)
+# one project per state: working (a read task), waiting (a message to Danny), ready (only news)
 for pid in ("st-work", "st-wait", "st-ready"):
     hub.create_project(pid, pid, "state demo", phases=["One"])
     hub.log_decision(pid, "A decision", "so there is something new to copy")
@@ -27,16 +27,11 @@ def api(method, path, body=None):
     return json.load(urllib.request.urlopen(r))
 def proj(pid): return next(p for p in api("GET", "/api/summary")["projects"] if p["id"] == pid)
 
-srv = subprocess.Popen(SERVE, env=dict(os.environ, PROJECT_HUB_DATA=str(D)), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+srv = serve(D)
 fails = []
 def check(name, ok, extra=""):
     print(("PASS " if ok else "FAIL ") + name, extra); ok or fails.append(name)
 try:
-    for _ in range(50):
-        try:
-            urllib.request.urlopen(BASE + "/api/waiting"); break
-        except Exception:
-            time.sleep(.2)
     two_h = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
     api("POST", "/api/summary/seen", {"at": two_h})
     seen0 = api("GET", "/api/summary")["last_seen"]
@@ -61,31 +56,37 @@ try:
         check("boxes start folded, copy button always visible",
               pg.locator(".su-in").count() == 0 and pg.locator(".su-proj [data-copy]:visible").count() == len(want))
         check("folded line shows phase and counts", "decisi" in pg.inner_text(box("cuedeck") + " .su-head") and "/5" in pg.inner_text(box("cuedeck") + " .su-head"), pg.inner_text(box("cuedeck") + " .su-head"))
-        # per-project state next to the copy button, and the same state as a dot in the overview
-        badge = lambda pid: pg.locator(box(pid) + " .su-st")
+        # one state per project: Resumen box, overview row, project header
+        badge = lambda pid: pg.locator(box(pid) + " .pstate")
         sts = {pid: (badge(pid).get_attribute("data-kind"), badge(pid).inner_text(), pg.inner_text(box(pid) + " [data-copy]")) for pid in ("st-work", "st-wait", "st-ready")}
-        check("state 'working': amber Trabajando + detail, button says Copiar igualmente",
+        check("state 'waiting': red Te espera + the reason", sts["st-wait"][0] == "waiting" and "Te espera" in sts["st-wait"][1]
+              and "Need your call on the licence" in sts["st-wait"][1] and sts["st-wait"][2] == "Copiar para el chat", sts["st-wait"])
+        check("state 'working': amber Trabajando + task, button says Copiar igualmente",
               sts["st-work"][0] == "working" and "Trabajando en: Build the st-work thing" in sts["st-work"][1] and sts["st-work"][2] == "Copiar igualmente", sts["st-work"])
-        check("state 'waiting': green Listo para copiar + Esperando a Danny", sts["st-wait"][0] == "waiting" and "Listo para copiar" in sts["st-wait"][1]
-              and "Esperando a Danny: Need your call" in sts["st-wait"][1] and sts["st-wait"][2] == "Copiar para el chat", sts["st-wait"])
-        check("state 'ready': green Listo para copiar", sts["st-ready"][0] == "ready" and sts["st-ready"][1].strip() == "Listo para copiar" and sts["st-ready"][2] == "Copiar para el chat", sts["st-ready"])
-        colour = lambda pid: pg.eval_on_selector(box(pid) + " .su-st .dot", "e => getComputedStyle(e).backgroundColor")
-        check("state colours: working amber, waiting/ready green", colour("st-work") == "rgb(234, 127, 42)" and colour("st-wait") == colour("st-ready") == "rgb(63, 199, 139)",
-              (colour("st-work"), colour("st-wait")))
+        check("state 'ready': green Novedades para copiar", sts["st-ready"][0] == "ready" and sts["st-ready"][1].strip() == "Novedades para copiar" and sts["st-ready"][2] == "Copiar para el chat", sts["st-ready"])
+        colour = lambda pid: pg.eval_on_selector(box(pid) + " .pstate .dot", "e => getComputedStyle(e).backgroundColor")
+        check("state colours: waiting red, working amber, ready green", (colour("st-wait"), colour("st-work"), colour("st-ready")) == ("rgb(255, 92, 114)", "rgb(234, 127, 42)", "rgb(63, 199, 139)"),
+              (colour("st-wait"), colour("st-work"), colour("st-ready")))
         # in-place update by polling: expansion and focus survive
         pg.click('[data-fk="su|st-ready"]'); pg.wait_for_selector(box("st-ready") + " .su-in")
         pg.focus('[data-fk="su|st-ready"]')
         hub.mark_message(hub.post_message("st-ready", "task", "Late task", "x")["id"], "read")
-        pg.wait_for_function("document.querySelector('.su-proj[data-id=\"st-ready\"] .su-st').dataset.kind === 'working'", timeout=12000)
+        pg.wait_for_function("document.querySelector('.su-proj[data-id=\"st-ready\"] .pstate').dataset.kind === 'working'", timeout=12000)
         check("polling updates the badge and button in place; box stays open, focus kept",
               pg.inner_text(box("st-ready") + " [data-copy]") == "Copiar igualmente" and pg.locator(box("st-ready") + " .su-in").count() == 1
               and pg.evaluate("document.activeElement.dataset.fk") == "su|st-ready")
         pg.click('[data-fk="su|st-ready"]')
         pg.click("#tab-ov"); pg.wait_for_selector("#ov-body .row")
-        dots = {pid: (pg.get_attribute(f'#ov-body .row[data-pid="{pid}"] .pst', "data-kind"), pg.get_attribute(f'#ov-body .row[data-pid="{pid}"] .pst', "aria-label"))
-                for pid in ("st-work", "st-wait", "led-mapper")}
-        check("overview: state dot next to the name, label as its accessible name", dots == {"st-work": ("working", "Trabajando"), "st-wait": ("waiting", "Listo para copiar"),
-              "led-mapper": ("quiet", "Sin novedades")}, dots)
+        row = lambda pid: f'#ov-body .row[data-pid="{pid}"]'
+        kinds = {pid: pg.get_attribute(row(pid) + " .stc .pstate", "data-kind") for pid in ("st-work", "st-wait", "led-mapper")}
+        check("overview: the state replaces the status column, lifecycle as a small label",
+              kinds == {"st-work": "working", "st-wait": "waiting", "led-mapper": "quiet"} and pg.inner_text(row("led-mapper") + " .stc .life") == "TERMINADO", kinds)
+        check("overview: red and amber show their text in the row", "Need your call on the licence" in pg.inner_text(row("st-wait") + " .why-st")
+              and "Build the st-work thing" in pg.inner_text(row("st-work") + " .why-st") and pg.locator(row("led-mapper") + " .why-st").count() == 0)
+        order = pg.eval_on_selector_all("#ov-body .row", "e => e.map(x => x.querySelector('.stc .pstate').dataset.kind)")
+        check("red rows sort first", order[0] == "waiting" and "waiting" not in order[order.count("waiting"):], order)
+        pg.goto(BASE + "/#p/st-wait"); pg.wait_for_selector("#phead h1")
+        check("project header shows the same state", pg.get_attribute("#phead .pstate", "data-kind") == "waiting" and "Need your call" in pg.inner_text("#phead .pstate"))
         pg.click("#tab-su"); pg.wait_for_selector(".su-proj")
         # fold / expand
         pg.click(f'[data-fk="su|cuedeck"]'); pg.wait_for_selector(box("cuedeck") + " .su-in")
@@ -110,7 +111,8 @@ try:
         check("copy confirmed in aria-live", "Copiado" in pg.inner_text("#toasts"))
         st = pg.inner_text(box("cuedeck") + " .su-cs"); btn = pg.locator(box("cuedeck") + " [data-copy]")
         check("after copying: 'copiado', button says nothing new and is disabled", st.startswith("copiado") and btn.inner_text() == "Nada nuevo desde la última copia" and btn.is_disabled(), (st, btn.inner_text()))
-        check("state 'quiet' after the copy: Sin novedades", badge("cuedeck").get_attribute("data-kind") == "quiet" and "Sin novedades" in badge("cuedeck").inner_text(), badge("cuedeck").inner_text())
+        check("state 'quiet' after the copy: Sin novedades", badge("cuedeck").get_attribute("data-kind") == "quiet" and "Sin novedades" in badge("cuedeck").inner_text()
+              and pg.eval_on_selector(box("cuedeck") + " .pstate .dot", "e => getComputedStyle(e).backgroundColor") == "rgb(108, 113, 115)", badge("cuedeck").inner_text())
         pg.evaluate("navigator.clipboard.writeText('untouched')")
         btn.click(force=True); time.sleep(.3)
         check("nothing new copies nothing", clip() == "untouched" and proj("cuedeck")["copied_at"] == c1["copied_at"])

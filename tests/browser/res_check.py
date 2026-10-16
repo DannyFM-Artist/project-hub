@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 sys.stdout.reconfigure(encoding="utf-8"); sys.stderr.reconfigure(encoding="utf-8")  # Windows consoles default to cp1252
-from hubserver import BASE, SERVE, until
+from hubserver import BASE, SERVE, until, serve
 
 S = Path(__file__).resolve().parent
 D = Path(tempfile.mkdtemp(prefix="hub-browser-"))  # never the real data folder
@@ -16,16 +16,11 @@ assert hub.claim_resource("device:orbbec-femto-mega", "cuedeck", "depth calibrat
 assert hub.claim_resource("repo:dannyfm-ui", "project-hub", "theme tokens", 125)["status"] == "granted"
 assert hub.claim_resource("gpu", "cuedeck", "x")["status"] == "busy"
 
-srv = subprocess.Popen(SERVE, env=dict(os.environ, PROJECT_HUB_DATA=str(D)), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+srv = serve(D)
 fails = []
 def check(name, ok, extra=""):
     print(("PASS " if ok else "FAIL ") + name, extra); ok or fails.append(name)
 try:
-    for _ in range(50):
-        try:
-            urllib.request.urlopen(BASE + "/api/resources"); break
-        except Exception:
-            time.sleep(.2)
     with sync_playwright() as p:
         b = p.chromium.launch(channel="chrome")
         pg = b.new_page(viewport={"width": 1440, "height": 900})

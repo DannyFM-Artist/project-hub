@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 sys.stdout.reconfigure(encoding="utf-8"); sys.stderr.reconfigure(encoding="utf-8")  # Windows consoles default to cp1252
-from hubserver import BASE, PORT, SERVE, until
+from hubserver import BASE, PORT, SERVE, serve, until
 
 S = Path(__file__).resolve().parent
 D = Path(tempfile.mkdtemp(prefix="hub-browser-"))  # never the real data folder
@@ -14,14 +14,7 @@ env = dict(os.environ, PROJECT_HUB_DATA=str(D))
 
 
 def start():
-    p = subprocess.Popen(SERVE, env=env,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    for _ in range(50):
-        try:
-            urllib.request.urlopen(BASE + "/api/projects"); return p
-        except Exception:
-            time.sleep(.2)
-    raise SystemExit("server did not start")
+    return serve(D)
 
 
 srv = start()

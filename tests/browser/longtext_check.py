@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 sys.stdout.reconfigure(encoding="utf-8"); sys.stderr.reconfigure(encoding="utf-8")  # Windows consoles default to cp1252
-from hubserver import BASE, SERVE
+from hubserver import BASE, SERVE, serve
 
 S = Path(__file__).resolve().parent
 D = Path(tempfile.mkdtemp(prefix="hub-browser-"))  # never the real data folder
@@ -43,15 +43,12 @@ ls = json.loads(lf.read_text(encoding="utf-8"))
 ls[0]["resource"] = "res-" + HASH; ls[0]["purpose"] = "purpose " + PATH + URL
 lf.write_text(json.dumps(ls), encoding="utf-8")
 
-srv = subprocess.Popen(SERVE, env=dict(os.environ, PROJECT_HUB_DATA=str(D)), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+srv = serve(D)
 fails = []
 def check(name, cond):
     print(("ok   " if cond else "FAIL ") + name)
     if not cond: fails.append(name)
 try:
-    for _ in range(50):
-        try: urllib.request.urlopen(BASE + "/api/projects"); break
-        except Exception: time.sleep(.2)
     with sync_playwright() as pw:
         b = pw.chromium.launch(channel="chrome")
         pg = b.new_page(viewport={"width": 1440, "height": 900})
