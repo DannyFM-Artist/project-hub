@@ -84,6 +84,11 @@ def test_restart_and_quit(status):
     assert s.calls[-1] == "stop" and i.stopped and not i.visible and status["state"] == "stopping"
 
 
+def test_tests_never_reach_the_real_dialog(status):
+    with pytest.raises(AssertionError, match="real tray quit dialog"):
+        tray.quit_app(FakeServer(), FakeIcon())
+
+
 def test_quit_cancelled_keeps_everything(status):
     s, i = FakeServer(), FakeIcon()
     tray.quit_app(s, i, confirm=lambda: False)

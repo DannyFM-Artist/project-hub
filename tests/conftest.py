@@ -26,3 +26,13 @@ def isolated_data_folder(tmp_path, monkeypatch):
     monkeypatch.setenv("PROJECT_HUB_DATA", str(tmp_path / "hub-data"))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
+
+
+@pytest.fixture(autouse=True)
+def no_real_quit_dialog(monkeypatch):
+    """The real Salir dialog would pop up on Danny's desktop: a test must pass its own confirm."""
+    from project_hub import tray
+
+    def refuse():
+        raise AssertionError("a test reached the real tray quit dialog; pass confirm= to quit_app")
+    monkeypatch.setattr(tray, "confirm_quit", refuse)

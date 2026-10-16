@@ -131,8 +131,8 @@ def restart_server(server):
     server.start()
 
 
-def quit_app(server, icon, confirm=confirm_quit):
-    if not confirm():
+def quit_app(server, icon, confirm=None):
+    if not (confirm or confirm_quit)():  # looked up at call time so tests can guard it
         return
     icon.visible = False  # immediate feedback while open pages get their last poll
     announce("stopping")
