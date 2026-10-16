@@ -5,9 +5,9 @@ import pytest
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from project_hub.hub import Hub, HubError
+from project_hub.hub import Hub
 
-CHAT = {"approve_gate", "complete_manual_phase"}
+GONE = {"approve_gate", "complete_manual_phase"}
 
 
 def tools_and_calls(tmp_path, role, calls=()):
@@ -26,87 +26,65 @@ def tools_and_calls(tmp_path, role, calls=()):
 @pytest.fixture
 def hub(tmp_path):
     h = Hub(tmp_path)
-    h.create_project("demo", "Demo", "", phases=["Rev", "Man"])
-    rev, man = [p["id"] for p in h.get_project("demo")["phases"]]
-    h.set_gate("demo", rev, "review", "check")
-    h.set_gate("demo", man, "manual_test", "try it")
-    h.ids = rev, man
+    h.create_project("demo", "Demo", "", phases=["One", "Two"])
+    h.ids = [p["id"] for p in h.get_project("demo")["phases"]]
+    h.set_gate("demo", h.ids[0], "check")
     return h
 
 
-def test_tools_absent_without_flag(tmp_path):
-    assert not CHAT & set(tools_and_calls(tmp_path, None)[0])
-    assert not CHAT & set(tools_and_calls(tmp_path, "agent")[0])
+def test_resolve_gate_absent_without_role(tmp_path):
+    for role in (None, "agent"):
+        names = set(tools_and_calls(tmp_path, role)[0])
+        assert "resolve_gate" not in names and not GONE & names and "set_gate" in names
 
 
-def test_tools_present_with_flag_and_docs(tmp_path):
+def test_resolve_gate_present_with_role_and_docs(tmp_path):
     tools = tools_and_calls(tmp_path, "chat")[0]
-    assert CHAT <= set(tools)
-    for n in CHAT:
-        d = tools[n].description
-        assert "explicitly told you" in d and "own initiative" in d and "hub" in d and "exactly" in d
+    assert "resolve_gate" in tools and not GONE & set(tools)
+    d = tools["resolve_gate"].description
+    assert "explicitly said it in this conversation" in d and "own initiative" in d and "report" in d and "hub" in d
+    assert "exactly" in d and all(a in d for a in ('"sigue"', '"hecho"', '"vuelve a cerrar"'))
+    schema = tools["set_gate"].input_schema["properties"]
+    assert set(schema) == {"project_id", "phase_id", "reason"}
 
 
-@pytest.mark.parametrize("words", ["", "   ", None])
-def test_empty_words_refused(hub, words):
-    rev, man = hub.ids
-    with pytest.raises(HubError):
-        hub.approve_gate_chat("demo", rev, words)
-    with pytest.raises(HubError):
-        hub.complete_manual_phase("demo", man, words)
+def test_mcp_agent_cannot_move_waiting_phase(hub, tmp_path):
+    one = hub.ids[0]
+    calls = [("set_phase_status", {"project_id": "demo", "phase_id": one, "status": s}) for s in ("in_progress", "done")]
+    for role in (None, "chat"):
+        _, out = tools_and_calls(tmp_path, role, calls)
+        assert all(o.startswith("Error:") and "waits for Danny: check" in o and "report" in o for o in out)
+    assert hub.get_project("demo")["phases"][0]["status"] == "todo"
 
 
-def test_too_long_words_refused(hub):
-    with pytest.raises(HubError, match="300"):
-        hub.approve_gate_chat("demo", hub.ids[0], "x" * 301)
+def test_mcp_agent_cannot_delete_gated_phase(hub, tmp_path):
+    _, out = tools_and_calls(tmp_path, None, [("delete_phase", {"project_id": "demo", "phase_id": hub.ids[0]})])
+    assert out[0].startswith("Error:") and "has a gate" in out[0]
+    assert len(hub.get_project("demo")["phases"]) == 2
 
 
-def test_approve_records_fields_and_event(hub):
-    rev, _ = hub.ids
-    ph = hub.approve_gate_chat("demo", rev, "  sí, apruebo Rev  ")
-    assert ph["gate_approved"] is True and ph["gate_approved_by"] == "chat" and ph["gate_set_by"] == "agent"
-    assert ph["gate_approved_words"] == "sí, apruebo Rev" and ph["gate_approved_at"]
-    ev = hub.activity("demo")[-1]
-    assert ev["by"] == "chat" and ev["words"] == "sí, apruebo Rev" and "aprobado vía chat: «sí, apruebo Rev»" in ev["text"]
-    with pytest.raises(HubError):
-        hub.approve_gate_chat("demo", rev, "otra vez")
+def test_mcp_set_gate_set_by(hub, tmp_path):
+    two = hub.ids[1]
+    _, out = tools_and_calls(tmp_path, "chat", [("set_gate", {"project_id": "demo", "phase_id": two, "reason": "try it"})])
+    assert out[0] == f"Phase {two} (Two) [espera a Danny] try it"
+    assert hub.get_project("demo")["phases"][1]["gate_set_by"] == "chat"
+    hub.resolve_gate("demo", two, "sigue", "ok")
+    tools_and_calls(tmp_path, None, [("set_gate", {"project_id": "demo", "phase_id": two, "reason": "again"})])
+    assert hub.get_project("demo")["phases"][1]["gate_set_by"] == "agent"
 
 
-def test_complete_manual_records_fields_and_event(hub):
-    _, man = hub.ids
-    ph = hub.complete_manual_phase("demo", man, "ya lo probé")
-    assert ph["status"] == "done" and ph["gate_approved_by"] == "chat" and ph["gate_approved_words"] == "ya lo probé"
-    ev = hub.activity("demo")[-1]
-    assert ev["by"] == "chat" and ev["words"] == "ya lo probé" and "aprobado vía chat" in ev["text"]
-    with pytest.raises(HubError):
-        hub.complete_manual_phase("demo", man, "otra vez")
-
-
-def test_wrong_gate_type_refused(hub):
-    rev, man = hub.ids
-    with pytest.raises(HubError):
-        hub.approve_gate_chat("demo", man, "ok")
-    with pytest.raises(HubError):
-        hub.complete_manual_phase("demo", rev, "ok")
-
-
-def test_agents_still_refused_on_gated_phases(hub):
-    rev, man = hub.ids
-    for ph in (rev, man):
-        with pytest.raises(HubError, match="gated"):
-            hub.set_phase_status("demo", ph, "done", by="agent")
-
-
-def test_mcp_set_phase_status_cannot_complete_manual_test(hub, tmp_path):
-    _, man = hub.ids
-    _, out = tools_and_calls(tmp_path, "chat", [("set_phase_status", {"project_id": "demo", "phase_id": man, "status": "done"})])
-    assert out[0].startswith("Error:") and "gated" in out[0]
-    assert hub.get_project("demo")["phases"][1]["status"] == "todo"
-
-
-def test_mcp_chat_tool_end_to_end(hub, tmp_path):
-    rev, _ = hub.ids
-    _, out = tools_and_calls(tmp_path, "chat", [("approve_gate", {"project_id": "demo", "phase_id": rev, "danny_words": " "}),
-                                                 ("approve_gate", {"project_id": "demo", "phase_id": rev, "danny_words": "vale"})])
-    assert out[0].startswith("Error:") and out[1].startswith("Gate approved")
-    assert hub.get_project("demo")["phases"][0]["gate_approved_words"] == "vale"
+def test_mcp_resolve_gate_end_to_end(hub, tmp_path):
+    one = hub.ids[0]
+    args = {"project_id": "demo", "phase_id": one}
+    _, out = tools_and_calls(tmp_path, "chat", [
+        ("resolve_gate", {**args, "action": "sigue", "danny_words": " "}),
+        ("resolve_gate", {**args, "action": "approve", "danny_words": "ok"}),
+        ("resolve_gate", {**args, "action": "hecho", "danny_words": "ya lo hice yo"}),
+        ("resolve_gate", {**args, "action": "hecho", "danny_words": "otra vez"}),
+    ])
+    assert out[0].startswith("Error:") and out[1].startswith("Error:") and out[3].startswith("Error:")
+    assert out[2] == f"Phase {one} (One, done) [resuelto vía chat (hecho): «ya lo hice yo»]"
+    ph = hub.get_project("demo")["phases"][0]
+    assert (ph["status"], ph["gate_resolved_words"], ph["gate_resolved_action"]) == ("done", "ya lo hice yo", "hecho")
+    ev = [e for e in hub.activity("demo") if e["type"] == "gate_resolved"]
+    assert [(e["by"], e["action"], e["words"]) for e in ev] == [("chat", "hecho", "ya lo hice yo")]

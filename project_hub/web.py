@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from . import hub as hub_module  # module reference so a faked hub._utcnow applies here too
 from .biblia import GATE_DEFAULTS, autonomy_line, current_phase, waiting
-from .hub import Hub, HubError, overview_order
+from .hub import STATE_RANK, Hub, HubError, overview_order
 
 STATIC = Path(__file__).parent / "static"
 ICONS = STATIC / "icons"  # app icons and web manifest; regenerate the PNGs with tools/make_icons.py
@@ -79,8 +79,9 @@ def list_projects():
             "phases_total": len(p["phases"]),
             "unread_count": len(h.read_inbox(p["id"])),
             "state": states[p["id"]],
+            "state_rank": STATE_RANK[states[p["id"]]["kind"]],  # 0 = waiting for Danny (red)
         })
-    return overview_order(out)
+    return sorted(overview_order(out), key=lambda r: r["state_rank"] != 0)  # red rows first, stable otherwise
 
 
 @app.get("/api/unread")
@@ -93,32 +94,20 @@ def unread_total():
 @app.get("/api/projects/{project_id}")
 def get_project(project_id: str):
     project = hub().get_project(project_id)
-    project["phases"] = [{**GATE_DEFAULTS, **ph} for ph in project["phases"]]
+    # new gate fields only: the legacy gate/gate_approved keys are for old MCP servers, not the dashboard
+    project["phases"] = [{k: v for k, v in {**GATE_DEFAULTS, **ph}.items() if k not in ("gate", "gate_approved")}
+                         for ph in project["phases"]]
     project["autonomy"] = autonomy_line(project)
     project["inbox"] = sorted(hub().read_inbox(project_id, unread_only=False),
                               key=lambda m: m["created_at"], reverse=True)
     return project
 
 
-# the dashboard is Danny: every change here is by="dashboard", which gates treat like by="user"
+# changes here are logged by="dashboard". The dashboard only informs about gates: it cannot set or resolve one,
+# and a status change on a phase whose gate waits for Danny is refused (400) like any other caller's.
 @app.post("/api/projects/{project_id}/phases/{phase_id}")
 def set_phase(project_id: str, phase_id: str, body: PhaseIn):
     return hub().set_phase_status(project_id, phase_id, body.status, body.notes, by="dashboard")
-
-
-class GateIn(BaseModel):
-    gate: str
-    reason: str = ""
-
-
-@app.post("/api/projects/{project_id}/phases/{phase_id}/gate")
-def set_gate(project_id: str, phase_id: str, body: GateIn):
-    return hub().set_gate(project_id, phase_id, body.gate, body.reason, by="dashboard")
-
-
-@app.post("/api/projects/{project_id}/phases/{phase_id}/gate/approve")
-def approve_gate(project_id: str, phase_id: str):
-    return hub().approve_gate(project_id, phase_id, by="dashboard")
 
 
 @app.get("/api/waiting")

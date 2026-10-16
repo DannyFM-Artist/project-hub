@@ -111,8 +111,9 @@ def test_gate_round_trip(tmp_path):
         await call("create_project", id="demo", name="Demo", description="d", phases=["One", "Two"])
         ids = [ph["id"] for ph in json.loads((tmp_path / "projects" / "demo.json").read_text(encoding="utf-8"))["phases"]]
         out["ids"] = ids
-        out["gate"] = await call("set_gate", project_id="demo", phase_id=ids[1], gate="review", reason="check the API")
-        out["loosen"] = await call("set_gate", project_id="demo", phase_id=ids[1], gate="none", reason="x")
+        out["gate"] = await call("set_gate", project_id="demo", phase_id=ids[1], reason="check the API")
+        out["old"] = await call("set_gate", project_id="demo", phase_id=ids[1], gate="none", reason="check the API")
+        out["empty"] = await call("set_gate", project_id="demo", phase_id=ids[1], reason=" ")
         out["ok"] = await call("set_phase_status", project_id="demo", phase_id=ids[0], status="done")
         out["refused"] = await call("set_phase_status", project_id="demo", phase_id=ids[1], status="in_progress")
         out["delete"] = await call("delete_phase", project_id="demo", phase_id=ids[1])
@@ -121,15 +122,16 @@ def test_gate_round_trip(tmp_path):
 
     out = run_session(tmp_path, steps)
     assert out["tools"] == NAMES
-    assert not {t for t in out["tools"] if "approve" in t or "remove" in t}
+    assert not {t for t in out["tools"] if "approve" in t or "remove" in t or "resolve" in t}
     i0, i1 = out["ids"]
-    assert out["gate"] == f"Phase {i1} (Two) [gate: review, not approved, set by agent] check the API"
-    assert out["loosen"].startswith("Error:") and "only add or tighten" in out["loosen"]
+    assert out["gate"] == f"Phase {i1} (Two) [espera a Danny] check the API"
+    assert out["old"] == out["gate"]  # an old gate argument is ignored
+    assert out["empty"].startswith("Error:")
     assert out["ok"] == f"Phase {i0} is now done"
-    assert out["refused"] == ("Error: phase 'Two' is gated (review, not approved): check the API. "
-                              "Post a report message describing what is ready for review, then stop.")
+    assert out["refused"] == ("Error: phase 'Two' waits for Danny: check the API. "
+                              "Post a report message describing what Danny must do, then stop.")
     assert out["delete"].startswith("Error:")
-    assert f"  [{i1}] todo: Two [gate: review, not approved, set by agent] check the API" in out["get"]
+    assert f"  [{i1}] todo: Two [espera a Danny] check the API" in out["get"]
     assert "Autonomous work allowed up to phase 1 (One)" in out["get"]
     print(*out.values(), sep="\n")
 
@@ -145,7 +147,7 @@ def test_activity_round_trip(tmp_path):
         await call("add_phase", project_id="demo", name="Two")
         await call("update_phase", project_id="demo", phase_id=ph, name="Uno")
         await call("set_phase_status", project_id="demo", phase_id=ph, status="done")
-        await call("set_gate", project_id="demo", phase_id=ph, gate="review", reason="look")
+        await call("set_gate", project_id="demo", phase_id=ph, reason="look")
         await call("add_item", project_id="demo", type="bug", title="Crash")
         await call("log_decision", project_id="demo", decision="Use X", reason="r")
         await call("post_message", to_project="demo", kind="report", title="Done", body="b", from_project="demo")
