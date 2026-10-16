@@ -27,7 +27,9 @@ try:
         errors, dialogs = [], []
         pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
         pg.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
-        pg.goto(BASE + "/#overview"); pg.wait_for_selector("#rs-body .row"); time.sleep(.5)
+        pg.goto(BASE + "/#overview"); pg.wait_for_selector("#ov-body .card")
+        check("resources folded at the bottom with their count", pg.is_hidden("#rs-wrap") and pg.inner_text("#rs-h").lower() == "recursos en uso · 3", pg.inner_text("#rs-h"))
+        pg.click('[data-fk="fold-ovRes"]'); pg.wait_for_selector("#rs-body .row"); time.sleep(.5)
         rows = pg.eval_on_selector_all("#rs-body .row", "rs => rs.map(r => [...r.children].slice(0, 4).map(c => c.textContent.trim()))")
         for r in rows: print("  row", r)
         check("3 leases listed, sorted, project names", [r[0] for r in rows] == ["device:orbbec-femto-mega", "gpu", "repo:dannyfm-ui"]

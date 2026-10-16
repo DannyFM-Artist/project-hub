@@ -37,21 +37,21 @@ with sync_playwright() as p:
     pg = b.new_page(viewport={"width": 1440, "height": 1000})
     pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     pg.on("pageerror", lambda e: errors.append(str(e)))
-    pg.goto(BASE + "/"); pg.wait_for_selector("#ov-body .row")
+    pg.goto(BASE + "/"); pg.wait_for_selector("#ov-body .card")
     # 1
-    pg.click("#ov-filter [data-f=paused]"); n1 = pg.locator("#ov-body .row").count()
+    pg.click("#ov-filter [data-f=paused]"); n1 = pg.locator("#ov-body .card").count()
     pg.click("#ov-filter [data-f=all]")
-    names = pg.locator("#ov-body .row .nm a").all_inner_texts()
-    no_sel_at_start = pg.locator("#ov-body .row.sel").count() == 0
+    names = pg.locator("#ov-body .card a.cn").all_inner_texts()
+    no_sel_at_start = pg.locator("#ov-body .card.sel").count() == 0
     pg.keyboard.press("ArrowDown"); pg.keyboard.press("ArrowDown"); pg.keyboard.press("ArrowDown"); pg.keyboard.press("Enter")
     pg.wait_for_selector("#phead h1")
     sel_name = pg.inner_text("#phead h1")
     ok1 = n1 == 1 and no_sel_at_start and sel_name == names[2] and "#p/" in pg.url
     pg.reload(); pg.wait_for_selector("#phead h1"); ok1 &= pg.inner_text("#phead h1") == sel_name
-    pg.keyboard.press("1"); pg.wait_for_selector("#ov-body .row")
+    pg.keyboard.press("1"); pg.wait_for_selector("#ov-body .card")
     time.sleep(.3)
-    focus_ov = pg.evaluate("!!(document.activeElement.closest('.row') && document.activeElement.closest('.row').classList.contains('sel'))")
-    pg.click("#ov-body .row >> nth=0"); pg.wait_for_selector("#phead h1")
+    focus_ov = pg.evaluate("!!(document.activeElement.closest('.card') && document.activeElement.closest('.card').classList.contains('sel'))")
+    pg.click("#ov-body .card >> nth=0", position={"x": 300, "y": 8}); pg.wait_for_selector("#phead h1")  # the card itself, not its name link
     ok1 &= pg.inner_text("#phead h1") == names[0]
     check("1 overview filter / keys / click / hash reload", ok1, (names, sel_name, n1, no_sel_at_start))
     pg.goto(BASE + "/#p/framegrade"); pg.wait_for_selector("#phead h1"); time.sleep(.3)
@@ -108,7 +108,13 @@ with sync_playwright() as p:
     pg.keyboard.press("ArrowRight"); a &= bool(item_is("Key item", "planned"))
     pg.click("#chips [data-f=closed]"); pg.wait_for_selector(".items .row.closed", state="detached")
     check("4 move by button/keys, discard, restore, show-closed toggle", a and gone and shown, (a, gone, shown))
-    # 5
+    # 5 the Bandeja starts folded; m opens it with the form, its title is the mouse path
+    folded = pg.is_hidden("#in-body") and pg.get_attribute('[data-fk="fold-inbox"]', "aria-expanded") == "false"
+    pg.evaluate("document.activeElement.blur()"); pg.keyboard.press("m"); pg.wait_for_selector("#f-msg:not([hidden])")
+    m_opens = pg.is_visible("#in-body") and pg.get_attribute('[data-fk="fold-inbox"]', "aria-expanded") == "true"
+    pg.click("#f-msg [data-cancel]"); pg.click('[data-fk="fold-inbox"]'); pg.wait_for_selector("#in-body", state="hidden")
+    pg.click('[data-fk="fold-inbox"]'); pg.wait_for_selector("#in-body", state="visible")
+    check("5a Bandeja folded by default; m key and its title open it", folded and m_opens, (folded, m_opens))
     pg.click("#msg-open"); pg.wait_for_selector("#f-msg:not([hidden])")
     pg.select_option("#f-msg [name=kind]", "task"); pg.fill("#f-msg [name=title]", "Btn msg"); pg.fill("#f-msg [name=body]", "b1")
     pg.click("#f-msg button[type=submit]"); pg.wait_for_selector("#f-msg", state="hidden")
@@ -151,7 +157,7 @@ with sync_playwright() as p:
     small = pg.evaluate("""()=>[...document.querySelectorAll('button:not(.nm),.tab,.seg')].filter(e=>e.offsetParent).map(e=>{const r=e.getBoundingClientRect();return [e.textContent.trim().slice(0,20),Math.round(r.width),Math.round(r.height)]}).filter(x=>x[1]<24||x[2]<24)""")
     check("A target size >=24px (title buttons excepted)", not small, small)
     heads = pg.evaluate("[...document.querySelectorAll('h1,h2,h3')].filter(e=>e.offsetParent).map(e=>e.tagName+':'+e.firstChild.textContent.trim())")
-    check("B headings: one h1 (the project), panels are h2", [x for x in heads if x.startswith("H1")] == ["H1:framegrade"] and sum(x.startswith("H2") for x in heads) == 5, heads)
+    check("B headings: one h1 (the project), panels are h2", [x for x in heads if x.startswith("H1")] == ["H1:framegrade"] and sum(x.startswith("H2") for x in heads) == 4, heads)
     # 9
     n_before = len(errors)
     srv.terminate(); srv.wait(); time.sleep(6.5)

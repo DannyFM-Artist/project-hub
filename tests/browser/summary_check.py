@@ -44,7 +44,7 @@ try:
         pg.on("pageerror", lambda e: errors.append(str(e)))
         clip = lambda: pg.evaluate("navigator.clipboard.readText()").replace(chr(13) + chr(10), chr(10))  # Windows clipboard turns LF into CRLF
         box = lambda pid: f'.su-proj[data-id="{pid}"]'
-        pg.goto(BASE + "/"); pg.wait_for_selector("#ov-body .row")
+        pg.goto(BASE + "/"); pg.wait_for_selector("#ov-body .card")
         pg.click("#tab-su"); pg.wait_for_selector(".su-proj")
         check("button opens the view", pg.url.endswith("#resumen") and pg.is_visible("#summary"), pg.url)
         api_d = api("GET", "/api/summary")
@@ -76,17 +76,19 @@ try:
               pg.inner_text(box("st-ready") + " [data-copy]") == "Copiar igualmente" and pg.locator(box("st-ready") + " .su-in").count() == 1
               and pg.evaluate("document.activeElement.dataset.fk") == "su|st-ready")
         pg.click('[data-fk="su|st-ready"]')
-        pg.click("#tab-ov"); pg.wait_for_selector("#ov-body .row")
-        row = lambda pid: f'#ov-body .row[data-pid="{pid}"]'
-        kinds = {pid: pg.get_attribute(row(pid) + " .stc .pstate", "data-kind") for pid in ("st-work", "st-wait", "led-mapper")}
-        check("overview: the state replaces the status column, lifecycle as a small label",
-              kinds == {"st-work": "working", "st-wait": "waiting", "led-mapper": "stopped"} and pg.inner_text(row("led-mapper") + " .stc .life") == "TERMINADO", kinds)
-        check("overview: red and amber show their text in the row", "Need your call on the licence" in pg.inner_text(row("st-wait") + " .why-st")
-              and "Build the st-work thing" in pg.inner_text(row("st-work") + " .why-st") and pg.locator(row("led-mapper") + " .why-st").count() == 0)
-        order = pg.eval_on_selector_all("#ov-body .row", "e => e.map(x => x.querySelector('.stc .pstate').dataset.kind)")
+        pg.click("#tab-ov"); pg.wait_for_selector("#ov-body .card")
+        row = lambda pid: f'#ov-body .card[data-pid="{pid}"]'
+        kinds = {pid: pg.get_attribute(row(pid) + " > .pstate", "data-kind") for pid in ("st-work", "st-wait", "led-mapper")}
+        check("overview: each card shows the project state, no lifecycle word",
+              kinds == {"st-work": "working", "st-wait": "waiting", "led-mapper": "stopped"} and "terminado" not in pg.inner_text(row("led-mapper")).lower(), kinds)
+        check("overview: cards show the label only; the reason is in Para ti, the full detail in the tooltip",
+              "Need your call" not in pg.inner_text(row("st-wait")) and pg.inner_text(row("st-wait") + " .pstate").strip() == "Te espera"
+              and "Build the st-work thing" not in pg.inner_text(row("st-work")) and "Build the st-work thing" in pg.get_attribute(row("st-work") + " .pstate", "title"))
+        order = pg.eval_on_selector_all("#ov-body .card", "e => e.map(x => x.querySelector(':scope > .pstate').dataset.kind)")
         check("red rows sort first", order[0] == "waiting" and "waiting" not in order[order.count("waiting"):], order)
         pg.goto(BASE + "/#p/st-wait"); pg.wait_for_selector("#phead h1")
-        check("project header shows the same state", pg.get_attribute("#phead .pstate", "data-kind") == "waiting" and "Need your call" in pg.inner_text("#phead .pstate"))
+        check("project header shows the same state, its reason only in Para ti", pg.get_attribute("#phead .pstate", "data-kind") == "waiting"
+              and "Need your call" not in pg.inner_text("#phead") and "Need your call on the licence" in pg.inner_text("#pr-act"))
         pg.click("#tab-su"); pg.wait_for_selector(".su-proj")
         # fold / expand
         pg.click(f'[data-fk="su|cuedeck"]'); pg.wait_for_selector(box("cuedeck") + " .su-in")
@@ -126,7 +128,7 @@ try:
         exp2 = pg.evaluate("S.sumD.projects.find(p => p.id === 'cuedeck').copy.chat_text")
         pg.click('[data-copy="cuedeck"]'); pg.wait_for_function("S.sumD.projects.find(p => p.id === 'cuedeck').copy.new === 0")
         check("second copy holds only what is new since the first", clip() == exp2 and exp2 != exp and "1 decisión" in exp2, exp2)
-        pg.click("#tab-ov"); pg.wait_for_selector("#ov-body .row")
+        pg.click("#tab-ov"); pg.wait_for_selector("#ov-body .card")
         check("closing without marking leaves last_seen", api("GET", "/api/summary")["last_seen"] == seen0)
         pg.goto(BASE + "/#resumen"); pg.wait_for_function("S.sumD")
         check("a copied project with nothing new folds into 'Sin novedades'", pg.locator(box("cuedeck")).count() == 0 and "cuedeck" in pg.inner_text(".su-quiet"))

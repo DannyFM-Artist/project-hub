@@ -27,6 +27,8 @@ def test_summaries(env):
     assert rows["beta"]["current_phase"] is None and rows["beta"]["unread_count"] == 1
     for k in ("name", "status", "description", "next_step", "updated_at"):
         assert k in a
+    h.add_item("alpha", "bug", "open", ""); h.update_item("alpha", h.add_item("alpha", "idea", "closed", "")["id"], status="done")
+    assert {r["id"]: r["open_items"] for r in c.get("/api/projects").json()} == {"alpha": 1, "beta": 0}
 
 
 def test_overview_order_and_phase_position(env, monkeypatch):

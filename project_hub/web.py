@@ -85,6 +85,7 @@ def list_projects():
             "phases_done": sum(ph["status"] == "done" for ph in p["phases"]),
             "phases_total": len(p["phases"]),
             "unread_count": len(h.read_inbox(p["id"])),
+            "open_items": sum(i["status"] in ("open", "planned") for i in p["items"]),  # the overview card badge
             # what the dashboard needs for "Para ti", the bell and the reports lines, on every view
             "phases": _phases(p),
             "user_messages": [m for m in messages if m["to_project"] == "user" and m["from_project"] == p["id"] and m["status"] != "done"],

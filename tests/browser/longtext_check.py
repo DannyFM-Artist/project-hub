@@ -62,14 +62,19 @@ try:
         ph = {x["name"].split()[0]: x["id"] for x in hub.get_project("longtext")["phases"]}
         for w in (1280, 1440, 1920):
             pg.set_viewport_size({"width": w, "height": 900})
-            pg.goto(BASE + "/#overview"); pg.wait_for_selector("#ov-body .row"); time.sleep(.4)
+            pg.goto(BASE + "/#overview"); pg.wait_for_selector("#ov-body .card"); time.sleep(.4)
+            if pg.get_attribute('[data-fk="fold-ovRes"]', "aria-expanded") == "false": pg.click('[data-fk="fold-ovRes"]')  # the overview fold stays open across visits
+            pg.wait_for_selector("#rs-body .row")
             noscroll(f"{w} overview")
-            n = pg.evaluate("() => { const s = [...document.querySelectorAll('.ptab .sub')].find(e => e.textContent.length > 500); return Math.round(s.getBoundingClientRect().height / parseFloat(getComputedStyle(s).lineHeight)); }")
-            check(f"{w} overview description is one line ({n})", n <= 1)
-            check(f"{w} description has title tooltip", pg.evaluate("[...document.querySelectorAll('.ptab .sub')].some(e => e.title.length > 500)"))
+            lt = '#ov-body .card[data-pid="longtext"]'
+            check(f"{w} the description is not on the overview card", "description description" not in pg.inner_text(lt))
+            n = nlines(lt + " .cnx"); check(f"{w} card next step clamps to 3 lines ({n})", n <= 3)
+            check(f"{w} card next step has its full text in the tooltip", len(pg.get_attribute(lt + " .cnx", "title")) >= 290)
             pg.goto(BASE + "/#p/longtext"); pg.wait_for_selector("#phases .row"); time.sleep(.4)
             noscroll(f"{w} project")
-            check(f"{w} full description in header", pg.evaluate("document.querySelector('#pr-desc').textContent.length >= 590"))
+            pg.click('[data-fk="fold-det"]'); pg.wait_for_selector("#pr-desc")
+            check(f"{w} full description in Detalles", pg.evaluate("document.querySelector('#pr-desc').textContent.length >= 590"))
+            noscroll(f"{w} project with Detalles")
             other = f'#phases .row[data-id="{ph["Second"]}"]'
             n0 = nlines(other + " .nt"); check(f"{w} unselected notes clamp to 1 line ({n0})", n0 <= 1)
             pg.click(f'[data-fk="ph{ph["Second"]}"]'); pg.wait_for_selector(other + ".sel")
@@ -84,7 +89,7 @@ try:
             check(f"{w} Enter on a phase selects it", pg.locator(f'#phases .row.sel[data-id="{ph["Third"]}"]').count() == 1 and pg.locator(other + ".sel").count() == 0)
             if w == 1440:
                 pg.mouse.move(0, 0); pg.screenshot(path=str(D / "project-longtext.png"), full_page=True)
-                pg.goto(BASE + "/#overview"); pg.wait_for_selector("#ov-body .row"); time.sleep(.4)
+                pg.goto(BASE + "/#overview"); pg.wait_for_selector("#ov-body .card"); time.sleep(.4)
                 pg.mouse.move(0, 0); pg.screenshot(path=str(D / "overview-longtext.png"), full_page=True)
                 print("screenshots in", D)
         pg.set_viewport_size({"width": 800, "height": 900}); pg.goto(BASE + "/#p/longtext"); time.sleep(.5)

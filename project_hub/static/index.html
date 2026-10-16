@@ -66,8 +66,8 @@ button:disabled { opacity: .5; cursor: default; }
 .seg .n { font: 600 var(--Type-CAPTION) var(--Type-MONO); color: var(--WARN); }
 .bar .sp { flex: 1; }
 .bar .right { display: flex; align-items: center; gap: var(--Space-SM); padding-right: var(--Space-MD); color: var(--TEXT_DIM); font-size: var(--Type-SMALL); flex-shrink: 0; }
-.repcount { white-space: nowrap; font-family: var(--Type-MONO); padding: 0 var(--Space-SM); border-right: 1px solid var(--BORDER); }
-.repcount b { color: var(--TEXT); font-weight: 600; }
+.repcount { white-space: nowrap; padding: 0 var(--Space-SM); border-right: 1px solid var(--BORDER); }
+.repcount b { color: var(--TEXT); font-weight: 600; font-family: var(--Type-MONO); }
 .bell { display: inline-flex; align-items: center; gap: var(--Space-XS); background: transparent; border: 1px solid var(--BORDER_STRONG);
   border-radius: var(--Radius-SM); padding: var(--Space-XXS) var(--Space-SM); color: var(--TEXT_DIM); cursor: pointer; height: calc(var(--TITLE_H) - 10px); }
 .bell svg { width: 15px; height: 15px; }
@@ -106,9 +106,14 @@ body[data-view=overview] #overview, body[data-view=project] #project, body[data-
 h1.lead:focus { outline: none; }
 
 /* panel = dock surface with a PanelHeader */
-.panel { background: var(--SURFACE); border: 1px solid var(--BORDER); border-radius: var(--Radius-SM); margin-top: var(--Space-MD); min-width: 0; }
-.ph { display: flex; align-items: center; gap: var(--Space-SM); padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--BORDER); min-height: calc(28px * var(--scale)); flex-wrap: wrap; }
-.ph h2 { white-space: nowrap; flex-shrink: 0; margin: 0; font-size: var(--Type-SMALL); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--TEXT); }
+.panel { background: var(--SURFACE); border: 1px solid var(--BORDER); border-radius: var(--Radius-SM); margin-top: var(--Space-XL); min-width: 0; }
+.ph { display: flex; align-items: center; gap: var(--Space-SM); padding: var(--Space-XS) var(--Space-MD); border-bottom: 1px solid var(--BORDER); min-height: calc(32px * var(--scale)); flex-wrap: wrap; }
+.ph h2 { white-space: nowrap; flex-shrink: 0; margin: 0; font-size: var(--Type-H3); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--TEXT); }
+.panel.folded .ph { border-bottom: 0; }
+/* a folded block: its title is the toggle, with the count */
+.fold { display: inline-flex; align-items: center; min-height: 24px; background: none; border: 0; padding: 0; cursor: pointer;
+  color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+.fold:hover { color: var(--TEXT_DIM); }
 .ph .meta { color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); min-width: 0; }
 .ph .sp { flex: 1; }
 .panel.foryou { border-color: var(--BORDER_STRONG); }
@@ -127,7 +132,8 @@ h1.lead:focus { outline: none; }
 .row.sel .muted, .row.sel .age, .row.sel .n { color: var(--TEXT_DIM); }
 
 /* state words (widgets.StateLabel): coloured word, no box */
-.st { font: 600 var(--Type-SMALL) var(--Type-MONO); letter-spacing: .6px; text-transform: uppercase; white-space: nowrap; }
+.st { font: 600 var(--Type-SMALL) var(--Type-UI); letter-spacing: .6px; text-transform: uppercase; white-space: nowrap; }
+.bellpanel .st, #summary .st { font-family: var(--Type-MONO); }
 .st.done { color: var(--OK); } .st.cur { color: var(--ACCENT); } .st.todo { color: var(--TEXT_DIM); } .st.gate { color: var(--WAITING); }
 .st.quiet { color: var(--TEXT_MUTED); font-weight: 400; }
 .st.active { color: var(--OK); } .st.paused { color: var(--TEXT_DIM); } .st.parked, .st.pdone { color: var(--TEXT_MUTED); }
@@ -178,6 +184,7 @@ h1.lead:focus { outline: none; }
 /* reports lines: information, collapsed */
 .replines .rl { border-bottom: 1px solid var(--DIVIDER); }
 .replines .rl:last-child { border-bottom: none; }
+#pr-rep { border-bottom: 1px solid var(--BORDER); }
 .rlh { display: flex; align-items: center; gap: var(--Space-MD); padding: var(--Space-XS) var(--Space-MD); }
 .tog { background: none; border: none; padding: var(--Space-XS) 0; cursor: pointer; color: var(--TEXT_DIM); text-align: left; flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .tog:hover { color: var(--TEXT); }
@@ -204,30 +211,54 @@ h1.lead:focus { outline: none; }
 .tab[aria-pressed="true"] { color: var(--TEXT); border-bottom-color: var(--ACCENT); }
 .tab .mono { color: inherit; }
 
-/* overview tables */
-.ptab .thead, .ptab .row { grid-template-columns: calc(118px * var(--scale)) minmax(0, 1.2fr) calc(190px * var(--scale)) minmax(0, 1.4fr) minmax(0, 1.4fr) calc(56px * var(--scale)) calc(64px * var(--scale)) calc(76px * var(--scale)); }
-.ptab .row { cursor: pointer; }
-.ptab .nm a { font-weight: 600; text-decoration: none; } .ptab .nm a:hover { text-decoration: underline; }
-.ptab .sub { display: block; color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ptab .num { font-family: var(--Type-MONO); text-align: right; }
-.ptab .num.hot { color: var(--WARN); font-weight: 600; }
-.ptab .cp .n, .ptab .fr { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); }
-.ptab .r { text-align: right; }
+/* overview: one card per project */
+.cards { margin-top: var(--Space-XL); }
+.cards > .ph { padding: 0 0 var(--Space-SM); border-bottom: 0; }
+.cardgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(340px * var(--scale))), 1fr)); gap: var(--Space-LG); }
+.card { display: flex; flex-direction: column; gap: var(--Space-SM); min-width: 0; padding: var(--Space-MD) var(--Space-LG); cursor: pointer;
+  background: var(--SURFACE); border: 1px solid var(--BORDER); border-left-width: 2px; border-radius: var(--Radius-SM); }
+.card:hover { border-color: var(--BORDER_STRONG); }
+.card.sel, .card.sel:hover { background: var(--SELECTED); border-left-color: var(--ACCENT); }
+.card.sel .muted, .card.sel .cnx .lbl, .card.sel .fr, .card.sel .cph .n { color: var(--TEXT_DIM); }
+.card .ctop { display: flex; align-items: baseline; gap: var(--Space-SM); flex-wrap: wrap; min-width: 0; }
+.card > .pstate { max-width: 100%; align-self: flex-start; }
+.card > .pstate b { white-space: normal; }
+.card .badges { margin-left: auto; display: flex; gap: var(--Space-XS); flex-wrap: wrap; }
+.badge { white-space: nowrap; font-size: var(--Type-SMALL); color: var(--TEXT_DIM); border: 1px solid var(--BORDER_STRONG); border-radius: var(--Radius-SM); padding: 0 var(--Space-XS); }
+.badge b { font: 600 var(--Type-SMALL) var(--Type-MONO); color: var(--TEXT); }
+.card .cn { font-size: var(--Type-H2); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; align-self: flex-start; max-width: 100%; }
+.card .cn:hover { text-decoration: underline; }
+.card .cph { display: flex; align-items: center; gap: var(--Space-XS) var(--Space-SM); flex-wrap: wrap; min-width: 0; }
+.card .cph > * { min-width: 0; overflow-wrap: anywhere; }
+.card .fr, .card .cph .n { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); }
+.card .cnx { color: var(--TEXT_DIM); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card .cnx .lbl { color: var(--TEXT_MUTED); }
 .ovact .thead, .ovact .row { grid-template-columns: calc(110px * var(--scale)) calc(120px * var(--scale)) minmax(0, 1fr) auto; }
 .res .thead, .res .row { grid-template-columns: calc(180px * var(--scale)) calc(120px * var(--scale)) minmax(0, 1fr) calc(80px * var(--scale)) auto; align-items: center; }
 .empty { padding: var(--Space-SM) var(--Space-MD); color: var(--TEXT_MUTED); margin: 0; }
 
 /* project view */
-.phead { display: flex; align-items: baseline; gap: var(--Space-MD); flex-wrap: wrap; }
-.phead > * { min-width: 0; }
+.phead { margin-top: 0; padding: var(--Space-MD) var(--Space-LG); display: grid; gap: var(--Space-XS); }
+.phead .l1, .phead .l2 { display: flex; align-items: baseline; gap: var(--Space-XS) var(--Space-MD); flex-wrap: wrap; min-width: 0; }
+.phead .l1 > *, .phead .l2 > * { min-width: 0; }
+.phead .l1 .sp { flex: 1; }
 .phead h1 { margin: 0; font-size: var(--Type-H1); font-weight: 600; overflow-wrap: anywhere; }
 .phead h1:focus { outline: none; }
-.phead .back { margin-left: auto; color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
-.phead .repo { color: var(--TEXT_MUTED); font: var(--Type-SMALL) var(--Type-MONO); overflow-wrap: anywhere; }
-.next { margin: var(--Space-XXS) 0 0; color: var(--TEXT_DIM); overflow-wrap: anywhere; }
-.next b { color: var(--TEXT); font-weight: 600; }
-.aux { margin: var(--Space-XXS) 0 0; color: var(--TEXT_MUTED); font-size: var(--Type-SMALL); overflow-wrap: anywhere; }
-.grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--Space-MD); align-items: start; }
+.phead .fold { color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+.phead .fold:hover { color: var(--TEXT); }
+.phead .fold .chev { margin: 0 0 0 var(--Space-XS); }
+.phead .back { color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+.phead .l2 { color: var(--TEXT_DIM); align-items: center; }
+.phead .l2 .cname { color: var(--TEXT); font-weight: 600; overflow-wrap: anywhere; }
+.phead .l2 .fr { font-family: var(--Type-MONO); color: var(--TEXT_MUTED); }
+.phead .nx { flex: 1 1 360px; overflow-wrap: anywhere; }
+.phead .nx b { color: var(--TEXT); font-weight: 600; }
+.pdet { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--Space-XXS) var(--Space-MD); margin: var(--Space-SM) 0 0; padding-top: var(--Space-SM);
+  border-top: 1px solid var(--BORDER); color: var(--TEXT_DIM); font-size: var(--Type-SMALL); }
+.pdet dt { color: var(--TEXT_MUTED); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; padding-top: 1px; }
+.pdet dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
+.pdet .repo, .pdet .mono { font-family: var(--Type-MONO); }
+.grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 0 var(--Space-XL); align-items: start; }
 .grid > div { min-width: 0; }
 
 .phases .thead, .phases .row { grid-template-columns: calc(26px * var(--scale)) minmax(0, 1fr) calc(84px * var(--scale)) calc(236px * var(--scale)); }
@@ -247,7 +278,6 @@ h1.lead:focus { outline: none; }
 .detail { grid-column: 2 / -1; display: grid; gap: var(--Space-SM); padding-top: var(--Space-XS); min-width: 0; }
 .detail .lbl, .frm label > span { color: var(--TEXT_DIM); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; margin-right: var(--Space-SM); }
 .detail .notes { color: var(--TEXT); overflow-wrap: anywhere; white-space: pre-wrap; }
-.detail .gr { color: var(--TEXT_DIM); font-size: var(--Type-SMALL); overflow-wrap: anywhere; }
 .detail .stline { display: flex; align-items: center; gap: var(--Space-SM); flex-wrap: wrap; }
 .detail .gf { display: flex; align-items: center; gap: var(--Space-SM); flex-wrap: wrap; padding-top: var(--Space-SM); border-top: 1px solid var(--BORDER); }
 .detail .gf input { flex: 1 1 180px; }
@@ -303,19 +333,14 @@ input:focus-visible, textarea:focus-visible { outline: none; border-color: var(-
 .pstate:empty { display: none; }
 .pstate .dot { margin-right: 0; flex-shrink: 0; }
 .pstate b { font-weight: 600; color: var(--TEXT); white-space: nowrap; }
-.pstate[data-kind=waiting] b, .why-st[data-kind=waiting], .gr.wait { color: var(--WAITING); }
-.pstate[data-kind=working] b, .why-st[data-kind=working] { color: var(--WARN); }
+.pstate[data-kind=waiting] b { color: var(--WAITING); }
+.pstate[data-kind=working] b { color: var(--WARN); }
 .pstate[data-kind=ready] b { color: var(--OK); }
 .pstate[data-kind=quiet] b { color: var(--TEXT_DIM); font-weight: 400; }
 .pstate[data-kind=stopped] b { color: var(--TEXT_DIM); }
 .stop-l { white-space: nowrap; font-size: var(--Type-SMALL); color: var(--TEXT_DIM); }
 .pstate .dt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .pstate.head { font-size: var(--Type-BODY); max-width: 46ch; }
-.life { color: var(--TEXT_MUTED); font-size: var(--Type-CAPTION); letter-spacing: .5px; text-transform: uppercase; }
-.ptab .stc { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.ptab .stc .pstate { max-width: 100%; }
-.ptab .stc .pstate b { white-space: normal; }
-.ptab .why-st { display: block; font-size: var(--Type-SMALL); font-weight: 600; overflow-wrap: anywhere; }
 .act .where { color: var(--TEXT_DIM); font-size: var(--Type-SMALL); text-align: right; }
 .act .where:hover { color: var(--TEXT); }
 .link { background: none; border: 0; padding: 0; color: var(--TEXT_DIM); text-decoration: underline; cursor: pointer; font-size: inherit; }
@@ -361,27 +386,28 @@ input:focus-visible, textarea:focus-visible { outline: none; border-color: var(-
 
 <main>
 <div class="view" id="overview">
+  <h1 class="sr">Proyectos</h1>
   <p class="eyebrow" id="ov-eyebrow"></p>
-  <h1 class="lead" id="ov-lead"></h1>
   <section class="panel foryou ovact" id="ov-act" aria-label="Para ti">
     <div class="ph"><h2 id="ov-act-h">Para ti</h2><span class="meta">gates que esperan a Danny y mensajes para ti; se resuelven en el chat de cada proyecto</span></div>
     <div id="ov-act-body"></div>
+  </section>
+  <section class="cards" aria-label="Proyectos">
+    <div class="ph"><h2 id="ov-h">Proyectos</h2><div class="tabs" id="ov-filter"></div></div>
+    <div class="cardgrid" id="ov-body"></div>
+    <p class="empty" id="ov-empty" hidden></p>
   </section>
   <section class="panel replines" id="ov-rep" aria-label="Reports sin leer" hidden>
     <div class="ph"><h2 id="ov-rep-h">Reports sin leer</h2><span class="meta">información: léelos cuando puedas</span></div>
     <div id="ov-rep-body"></div>
   </section>
-  <section class="panel ptab" aria-label="Proyectos">
-    <div class="ph"><h2 id="ov-h">Proyectos</h2><span class="meta" id="ov-meta"></span><div class="tabs" id="ov-filter"></div></div>
-    <div class="thead"><span>Estado</span><span>Proyecto</span><span>Fases</span><span>Fase actual</span><span>Siguiente paso</span><span class="r">Para ti</span><span class="r">Reports</span><span class="r">Actualizado</span></div>
-    <div id="ov-body"></div>
-    <p class="empty" id="ov-empty" hidden></p>
-  </section>
-  <section class="panel res" aria-label="Recursos">
+  <section class="panel res" id="ov-res" aria-label="Recursos">
     <div class="ph"><h2 id="rs-h">Recursos en uso</h2></div>
-    <div class="thead" id="rs-head"><span>Recurso</span><span>Proyecto</span><span>Para qué</span><span>Caduca en</span><span><span class="sr">Acciones</span></span></div>
-    <div id="rs-body"></div>
-    <p class="empty" id="rs-empty" hidden>No hay recursos reservados.</p>
+    <div id="rs-wrap">
+      <div class="thead" id="rs-head"><span>Recurso</span><span>Proyecto</span><span>Para qué</span><span>Caduca en</span><span><span class="sr">Acciones</span></span></div>
+      <div id="rs-body"></div>
+      <p class="empty" id="rs-empty" hidden>No hay recursos reservados.</p>
+    </div>
   </section>
 </div>
 
@@ -398,25 +424,16 @@ input:focus-visible, textarea:focus-visible { outline: none; border-color: var(-
 </div>
 
 <div class="view" id="project">
-  <div class="phead" id="phead"></div>
-  <p class="lead" id="pr-lead"></p>
-  <p class="next" id="pr-next"></p>
-  <p class="aux" id="pr-desc" hidden></p>
-  <p class="aux" id="pr-aut" hidden></p>
-  <section class="panel foryou" id="pr-act" aria-label="Para ti">
+  <section class="panel phead" id="phead" aria-label="Proyecto"></section>
+  <section class="panel foryou" id="pr-act" aria-label="Para ti" hidden>
     <div class="ph"><h2 id="pr-act-h">Para ti</h2></div>
     <div id="pr-act-body"></div>
-    <div class="replines" id="pr-rep" style="border-top:1px solid var(--BORDER)" hidden></div>
   </section>
   <div class="grid">
     <div>
       <section class="panel phases" aria-label="Fases">
         <div class="ph"><h2 id="ph-h">Fases</h2><span class="sp"></span><span class="meta">clic en una fase para ver sus notas y su estado · espacio cambia su estado</span></div>
         <div id="phases"></div>
-      </section>
-      <section class="panel dec" aria-label="Decisiones">
-        <div class="ph"><h2 id="dec-h">Decisiones</h2></div>
-        <div id="decs"></div>
       </section>
     </div>
     <div>
@@ -433,8 +450,20 @@ input:focus-visible, textarea:focus-visible { outline: none; border-color: var(-
         </form>
         <div class="pfoot"><button class="btn small" type="button" id="item-open" aria-expanded="false" title="Atajo: a">Añadir ítem</button></div>
       </section>
-      <section class="panel inbox" aria-label="Bandeja">
+    </div>
+  </div>
+  <div class="grid">
+    <div>
+      <section class="panel dec" id="pr-dec" aria-label="Decisiones">
+        <div class="ph"><h2 id="dec-h">Decisiones</h2></div>
+        <div id="decs"></div>
+      </section>
+    </div>
+    <div>
+      <section class="panel inbox" id="pr-in" aria-label="Bandeja">
         <div class="ph"><h2 id="in-h">Bandeja</h2><span class="meta" id="in-meta"></span></div>
+        <div id="in-body">
+        <div class="replines" id="pr-rep" hidden></div>
         <div id="msgs"></div>
         <form class="frm" id="f-msg" hidden novalidate>
           <div class="row2">
@@ -446,6 +475,7 @@ input:focus-visible, textarea:focus-visible { outline: none; border-color: var(-
           <div class="btns"><button class="btn filled small" type="submit">Publicar mensaje</button><button class="btn ghost small" type="button" data-cancel>Cancelar</button><span class="ferr" aria-live="polite"></span></div>
         </form>
         <div class="pfoot"><button class="btn small" type="button" id="msg-open" aria-expanded="false" title="Atajo: m">Publicar mensaje</button></div>
+        </div>
       </section>
     </div>
   </div>
@@ -482,11 +512,10 @@ const PSTATE = { todo: "pendiente", in_progress: "en curso", done: "hecha" };
 const KIND = { task: "tarea", message: "mensaje", report: "report" };
 const MSG_ST = { unread: "sin leer", read: "leído", done: "hecho" };
 const S = { projects: [], d: null, pid: null, last: null, res: [], filter: "all", ovSel: 0, sel: null, phSel: {}, tf: "all", closed: false,
-  ovMark: false, offline: false, sum: false, suOpen: new Set(), copiedNow: new Set(), key: "", confirm: new Set(), repOpen: new Set(), msgOpen: new Set(), doneOpen: {}, bell: false, focusNext: false };
+  ovMark: false, offline: false, sum: false, suOpen: new Set(), copiedNow: new Set(), key: "", confirm: new Set(), repOpen: new Set(), msgOpen: new Set(), doneOpen: {}, fold: {}, bell: false, focusNext: false };
 
 const pl = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
 const nn = (i) => String(i + 1).padStart(2, "0");
-const listJoin = (a) => a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " y " + a[a.length - 1];
 function ago(iso) {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
   if (!(s >= 90)) return "ahora";
@@ -584,8 +613,23 @@ const stateDot = (st) => h("span", { class: "dot", style: `background:var(--${ST
 // a stopped (paused/parked/done) project links its latest "Parado: estado para retomar" report
 const stopLink = (pid, st) => st && st.kind === "stopped" && st.report_id && pid
   ? h("a", { class: "stop-l", href: `#p/${enc(pid)}/m/${enc(st.report_id)}`, "data-fk": "stop" + pid }, "ver report «Parado»") : null;
-const stateBadge = (st, cls, pid) => h("span", { class: "pstate" + (cls ? " " + cls : ""), "data-kind": st ? st.kind : "", title: st && st.detail ? st.detail : null },
+const stateBadge = (st, cls, pid) => h("span", { class: "pstate" + (cls ? " " + cls : ""), "data-kind": st ? st.kind : "", title: st && (st.full || st.detail) || null },
   st ? [stateDot(st), h("b", {}, st.label + (st.kind === "waiting" && st.detail ? ":" : "")), st.detail ? h("span", { class: "dt" }, st.detail) : null, stopLink(pid, st)] : null);
+
+// overview card and project header: the dot and the label; the waiting reason only when "Para ti" does not already show it
+const brief = (st, inParaTi) => st && st.detail && !(st.kind === "waiting" && !inParaTi) ? { ...st, detail: null, full: st.detail } : st;
+/* folded blocks: the title is the toggle and carries the count; S.fold survives polling */
+function foldHead(k, title, n) {
+  const o = !!S.fold[k];
+  return h("button", { class: "fold", type: "button", "aria-expanded": String(o), "data-fk": "fold-" + k, onclick: () => { S.fold[k] = !o; render("fold-" + k); } },
+    chev(), h("span", {}, title, n == null ? null : [" · ", h("span", { class: "mono" }, n)]));
+}
+function setFold(panel, k, title, n, body) {
+  const o = !!S.fold[k];
+  fill(panel.querySelector("h2"), foldHead(k, title, n));
+  panel.classList.toggle("folded", !o);
+  body.hidden = !o;
+}
 
 /* ---------- render ---------- */
 function paint(fn, focusK) {
@@ -593,7 +637,7 @@ function paint(fn, focusK) {
   const caret = !focusK && a && /^(INPUT|TEXTAREA)$/.test(a.tagName) ? [a.selectionStart, a.selectionEnd] : null;
   fn();
   if (S.focusNext) {
-    const t = S.sum ? $("#su-title") : S.pid ? (S.d && S.d.id === S.pid && $("#phead h1")) : $(".ptab .row.sel a");
+    const t = S.sum ? $("#su-title") : S.pid ? (S.d && S.d.id === S.pid && $("#phead h1")) : $("#ov-body .card.sel a.cn");
     if (t) { t.focus(); S.focusNext = false; }
   } else if (fk) {
     const n = document.querySelector(`[data-fk="${CSS.escape(fk)}"]`);
@@ -682,7 +726,7 @@ function reportLine(p, f, ctx, showProject) {
         chev(), showProject ? [h("b", {}, p.name), " · "] : null, pl(n, "report sin leer", "reports sin leer"), " · ", h("span", { class: "v" }, open ? "ocultar" : "ver")),
       h("button", { class: "btn ghost small", type: "button", "data-fk": "ra|" + k, onclick: () => act(() => Promise.all(f.reports.map((m) => api("PATCH", `/api/messages/${enc(m.id)}`, { status: "read" }))),
         `${pl(n, "report marcado", "reports marcados")} como leído${n === 1 ? "" : "s"}`) }, "Marcar todos como leídos")),
-    open ? h("div", { class: "reps" }, f.reports.map((m) => h("div", { class: "rep" },
+    open ? h("div", { class: "reps" }, f.reports.map((m) => h("div", { class: "rep", "data-mid": m.id },
       h("div", { class: "h" }, h("b", { class: "wrap" }, m.title), h("span", { class: "m" }, `${m.from_project} · ${ago(m.created_at)}`)),
       h("div", { class: "body" }, m.body)))) : null);
 }
@@ -690,7 +734,6 @@ function track(f) {
   return h("span", { class: "track", role: "img", "aria-label": `${f.done} de ${f.phases.length} fases hechas` },
     f.phases.map((x, i) => h("i", { class: x.status === "done" ? "d" : waitsFor(x) ? "g" : i === f.ci ? "c" : "" })));
 }
-const lifeWord = (status) => h("span", { class: "life" }, PROJ[status] || status); // lifecycle: a small label next to the state
 
 /* ---------- overview ---------- */
 const visibleProjects = () => byUrgency(allFacts()).filter((r) => S.filter === "all" || r.p.status === S.filter).map((r) => r.p);
@@ -698,16 +741,8 @@ function renderOverview() {
   const rows = allFacts(), urg = byUrgency(rows);
   const acts = urg.flatMap((r) => r.f.actions.map((a) => ({ ...r, a })));
   const nRep = uniqueReports(rows);
-  const gts = acts.filter((x) => x.a.kind === "gate").length, msg = acts.length - gts;
-  const what = [gts ? pl(gts, "gate") : null, msg ? pl(msg, "mensaje") : null].filter(Boolean);
-  const where = urg.filter((r) => r.f.actions.length).map((r) => `${r.f.actions.length} en ${r.p.name}`);
-  const lead = acts.length ? [h("span", { class: "wait" }, `Te ${acts.length === 1 ? "espera" : "esperan"} ${pl(acts.length, "cosa", "cosas")}`), `: ${listJoin(what)} (${listJoin(where)}), en el chat de cada proyecto`]
-    : [h("span", { class: "ok" }, "Nada te espera")];
-  lead.push(nRep ? `; además hay ${pl(nRep, "report sin leer", "reports sin leer")}, solo para leer.` : ".");
-  const active = rows.filter((r) => r.p.status === "active").length;
   const date = new Date().toLocaleString("es-ES", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
-  $("#ov-eyebrow").textContent = `Proyectos · ${date} · ${pl(rows.length, "proyecto")}, ${pl(active, "activo")}`;
-  fill($("#ov-lead"), lead);
+  $("#ov-eyebrow").textContent = `Proyectos · ${date}`;
 
   $("#ov-act").classList.toggle("hot", acts.length > 0);
   $("#ov-act-h").textContent = "Para ti · " + acts.length;
@@ -715,38 +750,35 @@ function renderOverview() {
     acts.map((x) => actionRow(x.p, x.a, "ov", true))]
     : h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Nada te espera."));
 
-  $("#ov-rep").hidden = !nRep;
-  $("#ov-rep-h").textContent = "Reports sin leer · " + nRep;
-  fill($("#ov-rep-body"), urg.filter((r) => r.f.reports.length).map(({ p, f }) => reportLine(p, f, "ov", true)));
-
-  $("#ov-h").textContent = "Proyectos · " + rows.length;
-  $("#ov-meta").textContent = pl(active, "activo");
   fill($("#ov-filter"), [["all", "todos", rows.length], ...STATUSES.map((s) => [s, PROJ[s], rows.filter((r) => r.p.status === s).length])].map(([f, l, n]) =>
     h("button", { class: "tab", type: "button", "data-f": f, "data-fk": "ovf" + f, "aria-pressed": String(S.filter === f), onclick: () => { S.filter = f; S.ovSel = 0; render("ovf" + f); } }, l, " ", h("span", { class: "mono" }, n))));
   const vis = visibleProjects();
   S.ovSel = Math.min(S.ovSel, Math.max(0, vis.length - 1));
   $("#ov-empty").hidden = vis.length > 0;
   $("#ov-empty").textContent = rows.length ? "No hay proyectos con este estado." : "Todavía no hay proyectos. Crea uno desde Claude con create_project.";
-  fill($("#ov-body"), vis.map((p, i) => {
-    const f = facts(p);
-    return h("div", { class: "row" + (S.ovMark && i === S.ovSel ? " sel" : ""), "data-pid": p.id, onclick: (e) => { S.ovSel = i; S.ovMark = true; if (!e.target.closest("a")) open(p.id); } },
-      h("div", { class: "stc" }, p.state ? h("span", { class: "pstate", "data-kind": p.state.kind }, stateDot(p.state), h("b", {}, p.state.label)) : null, lifeWord(p.status), stopLink(p.id, p.state)),
-      h("div", { class: "nm" }, h("a", { href: "#p/" + enc(p.id), "data-fk": "r" + p.id, title: p.description }, p.name),
-        p.state && p.state.detail && (p.state.kind === "waiting" || p.state.kind === "working")
-          ? h("span", { class: "why-st", "data-kind": p.state.kind, title: p.state.detail }, p.state.detail)
-          : h("span", { class: "sub", title: p.description }, p.description)),
-      h("div", {}, track(f), " ", h("span", { class: "fr" }, `${f.done}/${f.phases.length}`)),
-      h("div", { class: "cp wrap" }, f.cur ? [h("span", { class: "n" }, nn(f.ci) + " "), f.cur.name, " ", h("span", { class: "st cur" }, f.cur.status === "in_progress" ? "▶ en curso" : "▶ siguiente")]
-        : h("span", { class: "muted" }, f.phases.length ? "todas hechas" : "sin fases")),
-      h("div", { class: "wrap dim" }, p.next_step || "—"),
-      h("span", { class: "num" + (f.actions.length ? " hot" : " muted") }, f.actions.length),
-      h("span", { class: "num muted" }, f.reports.length),
-      h("span", { class: "num muted" }, ago(p.updated_at)));
-  }));
+  fill($("#ov-body"), vis.map((p, i) => card(p, facts(p), i)));
+
+  // information, not for right now: folded at the bottom with their counts
+  $("#ov-rep").hidden = !nRep;
+  setFold($("#ov-rep"), "ovRep", "Reports sin leer", nRep, $("#ov-rep-body"));
+  fill($("#ov-rep-body"), S.fold.ovRep ? urg.filter((r) => r.f.reports.length).map(({ p, f }) => reportLine(p, f, "ov", true)) : null);
   renderResources();
 }
+// one card per project: state, name, current phase with its track, next step, count badges; nothing else
+function card(p, f, i) {
+  const badge = (n, one, many) => n ? h("span", { class: "badge" }, h("b", {}, n), " ", n === 1 ? one : many) : null;
+  return h("div", { class: "card" + (S.ovMark && i === S.ovSel ? " sel" : ""), "data-pid": p.id, onclick: (e) => { S.ovSel = i; S.ovMark = true; if (!e.target.closest("a")) open(p.id); } },
+    stateBadge(brief(p.state, f.actions.length > 0), "", p.id),
+    h("div", { class: "ctop" }, h("a", { class: "cn", href: "#p/" + enc(p.id), "data-fk": "r" + p.id }, p.name),
+      h("span", { class: "badges" }, badge(f.reports.length, "report", "reports"), badge(p.open_items, "ítem", "ítems"))),
+    f.phases.length ? h("div", { class: "cph" }, track(f), h("span", { class: "fr" }, `${f.done}/${f.phases.length}`),
+      f.cur ? [h("span", {}, h("span", { class: "n" }, nn(f.ci) + " "), f.cur.name), h("span", { class: "st cur" }, f.cur.status === "in_progress" ? "▶ en curso" : "▶ siguiente")]
+        : h("span", { class: "muted" }, "todas hechas"))
+      : h("div", { class: "cph muted" }, "sin fases"),
+    p.next_step ? h("div", { class: "cnx", title: p.next_step }, h("span", { class: "lbl" }, "Siguiente paso: "), p.next_step) : null);
+}
 function renderResources() {
-  $("#rs-h").textContent = "Recursos en uso · " + S.res.length;
+  setFold($("#ov-res"), "ovRes", "Recursos en uso", S.res.length, $("#rs-wrap"));
   $("#rs-empty").hidden = S.res.length > 0;
   $("#rs-head").hidden = !S.res.length;
   fill($("#rs-body"), S.res.map((r) => {
@@ -769,31 +801,35 @@ function renderProject() {
   const row = S.projects.find((p) => p.id === d.id) || {};
   const p = { ...row, ...d, phases: d.phases }, f = facts(p), total = f.phases.length;
   document.title = d.name + " · project-hub";
-  fill($("#phead"), h("h1", { tabindex: "-1" }, d.name), stateBadge(row.state, "head", d.id), lifeWord(d.status), track(f), h("span", { class: "mono dim" }, `${f.done}/${total} hechas`),
-    d.repo_path ? h("span", { class: "repo", title: "repo" }, d.repo_path) : null,
-    h("a", { class: "back", href: "#overview", "data-fk": "back" }, "← Proyectos"));
-  const sum = !total ? [h("b", {}, "Sin fases todavía")]
-    : !f.cur ? [h("b", {}, `Las ${total} fases están hechas`)]
-    : [h("b", {}, `Fase ${f.ci + 1} de ${total}`), f.cur.status === "in_progress" ? " en curso: " : ", la siguiente: ", h("b", {}, `«${f.cur.name}»`)];
-  sum.push(f.actions.length ? [": ", h("span", { class: "wait" }, `${pl(f.actions.length, "cosa te espera", "cosas te esperan")} en el chat`)] : ["; ", h("span", { class: "ok" }, "nada te espera")]);
-  sum.push(f.reports.length ? `, y ${pl(f.reports.length, "report sin leer", "reports sin leer")}.` : ".");
-  fill($("#pr-lead"), sum);
-  fill($("#pr-next"), h("b", {}, "Siguiente paso: "), d.next_step || "sin definir");
-  $("#pr-desc").hidden = !d.description; $("#pr-desc").textContent = d.description || "";
-  $("#pr-aut").hidden = !d.autonomy; $("#pr-aut").textContent = d.autonomy || "";
+  // two lines: name and state; current phase and next step. Everything else waits in "Detalles"
+  const det = !!S.fold.det;
+  fill($("#phead"),
+    h("div", { class: "l1" }, h("h1", { tabindex: "-1" }, d.name), stateBadge(brief(row.state, f.actions.length > 0), "head", d.id), h("span", { class: "sp" }),
+      h("button", { class: "fold", type: "button", "aria-expanded": String(det), "data-fk": "fold-det", onclick: () => { S.fold.det = !det; render("fold-det"); } }, "Detalles", chev()),
+      h("a", { class: "back", href: "#overview", "data-fk": "back" }, "← Proyectos")),
+    h("div", { class: "l2" },
+      !total ? h("span", {}, "Sin fases todavía")
+        : [track(f), h("span", { class: "fr" }, `${f.done}/${total}`), f.cur ? [h("span", { class: "cname" }, h("span", { class: "fr" }, nn(f.ci) + " "), f.cur.name),
+          h("span", { class: "st cur" }, f.cur.status === "in_progress" ? "▶ en curso" : "▶ siguiente")] : h("span", {}, `Las ${total} fases están hechas`)],
+      h("span", { class: "nx" }, h("b", {}, "Siguiente paso: "), d.next_step || "sin definir")),
+    det ? h("dl", { class: "pdet" },
+      h("dt", {}, "Ciclo de vida"), h("dd", {}, PROJ[d.status] || d.status),
+      h("dt", {}, "Id"), h("dd", { class: "mono" }, d.id),
+      d.repo_path ? [h("dt", {}, "Repo"), h("dd", { class: "repo" }, d.repo_path)] : null,
+      d.description ? [h("dt", {}, "Descripción"), h("dd", { id: "pr-desc" }, d.description)] : null,
+      h("dt", {}, "Actualizado"), h("dd", { class: "mono", title: fdt(d.updated_at) }, ago(d.updated_at))) : null);
 
-  $("#pr-act").classList.toggle("hot", f.actions.length > 0);
+  // "Para ti" only when something waits
+  $("#pr-act").hidden = !f.actions.length;
   $("#pr-act-h").textContent = "Para ti · " + f.actions.length;
-  fill($("#pr-act-body"), f.actions.length ? f.actions.map((a) => actionRow(p, a, "pv", false)) : h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Nada te espera en este proyecto."));
-  $("#pr-rep").hidden = !f.reports.length;
-  fill($("#pr-rep"), f.reports.length ? reportLine(p, f, "pv", false) : null);
+  fill($("#pr-act-body"), f.actions.map((a) => actionRow(p, a, "pv", false)));
 
   renderPhases(p, f);
   renderItems(d);
-  $("#dec-h").textContent = "Decisiones · " + d.decisions.length;
+  setFold($("#pr-dec"), "dec", "Decisiones", d.decisions.length, $("#decs"));
   fill($("#decs"), d.decisions.length ? [...d.decisions].reverse().map((x) => h("div", { class: "row" }, h("time", { datetime: x.date }, x.date.slice(0, 10)),
     h("div", { class: "wrap" }, x.decision, x.reason ? h("span", { class: "r" }, "porque " + x.reason) : null))) : h("p", { class: "empty" }, "Sin decisiones todavía."));
-  renderInbox(d, f);
+  renderInbox(d, f, p);
 }
 
 function renderPhases(p, f) {
@@ -801,7 +837,6 @@ function renderPhases(p, f) {
   const selId = S.phSel[p.id] || (f.cur && f.cur.id);
   const doneIdx = ph.map((x, i) => i).filter((i) => ph[i].status === "done" && (f.ci < 0 || i < f.ci));
   const showDone = !!S.doneOpen[p.id];
-  $("#ph-h").textContent = `Fases · ${f.done}/${ph.length} hechas`;
   fill($("#phases"), ph.length ? [h("div", { class: "thead" }, h("span", {}, "№"), h("span", {}, "Fase"), h("span", {}, "Estado"), h("span", { style: "text-align:right" }, "Gate")),
     doneIdx.length ? h("div", { class: "doneline" }, h("button", { type: "button", "aria-expanded": String(showDone), "data-fk": "done|" + p.id,
       onclick: () => { S.doneOpen[p.id] = !showDone; render("done|" + p.id); } }, chev(), `✓ ${pl(doneIdx.length, "fase hecha", "fases hechas")}`, showDone ? " · ocultar" : " · ver")) : null,
@@ -816,7 +851,7 @@ function phaseRow(p, f, x, i, sel) {
     : isCur ? h("span", { class: "st cur" }, x.status === "in_progress" ? "▶ en curso" : "▶ siguiente")
     : h("span", { class: "st todo" }, PSTATE[x.status]);
   const gate = waits ? h("span", { class: "st gate", title: x.gate_reason || null }, "espera a Danny")
-    : resolved ? h("span", { class: "chat", title: w || null }, resolved) : null;
+    : resolved ? h("span", { class: "chat", title: [w, w && x.gate_resolved_action, x.gate_resolved_at && fdt(x.gate_resolved_at)].filter(Boolean).join(" · ") || null }, resolved) : null;
   const kids = [
     h("span", { class: "n" }, nn(i)),
     h("div", {}, h("button", { class: "nm", type: "button", "data-fk": "ph" + x.id, "aria-pressed": String(sel), onclick: () => selectPhase(p.id, x.id) }, x.name),
@@ -826,9 +861,7 @@ function phaseRow(p, f, x, i, sel) {
   if (sel) {
     kids.push(h("div", { class: "detail" },
       h("div", { class: "notes" }, x.notes ? x.notes : h("span", { class: "dim" }, "Sin notas para esta fase.")),
-      waits ? h("div", { class: "gr wait" }, `Espera a Danny: ${x.gate_reason || "sin motivo"}`, x.gate_set_by ? h("span", { class: "muted" }, " · puesto por " + x.gate_set_by) : null,
-        h("span", { class: "muted" }, ` · resuélvelo en el chat de ${p.name}`))
-        : resolved ? h("div", { class: "gr", title: w || null }, resolved, w && x.gate_resolved_action ? ` · ${x.gate_resolved_action}` : "", x.gate_resolved_at ? h("span", { class: "muted" }, " · " + fdt(x.gate_resolved_at)) : null) : null,
+      // the gate itself is only in the row's gate column: a waiting reason lives in "Para ti", a resolution's words and time in the tooltip
       h("div", { class: "stline" }, h("label", { class: "lbl", for: "st-" + x.id }, "Estado"),
         waits ? h("span", { class: "dim", id: "st-" + x.id }, PSTATE[x.status] + " · no se cambia aquí mientras espera a Danny")
           : h("select", { id: "st-" + x.id, "data-fk": "st" + x.id, onchange: (e) => setStatus(p.id, x, e.target.value) },
@@ -851,7 +884,6 @@ function itemList(d) {
 }
 function renderItems(d) {
   const open = d.items.filter(isOpenItem), closedN = d.items.length - open.length;
-  $("#it-h").textContent = `Ítems · ${open.length} abiertos`;
   const tab = (key, label, n) => h("button", { class: "tab", type: "button", "data-f": key, "data-fk": "tf" + key, "aria-pressed": String(S.tf === key), onclick: () => { S.tf = key; render("tf" + key); } }, label, " ", h("span", { class: "mono" }, n));
   fill($("#chips"), tab("all", "todos", open.length), ["bug", "idea", "future_request"].map((t) => tab(t, TYPES_PL[t], open.filter((i) => i.type === t).length)),
     h("button", { class: "tab", type: "button", "data-f": "closed", "data-fk": "tfclosed", "aria-pressed": String(S.closed), title: "Atajo: x", onclick: toggleClosed }, "+cerrados ", h("span", { class: "mono" }, closedN)));
@@ -873,12 +905,14 @@ function renderItems(d) {
 }
 function selectItem(id) { S.sel = { kind: "item", id }; render("i" + id); }
 
-function renderInbox(d, f) {
-  // unread reports live in their collapsed line in "Para ti"; this is everything else addressed to the project
+function renderInbox(d, f, p) {
+  // unread reports first, in their own folded line; then everything else addressed to the project
   const rep = new Set(f.reports.map((m) => m.id)), rest = d.inbox.filter((m) => !rep.has(m.id));
   const unread = rest.filter((m) => m.status === "unread").length;
-  $("#in-h").textContent = "Bandeja · " + rest.length;
-  $("#in-meta").textContent = `${unread} sin leer · tareas y mensajes para el proyecto`;
+  setFold($("#pr-in"), "inbox", "Bandeja", rest.length + f.reports.length, $("#in-body"));
+  $("#in-meta").textContent = [f.reports.length ? pl(f.reports.length, "report sin leer", "reports sin leer") : null, unread ? pl(unread, "mensaje sin leer", "mensajes sin leer") : null].filter(Boolean).join(" · ");
+  $("#pr-rep").hidden = !f.reports.length;
+  fill($("#pr-rep"), f.reports.length ? reportLine(p, f, "pv", false) : null);
   fill($("#msgs"), rest.length ? rest.map((m) => {
     const sel = S.sel && S.sel.kind === "msg" && S.sel.id === m.id;
     return h("div", { class: `row ${m.status}` + (sel ? " sel" : ""), "data-id": m.id, onclick: (e) => { if (!e.target.closest("button, a")) selectMsg(m.id); } },
@@ -1014,6 +1048,7 @@ const setMsg = (id, status) => act(() => api("PATCH", `/api/messages/${enc(id)}`
 function toggleClosed() { S.closed = !S.closed; render("tfclosed"); }
 function syncExp() { $("#msg-open").setAttribute("aria-expanded", String(!$("#f-msg").hidden)); $("#item-open").setAttribute("aria-expanded", String(!$("#f-item").hidden)); }
 function openForm(which) {
+  if (which === "msg" && !S.fold.inbox) { S.fold.inbox = true; render(); } // the form lives in the folded Bandeja
   const f = $(which === "item" ? "#f-item" : "#f-msg");
   f.hidden = false; syncExp();
   f.querySelector("[name=title]").focus();
@@ -1053,7 +1088,7 @@ function step(dir) {
   if (!S.pid) {
     const n = visibleProjects().length;
     // the first arrow only shows the selection; the row stays marked once you navigate or come back from a project
-    if (n) { S.ovSel = S.ovMark ? Math.max(0, Math.min(n - 1, S.ovSel + dir)) : Math.min(S.ovSel, n - 1); S.ovMark = true; render(); const r = $(".ptab .row.sel"); if (r) { r.scrollIntoView({ block: "nearest" }); r.querySelector("a").focus({ preventScroll: true }); } } // focus follows the selection, so Enter opens it
+    if (n) { S.ovSel = S.ovMark ? Math.max(0, Math.min(n - 1, S.ovSel + dir)) : Math.min(S.ovSel, n - 1); S.ovMark = true; render(); const r = $("#ov-body .card.sel"); if (r) { r.scrollIntoView({ block: "nearest" }); r.querySelector("a.cn").focus({ preventScroll: true }); } } // focus follows the selection, so Enter opens it
     return;
   }
   const fl = S.d ? itemList(S.d) : [];
@@ -1114,7 +1149,7 @@ function route() {
   if (S.sum) { if (!wasSum) { S.sumD = null; S.sumHours = 0; S.pid = null; S.focusNext = true; S.suOpen = new Set(); S.copiedNow = new Set(); fill($("#su-body")); } showSummary(); return; } // no stale boxes from the last visit
   const pid = m ? decodeURIComponent(m[1]) : null;
   if (pid !== S.pid || wasSum) {
-    S.pid = pid; S.sel = null; S.d = null; S.key = ""; S.confirm.clear();
+    S.pid = pid; S.sel = null; S.d = null; S.key = ""; S.confirm.clear(); S.fold.det = S.fold.dec = S.fold.inbox = false; // a project opens with its details, decisions and inbox folded
     if (pid) S.last = pid;
     else { const i = visibleProjects().findIndex((x) => x.id === S.last); if (i >= 0) { S.ovSel = i; S.ovMark = true; } }
     S.focusNext = true;
@@ -1122,8 +1157,12 @@ function route() {
     syncExp();
     window.scrollTo(0, 0);
   }
-  if (m && m[2]) { S.sel = { kind: "msg", id: decodeURIComponent(m[2]) }; S.repOpen.add("pv|" + pid); } // an unread report lives in the folded reports line, a read one in the inbox
-  refresh(true);
+  const mid = m && m[2] ? decodeURIComponent(m[2]) : null;
+  if (mid) { S.sel = { kind: "msg", id: mid }; S.repOpen.add("pv|" + pid); S.fold.inbox = true; } // the message is in the Bandeja: an unread report in its reports line, a read one in the list
+  refresh(true).then(() => {
+    const n = mid && document.querySelector(`#in-body [data-mid="${CSS.escape(mid)}"], #in-body .row[data-id="${CSS.escape(mid)}"]`);
+    if (n) n.scrollIntoView({ block: "center" });
+  });
 }
 addEventListener("hashchange", route);
 route();

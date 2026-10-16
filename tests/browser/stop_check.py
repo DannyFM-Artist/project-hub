@@ -27,7 +27,7 @@ try:
         pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
         pg.on("pageerror", lambda e: errors.append(str(e)))
         pg.goto(BASE + "/#overview")
-        row = '.row[data-pid="stopme"]'
+        row = '#ov-body .card[data-pid="stopme"]'
         until(lambda: pg.locator(row).count())
         badge = pg.locator(row + " .pstate[data-kind=stopped]")
         check("overview row shows grey Parado", badge.count() == 1 and "Parado" in badge.inner_text(), badge.count())
@@ -38,6 +38,14 @@ try:
         until(lambda: pg.locator("text=retomar la fase One").count())
         check("link opens the project with the report selected", "#p/stopme/m/" in pg.url
               and pg.locator("text=retomar la fase One").first.is_visible(), pg.url)
+        check("the folded Bandeja opens itself for the linked report", pg.is_visible("#in-body")
+              and pg.get_attribute('[data-fk="fold-inbox"]', "aria-expanded") == "true" and pg.locator(f'#pr-rep .rep[data-mid="{rid}"]').count() == 1)
+        hub.mark_message(rid, "read")  # a read report lives in the message list, still inside the folded Bandeja
+        pg.goto(BASE + "/#overview"); until(lambda: pg.locator(row).count())
+        pg.goto(BASE + f"/#p/stopme/m/{rid}")
+        until(lambda: pg.locator(f'#msgs .row.sel[data-id="{rid}"]').count())
+        check("a read report: Bandeja opens and the message is selected with its body", pg.is_visible("#in-body")
+              and pg.locator(f'#msgs .row.sel[data-id="{rid}"] .body').is_visible(), pg.url)
         head = pg.locator("#phead .pstate[data-kind=stopped]")
         check("project header shows Parado with the link", head.count() == 1 and head.locator("a.stop-l").count() == 1)
         pg.goto(BASE + "/#resumen")

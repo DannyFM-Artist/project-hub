@@ -22,6 +22,8 @@ hub.post_message("gatedemo", "report", "Session report A", "+ ok", "gatedemo")
 hub.post_message("gatedemo", "report", "Session report B", "+ ok", "gatedemo")
 hub.add_item("gatedemo", "bug", "A bug", "d"); hub.add_item("gatedemo", "idea", "An idea", "d")
 hub.post_message("gatedemo", "task", "Plain task", "body"); hub.post_message("gatedemo", "message", "Plain note", "body")
+hub.log_decision("gatedemo", "Ship by USB", "no network at the venue")
+hub.update_project("gatedemo", repo_path=r"C:\dev\gatedemo")
 gate = lambda name: hub.get_project("gatedemo")["phases"][list(ph).index(name)]
 INDEX = (S.parents[1] / "project_hub" / "static" / "index.html").read_text(encoding="utf-8")
 
@@ -43,15 +45,30 @@ try:
         pg.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
         row = lambda name: f'#phases .row[data-id="{ph[name]}"]'
         pg.goto(BASE + "/#p/gatedemo"); pg.wait_for_selector("#phases .row")
-        check("autonomy line shown", "Autonomous work allowed up to phase" in pg.inner_text("#pr-aut"), pg.inner_text("#pr-aut"))
+        check("no 'Autonomous work allowed' text in the page", "Autonomous work allowed" not in pg.inner_text("body") and "Autonomous" not in INDEX)
+        # header: two lines, the rest in a folded "Detalles"
+        check("Detalles folded by default in the project header", pg.get_attribute('[data-fk="fold-det"]', "aria-expanded") == "false"
+              and pg.locator("#phead .pdet").count() == 0 and "C:\\dev\\gatedemo" not in pg.inner_text("#phead") and "phase gate demo" not in pg.inner_text("#phead"))
+        pg.click('[data-fk="fold-det"]'); pg.wait_for_selector("#phead .pdet")
+        check("Detalles opens with path and description", "C:\\dev\\gatedemo" in pg.inner_text("#phead .pdet") and "phase gate demo" in pg.inner_text("#phead .pdet"), pg.inner_text("#phead .pdet"))
+        pg.click('[data-fk="fold-det"]')
+        check("decisions and inbox folded, with their counts",
+              pg.is_hidden("#decs") and pg.is_hidden("#in-body") and pg.inner_text("#dec-h").lower() == "decisiones · 1" and pg.inner_text("#in-h").lower() == f"bandeja · {len(hub.read_inbox('gatedemo', unread_only=False))}",
+              (pg.inner_text("#dec-h"), pg.inner_text("#in-h")))
+        pg.click('[data-fk="fold-dec"]'); pg.wait_for_selector("#decs .row")
+        check("Decisiones opens from its title", "Ship by USB" in pg.inner_text("#decs"))
+        pg.click('[data-fk="fold-inbox"]'); pg.wait_for_selector("#in-body .inbox .row, #in-body #msgs .row")
+        check("Bandeja opens from its title: reports line and messages", "2 reports sin leer" in pg.inner_text("#pr-rep") and "Plain task" in pg.inner_text("#msgs"))
+        pg.evaluate("refresh(true)"); time.sleep(.3)
+        check("folds survive a refresh", pg.is_visible("#decs") and pg.is_visible("#in-body"))
 
         # read-only gate display
         t = pg.inner_text(row("Build") + " .gc")
         check("waiting gate reads 'espera a Danny' on its row", t.lower() == "espera a danny", t)
         pg.click(f'[data-fk="ph{ph["Build"]}"]'); pg.wait_for_selector(row("Build") + ".sel")
         d = pg.inner_text(row("Build") + " .detail")
-        check("selected waiting phase: 'Espera a Danny: <motivo>' and where to resolve it",
-              "Espera a Danny: Check the colour pipeline before Build ships" in d and "resuélvelo en el chat de gatedemo" in d, d)
+        check("selected waiting phase does not repeat the reason (it is in Para ti)",
+              "Check the colour pipeline" not in pg.inner_text("#phases") and "Check the colour pipeline before Build ships" in pg.inner_text("#pr-act"), d)
         check("no status control on a phase whose gate waits", pg.locator(row("Build") + " select").count() == 0 and "no se cambia aquí" in d)
         pg.evaluate("document.activeElement.blur()"); pg.keyboard.press(" "); time.sleep(.6)
         check("space key does not change a waiting phase", gate("Build")["status"] == "todo")
@@ -76,12 +93,12 @@ try:
               pg.locator('#pr-act a.where:has-text("Resuélvelo en el chat de gatedemo")').count() == 3 and pg.get_attribute("#pr-act a.where", "href") == "#p/gatedemo")
 
         # selected row: tint + accent edge, and the edge never overlaps the row's content
-        def sel_style(list_sel):
-            return pg.evaluate("""(s) => { const sel = document.querySelector(s + ' .row.sel'), other = document.querySelector(s + ' .row:not(.sel)');
+        def sel_style(list_sel, row="row"):
+            return pg.evaluate("""([s, row]) => { const sel = document.querySelector(s + ' .' + row + '.sel'), other = document.querySelector(s + ' .' + row + ':not(.sel)');
                 const cs = getComputedStyle(sel), co = getComputedStyle(other), r = sel.getBoundingClientRect();
                 const first = sel.firstElementChild, inner = first.querySelector('.dot') || first, c = inner.getBoundingClientRect();
                 const edge = r.left + parseFloat(cs.borderLeftWidth);
-                return { bg: cs.backgroundColor, other: co.backgroundColor, edge: cs.borderLeftColor, w: cs.borderLeftWidth, gap: c.left - edge }; }""", list_sel)
+                return { bg: cs.backgroundColor, other: co.backgroundColor, edge: cs.borderLeftColor, w: cs.borderLeftWidth, gap: c.left - edge }; }""", [list_sel, row])
         s1 = sel_style("#phases")
         check("selected phase row is distinct (tint + accent left border)", s1["bg"] != s1["other"] and s1["edge"] == "rgb(136, 254, 0)" and s1["w"] == "2px", s1)
         check("selection marker does not overlap the phase row content", s1["gap"] >= 4, s1)
@@ -93,7 +110,27 @@ try:
         check("selected inbox row distinct, marker clear of content", s3["bg"] != s3["other"] and s3["gap"] >= 4, s3)
 
         # bell: waiting gates + messages to user, not reports
-        pg.goto(BASE + "/#overview"); pg.wait_for_selector("#ov-body .row")
+        pg.goto(BASE + "/#p/framegrade"); pg.wait_for_function("document.querySelector('#phead h1') && document.querySelector('#phead h1').textContent === 'framegrade'")
+        check("project 'Para ti' hidden when nothing waits", pg.is_hidden("#pr-act"))
+        pg.goto(BASE + "/#overview"); pg.wait_for_selector("#ov-body .card")
+        # one card per project: state, name, phase with its track, next step, badges; nothing repeated from "Para ti"
+        card = '#ov-body .card[data-pid="gatedemo"]'
+        parts = pg.eval_on_selector(card, "c => [...c.children].map(e => e.className)")
+        ct = pg.inner_text(card)
+        check("overview card: state, name + badges, phase with its track, next step; nothing else",
+              parts[:3] == ["pstate", "ctop", "cph"] and len(parts) <= 4 and pg.locator(card + " .ctop a.cn").inner_text() == "gatedemo"
+              and pg.locator(card + " .cph .track").count() == 1 and "1/4" in ct and pg.locator(card + " .ctop .badge").count() == 2
+              and "2 reports" in pg.inner_text(card + " .badges").replace("\n", " ") and "phase gate demo" not in ct and pg.locator(card + " .btn").count() == 0, (parts, ct))
+        check("a project in Para ti: the card shows the red label only, no waiting reason",
+              pg.get_attribute(card + " .pstate", "data-kind") == "waiting" and pg.inner_text(card + " .pstate").strip() == "Te espera"
+              and "Check the colour" not in ct and "Which licence" not in ct, ct)
+        fg = pg.inner_text('#ov-body .card[data-pid="framegrade"]')
+        check("card badges: unread reports and open items", "1 report" in fg.replace("\n", " ") and "4 ítems" in fg.replace("\n", " "), fg)
+        check("reports and resources at the bottom, folded, with counts",
+              pg.evaluate("document.querySelector('#ov-body').compareDocumentPosition(document.querySelector('#ov-rep')) & 4") != 0
+              and pg.is_hidden("#ov-rep-body") and pg.is_hidden("#rs-wrap") and pg.inner_text("#ov-rep-h").lower().startswith("reports sin leer · ")
+              and pg.inner_text("#rs-h").lower() == "recursos en uso · 0")
+        check("no summary sentence at the top, the date line stays", pg.locator("#ov-lead").count() == 0 and pg.inner_text("#ov-eyebrow").lower().startswith("proyectos · "))
         n0 = int(pg.inner_text("#bell .c"))
         check("bell counts waiting gates + messages to user", n0 == expected_bell() == 3 and "hot" in pg.get_attribute("#bell", "class"), (n0, expected_bell()))
         rep0 = int(pg.inner_text("#repcount b"))
@@ -104,8 +141,8 @@ try:
         check("overview 'Para ti' lists the gates and the message", "Field test" in t and "Which licence?" in t and "Run the show file" in t and pg.locator("#ov-act .row.act .btn").count() == 0, t)
         check("'Para ti' is above the projects table", pg.evaluate("document.querySelector('#ov-act').compareDocumentPosition(document.querySelector('#ov-body')) & 4") != 0)
         check("overview headings are h2", pg.eval_on_selector_all("#overview .ph > :first-child", "e => e.every(x => x.tagName === 'H2')"))
-        pg.evaluate("document.activeElement.blur()"); pg.keyboard.press("ArrowDown"); pg.wait_for_selector("#ov-body .row.sel")
-        s4 = sel_style("#ov-body")
+        pg.evaluate("document.activeElement.blur()"); pg.keyboard.press("ArrowDown"); pg.wait_for_selector("#ov-body .card.sel")
+        s4 = sel_style("#ov-body", "card")
         check("selected overview row distinct, marker clear of the state dot", s4["bg"] != s4["other"] and s4["gap"] >= 4, s4)
 
         pg.click("#bell"); pg.wait_for_selector("#bellpanel:not([hidden])")
@@ -125,6 +162,7 @@ try:
         check("a click outside closes the bell panel", not pg.is_visible("#bellpanel"))
 
         # Marcar todos como leídos: each unread report of that project, nothing else
+        pg.click('[data-fk="fold-ovRep"]'); pg.wait_for_selector('[data-fk="r|ov|gatedemo"]')
         pg.click('[data-fk="r|ov|gatedemo"]'); pg.wait_for_selector('#ov-rep-body .rl[data-pid="gatedemo"] .reps')
         check("reports line expands in place", pg.locator('#ov-rep-body .rl[data-pid="gatedemo"] .rep').count() == 3)
         pg.click('[data-fk="ra|ov|gatedemo"]')

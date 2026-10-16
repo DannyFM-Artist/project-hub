@@ -3,6 +3,8 @@
 Source of truth for every project-hub screen. Design D replaced the Console look on 2026-10-16 by Danny's choice
 (mockup `mockups/redesign-D.html`, screenshots `mockups/redesign-D-*.png`; implementation shots `mockups/impl-D-*.png`).
 D is the Console B information layout with the C reading refinements, in the dannyfm-ui v0.2.0 "signal" identity.
+D2 (2026-10-16, after Danny validated D with real data; shots `mockups/impl-D2-*.png`): every piece of information in one place only,
+and whatever is not for right now is folded. Overview projects are cards, blocks stand further apart.
 New screens reuse these tokens and patterns; a new visual pattern starts as a mockup Danny approves.
 
 ## Character
@@ -16,7 +18,7 @@ amber (`--WARN`) marks "an agent is working"; every other colour carries a meani
 | Token | Value | Use |
 |---|---|---|
 | `--BASE` | `#131313` | page background, `theme-color` |
-| `--SURFACE` | `#181818` | panels, title bar |
+| `--SURFACE` | `#181818` | every block (panels, cards, the project header), title bar |
 | `--RAISED` | `#1F1F1F` | row hover, forms |
 | `--OVERLAY` | `#262626` | bell panel, toasts, pressed buttons |
 | `--INPUT` | `#0E0E0E` | inputs, selects, report bodies, inline confirmations |
@@ -37,16 +39,18 @@ Hub-only tokens live in the app (dannyfm-ui rule R3).
 ## Type and spacing
 
 - `--scale: 1.1667` (dannyfm-ui's opt-in 7/6 interface scale: 12 px body becomes 14 px in a browser). Every size and space is `calc(n px * var(--scale))`.
-- Text: `"Segoe UI", Inter, system-ui, sans-serif`. Mono: `"Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace` for numbers, ids, ages, state words, repo paths.
-- Sizes: H1 19, H2 15 (the lead sentence), H3 12, BODY 12, SMALL 11, CAPTION 10 (all × scale). Weights 400 and 600 only.
-- Panel titles and column headers: uppercase, letter-spaced; panel titles SMALL 600 `--TEXT`, column headers CAPTION `--TEXT_MUTED`.
-- Space steps XXS 2, XS 4, SM 8, MD 12, LG 16, XL 24, XXL 32 (× scale). Page padding LG / XL; panels 12 apart; max width 1680.
+- One sans font for content: `"Segoe UI", Inter, system-ui, sans-serif`, state words included. Mono (`"Cascadia Mono", Consolas, "JetBrains Mono", ui-monospace, monospace`) only for numbers, ids, timestamps and paths. The bell panel and Resumen keep their mono state words.
+- Sizes: H1 19 (project name), H2 15 (card project name), H3 12, BODY 12, SMALL 11, CAPTION 10 (all × scale). Weights 400 and 600 only.
+- Panel titles and column headers: uppercase, letter-spaced; panel titles H3 600 `--TEXT` (one step above the old SMALL), column headers CAPTION `--TEXT_MUTED`.
+- Space steps XXS 2, XS 4, SM 8, MD 12, LG 16, XL 24, XXL 32 (× scale). Page padding LG / XL; blocks XL apart (grid columns too), cards LG apart; max width 1680.
+- Text contrast 4.5:1 or better on SURFACE, RAISED and SELECTED (muted text turns TEXT_DIM on a selected row or card).
 
 ## Layout
 
 - **Title bar** (sticky, every view): wordmark · tabs `Proyectos` (key 1), one tab per project with its amber action count (key 2 = last project), `Resumen` (key 3) · reports counter · bell · poll time. An offline banner (WARN) sits under it when the hub cannot be reached.
-- **Proyectos (overview)**: eyebrow + one-sentence lead (what waits for Danny), "Para ti", reports lines, projects table (filter tabs by lifecycle status), resources.
-- **Project**: name, project state, lifecycle label, phase track, repo; lead sentence; next step; description and autonomy line; "Para ti" with the reports line; then a 7/5 grid: phases + decisions | items + inbox. One column under 1100 px. No page h-scroll down to 800 px.
+- **Proyectos (overview)**: the date line, "Para ti", one card per project (filter tabs by lifecycle status, with their counts), then folded at the bottom: "Reports sin leer · N" (one line per project inside) and "Recursos en uso · N". No summary sentence: "Para ti" already says what waits.
+- **Project**: a header block of two lines: (1) name and state, "Detalles ›", "← Proyectos"; (2) phase track, done/total, current phase and its state word, next step. "Detalles" (folded by default) holds lifecycle, id, repo path, description and last update. "Para ti" only when something waits. Then phases | items (7/5), and below, folded with their counts, Decisiones | Bandeja; the Bandeja holds the unread-reports line first, then the messages and the "Publicar mensaje" form. The autonomy line is not shown in the dashboard (it stays in the MCP output). One column under 1100 px. No page h-scroll down to 800 px.
+- **Folds** open from their title (chevron + title + count) and survive polling. A project opens with Detalles, Decisiones and Bandeja folded; `m` opens the Bandeja with its form; the route `#p/<id>/m/<message id>` opens the Bandeja (and the reports line) and scrolls to that message.
 - **Resumen**: period tabs, one folded box per project with news since its last copy, the rest in one "Sin novedades: A, B" line.
 
 ## The reading rule
@@ -65,11 +69,13 @@ One state per project (`state: {kind, label, detail}` from the server), the same
 3. **ready**, `--OK` green: "Novedades para copiar".
 4. **quiet**, `--IDLE` grey: "Sin novedades".
 
-In the overview the state replaces the old status column (dot + label, with the lifecycle active/paused/parked/done as a small caption under it); red and amber also show their detail in the row, under the project name. Red rows sort first.
+On overview cards and in the project header the state is the dot and the label. The waiting reason shows only when "Para ti" does not already list that project's waits; otherwise the red label is enough. The full detail is always in the tooltip; Resumen and the bell keep the detail visible. A stopped project shows grey "Parado" with its "ver report «Parado»" link. Red cards sort first.
 
 ## Patterns
 
-- **Panel**: SURFACE box, header strip (uppercase title · count, muted meta, right-side tabs), column header row, rows.
+- **Panel**: SURFACE box over BASE, header strip (uppercase title · count, muted meta, right-side tabs), column header row, rows. A folded panel shows only its header strip.
+- **Project card**: SURFACE, 2 px left edge, shows only: state (dot + label), name (H2) with count badges ("N reports", "N ítems"; zero is not shown), phase track + done/total + current phase and state word, next step (3 lines, full text in the tooltip). Clicking anywhere on it opens the project; ↑↓ select (SELECTED tint + ACCENT edge), Enter opens.
+- **Badge**: small BORDER_STRONG outline, mono number + word, TEXT_DIM.
 - **Row**: grid, 1 px divider, hover RAISED. **Selected row**: `--SELECTED` tint + 2 px `--ACCENT` left border. The border is the row's own left edge, outside its padding, so the marker never overlaps the first cell (checked in `gates_check.py`). The same treatment is used in the overview, phases, items and inbox; a selected row shows its detail (notes, actions) in place.
 - **State word**: mono uppercase coloured word, no box (`EN CURSO`, `ESPERA A DANNY`, `bug`, `petición`).
 - **Phase track**: one 7×11 cell per phase: OK done, WAITING gate waiting, ACCENT current, BORDER_STRONG to do; then `n/m`.
@@ -82,7 +88,7 @@ In the overview the state replaces the old status column (dot + label, with the 
 
 ## Gates (read-only)
 
-- One gate type. A waiting gate shows "espera a Danny" in its phase row and, on the selected row, "Espera a Danny: <motivo> · resuélvelo en el chat de <project>". A resolved gate shows "Resuelto vía chat: «<words>»", shortened, with the full words in a tooltip.
+- One gate type. A waiting gate shows just the "espera a Danny" tag in its phase row (the reason is in "Para ti", and in the tag's tooltip). A resolved gate shows "Resuelto vía chat: «<words>»", shortened, in the gate column only, with the full words and the time in a tooltip; the selected row does not repeat it.
 - There are no gate buttons, gate editors or confirmations, and a phase whose gate waits has no status control: Danny decides in the project's chat.
 
 ## Interaction and accessibility
