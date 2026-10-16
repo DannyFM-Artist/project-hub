@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>project-hub · proposal A · cockpit rail</title>
+<link rel="icon" href="data:,">
+<style>
+:root{
+  --bg:#0E1013; --p:#13161B; --p2:#1A1E25; --line:#2A2F38; --line2:#3A404B;
+  --text:#D7DBE2; --dim:#A0A8B5; --faint:#7A8190;
+  --amber:#FFB547; --cyan:#6CD3E8; --green:#8BD47C; --red:#FF7A7A; --violet:#C29BFF; --blue:#7AB6FF;
+  --empty:#262B33;
+  --mono:"Cascadia Mono","Cascadia Code",Consolas,"SF Mono",Menlo,ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg)}
+body{color:var(--text);font:13px/1.55 var(--mono);min-height:100vh;display:flex;flex-direction:column}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+:focus-visible{outline:1px solid var(--amber);outline-offset:1px}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.wrap{overflow-wrap:anywhere;min-width:0}
+
+/* top bar */
+.bar{display:flex;align-items:stretch;background:var(--p);border-bottom:1px solid var(--line);height:34px;flex:none}
+.bar>*{display:flex;align-items:center;padding:0 14px;border-right:1px solid var(--line);white-space:nowrap}
+.bar .logo{background:var(--amber);color:var(--bg);font-weight:700;font-size:13px;border:0}
+.bar .tab{color:var(--dim);min-width:0}
+.bar .tab kbd{color:var(--faint);margin-right:6px;font:inherit}
+.bar .tab.on{color:var(--text);background:var(--bg);box-shadow:inset 0 -2px 0 var(--amber)}
+.bar .sp{flex:1;border:0;padding:0}
+.bar .st{color:var(--dim);gap:6px;border-left:1px solid var(--line);border-right:0}
+.bar .st.hot{color:var(--amber)}
+.bar .st b{color:var(--green);font-weight:400}
+
+main{flex:1;padding:18px 24px 26px;min-width:0}
+
+/* panes */
+.pane{border:1px solid var(--line);position:relative;padding:16px 16px 12px;margin-bottom:20px;min-width:0}
+.pane>.lbl{position:absolute;top:-10px;left:12px;background:var(--bg);padding:0 8px;color:var(--amber);font-weight:400;font-size:13px;display:flex;gap:10px;max-width:calc(100% - 24px);white-space:nowrap}
+.pane>.lbl span{color:var(--dim)}
+.pane>.rt{position:absolute;top:-10px;right:12px;background:var(--bg);padding:0 8px;color:var(--faint);font-size:12px;display:flex;gap:14px;white-space:nowrap}
+.pane.hot{border-color:color-mix(in srgb,var(--amber) 55%,var(--line))}
+.empty{color:var(--faint)} .empty::before{content:"# ";color:var(--line2)}
+.k{color:var(--faint);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em}
+
+.prompt{color:var(--dim);margin-bottom:16px}
+.prompt b{color:var(--green);font-weight:400} .prompt i{font-style:normal;color:var(--text)}
+.caret{display:inline-block;width:8px;height:15px;background:var(--amber);vertical-align:-3px;animation:bl 1.1s steps(1) infinite}
+@keyframes bl{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.caret{animation:none}*{transition:none!important}}
+
+.tag{color:var(--c);white-space:nowrap} .tag::before{content:"● "}
+.s-active{--c:var(--green)} .s-paused{--c:var(--amber)} .s-parked{--c:var(--violet)} .s-done{--c:var(--blue)}
+.g-review{--gc:var(--violet)} .g-manual_test{--gc:var(--amber)} .g-ok{--gc:var(--green)}
+.gt{color:var(--gc);font-weight:700;white-space:nowrap} .gt::before{content:"◆ "}
+.badge{background:var(--amber);color:var(--bg);font-weight:700;padding:0 6px}
+
+/* project header */
+.phead{display:flex;align-items:baseline;gap:4px 18px;margin-bottom:16px;min-width:0}
+.phead h2{font-size:22px;font-weight:700;white-space:nowrap}
+.phead h2:focus{outline:none}
+.phead .desc{color:var(--dim);flex:1}
+.phead .upd{color:var(--faint);white-space:nowrap}
+
+/* cockpit */
+.cockpit{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.15fr) minmax(0,1.4fr) minmax(0,1.4fr);border:1px solid var(--line);margin-bottom:20px}
+.cell{padding:10px 14px 12px;border-right:1px solid var(--line);min-width:0}
+.cell:last-child{border-right:0}
+.cell>.k{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}
+.cell.hot{background:color-mix(in srgb,var(--amber) 6%,var(--bg));box-shadow:inset 0 3px 0 var(--amber)}
+.cell.hot>.k{color:var(--amber)}
+.cell.hot>.k .badge{font-size:11.5px;letter-spacing:0}
+.now .pos{display:flex;align-items:baseline;gap:10px}
+.now .pos b{font-size:22px;color:var(--amber);line-height:1.2}
+.now .pos span{color:var(--faint)}
+.now .nm{font-weight:700;font-size:14px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.now .ps{color:var(--dim);font-size:12px;margin-top:2px}
+.nxt{color:var(--text);font-size:14px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.wl{display:grid;gap:6px}
+.wl li{list-style:none;min-width:0}
+.wl .row1{display:flex;gap:8px;align-items:baseline;min-width:0}
+.wl .row1 button,.wl .row1 a{min-width:0;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl .row1 button:hover,.wl .row1 a:hover{color:var(--amber)}
+.wl .why{color:var(--dim);font-size:12px;padding-left:18px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.wl .more{color:var(--faint);font-size:12px}
+.rp .row1 time{color:var(--faint);font-size:12px;white-space:nowrap;margin-left:auto}
+.rp .tw{flex:none;color:var(--amber);width:10px}
+.rp pre{font:inherit;font-size:12px;color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;background:var(--p);border-left:3px solid var(--amber);padding:6px 10px;margin:4px 0 2px;max-height:38vh;overflow:auto}
+
+/* phase rail */
+.rail{display:flex;gap:2px;height:34px}
+.seg{flex:1 1 0;min-width:0;position:relative;display:flex;align-items:center;gap:5px;padding:0 6px;background:var(--empty);color:var(--dim);font-size:12px;white-space:nowrap;overflow:hidden;transition:background-color .15s}
+.seg .sy{flex:none}
+.seg .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:700}
+.seg .gm{color:var(--gc);margin-left:auto;flex:none}
+.seg.done{background:color-mix(in srgb,var(--green) 16%,var(--bg));color:var(--green)}
+.seg.in_progress{color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,var(--bg))}
+.seg.cur{flex:0 1 300px;min-width:110px;background:var(--amber);color:var(--bg)}
+.seg.cur .gm{color:var(--bg)}
+.seg.gate{box-shadow:inset 0 3px 0 var(--gc)}
+.seg.cur.gate{box-shadow:inset 0 3px 0 var(--bg)}
+.seg:hover{background:var(--line2);color:var(--text)}
+.seg.cur:hover{background:color-mix(in srgb,var(--amber) 85%,#fff)}
+.seg.sel::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--text)}
+.seg.cur.sel::after{background:var(--bg)}
+.rlegend{display:flex;gap:18px;color:var(--faint);font-size:12px}
+.rlegend .d{color:var(--green)} .rlegend .c{color:var(--amber)} .rlegend .t{color:var(--dim)}
+.pdet{display:grid;grid-template-columns:170px minmax(0,1fr);gap:0 18px;border-top:1px dashed var(--line2);margin-top:10px;padding-top:10px;min-height:86px}
+.pdet .meta{color:var(--faint);font-size:12px;display:grid;align-content:start;gap:2px}
+.pdet .meta b{color:var(--text);font-size:15px;font-weight:700}
+.pdet .meta .stw.done{color:var(--green)} .pdet .meta .stw.in_progress{color:var(--amber)} .pdet .meta .stw.todo{color:var(--dim)}
+.pdet .meta button{color:var(--amber);text-align:left;margin-top:4px}
+.pdet .meta button:hover{text-decoration:underline}
+.pdet h4{font-size:14px;font-weight:700;overflow-wrap:anywhere}
+.pdet .cur-tag{color:var(--bg);background:var(--amber);font-size:11.5px;padding:0 5px;margin-left:8px;font-weight:700;vertical-align:1px}
+.pdet p{color:var(--dim);overflow-wrap:anywhere;white-space:pre-wrap;margin-top:2px}
+.pdet .gline{margin-top:4px;font-size:12px;color:var(--dim);overflow-wrap:anywhere}
+
+/* lower grid */
+.cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px;align-items:start}
+.types{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0}
+.tcol{padding:0 14px;border-right:1px solid var(--line);min-width:0}
+.tcol:first-child{padding-left:0} .tcol:last-child{padding-right:0;border-right:0}
+.tcol h4{display:flex;align-items:baseline;gap:8px;font-size:13px;font-weight:700;color:var(--c)}
+.tcol h4::before{content:"";width:9px;height:9px;background:var(--c);flex:none;align-self:center}
+.tcol h4 span{color:var(--dim);font-weight:400}
+.tcol .cap{color:var(--faint);font-size:12px;border-bottom:1px dashed var(--line);padding-bottom:6px;margin-bottom:4px}
+.ty-bug{--c:var(--red)} .ty-idea{--c:var(--cyan)} .ty-future_request{--c:var(--violet)}
+.irow{border-left:2px solid transparent}
+.irow>button{display:grid;grid-template-columns:minmax(0,1fr) auto 12px;gap:8px;width:100%;padding:3px 4px;align-items:baseline}
+.irow>button:hover,.irow.open{background:var(--p);border-color:var(--c)}
+.irow .is{font-size:11.5px;color:var(--faint)}
+.irow .is.planned{color:var(--amber)} .irow .is.done{color:var(--green)}
+.irow .ti{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.irow.st-done .ti{color:var(--dim)}
+.irow .tw{color:var(--faint)}
+.irow .det{padding:2px 6px 8px 10px;background:var(--p);font-size:12px;color:var(--dim);overflow-wrap:anywhere;white-space:pre-wrap}
+.irow .det .full{color:var(--text);display:block;margin-bottom:2px}
+.irow .det small{color:var(--faint);display:block;margin-top:2px;font-size:11.5px}
+.tcol .disc{color:var(--faint);font-size:12px;padding:4px}
+
+.dl{display:grid;grid-template-columns:96px minmax(0,1fr);gap:2px 14px}
+.dl time{color:var(--faint)}
+.more-b{color:var(--amber);margin-top:2px}
+.more-b:hover{text-decoration:underline}
+.dl .d{overflow-wrap:anywhere}
+.dl .r{grid-column:2;color:var(--dim);margin-bottom:10px;overflow-wrap:anywhere}
+.dl .r::before{content:"└ because ";color:var(--faint)}
+
+.feed .m{padding:8px 0;border-bottom:1px solid #1C2027;min-width:0}
+.feed .m:last-child{border-bottom:0}
+.feed .h{display:flex;gap:8px;color:var(--faint);font-size:12px;flex-wrap:wrap}
+.feed .h .kd{font-weight:700}
+.feed .h .u::before{content:"●";color:var(--amber)}
+.feed .m>button{display:block;width:100%;color:var(--text);margin-top:2px;overflow-wrap:anywhere}
+.feed .m>button:hover{color:var(--amber)}
+.feed .m.unread>button{font-weight:700}
+.feed .m.read>button,.feed .m.done>button{color:var(--dim)}
+.feed .bd{color:var(--dim);font:inherit;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.feed .m.open .bd{display:block}
+.m.message .kd{color:var(--cyan)} .m.task .kd{color:var(--violet)}
+.m.report{background:var(--p);border:1px solid var(--line);border-left:3px solid var(--amber);padding:8px 10px;margin:6px 0}
+.m.report .kd{color:var(--bg);background:var(--amber);padding:0 5px}
+
+/* overview */
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th{text-align:left;font-weight:400;color:var(--faint);padding:0 14px 7px 0;border-bottom:1px solid var(--line);text-transform:uppercase;font-size:11.5px;letter-spacing:.06em;white-space:nowrap;overflow:hidden}
+td{padding:9px 14px 9px 0;border-bottom:1px solid #1C2027;vertical-align:top;min-width:0}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--p)}
+td a.pn{font-weight:700}
+td a.pn:hover,td a.go:hover{color:var(--amber)}
+td a.go{color:var(--dim)}
+td small{display:block;color:var(--faint);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.c1{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+#wt th:nth-child(1){width:150px} #wt th:nth-child(2){width:130px} #wt th:nth-child(3){width:30%} #wt th:nth-child(5){width:200px}
+#pt th:nth-child(1){width:84px} #pt th:nth-child(2){width:17%} #pt th:nth-child(3){width:200px} #pt th:nth-child(4){width:20%} #pt th:nth-child(6){width:170px} #pt th:nth-child(7){width:64px}
+#rs th:nth-child(1){width:22%} #rs th:nth-child(2){width:18%} #rs th:nth-child(4){width:110px}
+.rep-k{color:var(--bg);background:var(--amber);font-weight:700;padding:0 5px;font-size:12px}
+.mini{display:flex;gap:1px;height:12px;margin-top:5px}
+.mini i{flex:1 1 0;min-width:0;background:var(--empty)}
+.mini i.done{background:var(--green)} .mini i.in_progress{background:color-mix(in srgb,var(--amber) 55%,var(--empty))}
+.mini i.cur{background:var(--amber);flex-grow:2.5}
+.mini i.gate{box-shadow:inset 0 -4px 0 var(--gc)}
+.mfrac{color:var(--dim);font-size:12px}
+.att{display:grid;gap:2px;font-size:12px}
+.att .a{color:var(--amber);font-weight:700}
+.att .no{color:var(--faint)}
+.cphase b{color:var(--amber);font-weight:400;margin-right:6px}
+
+.keys{border-top:1px solid var(--line);background:var(--p);padding:6px 24px;color:var(--dim);display:flex;gap:8px 22px;font-size:12px;flex-wrap:wrap;flex:none}
+.keys button{color:var(--dim);padding:2px 4px;margin:-2px -4px}
+.keys button:hover{color:var(--text)}
+.keys kbd{font:inherit;color:var(--bg);background:var(--dim);padding:0 5px;margin-right:6px}
+.keys .note{margin-left:auto;color:var(--faint)}
+
+@media (max-width:1100px){.cockpit{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .cell:nth-child(2){border-right:0} .cell:nth-child(-n+2){border-bottom:1px solid var(--line)} .cols{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:760px){main{padding:16px 14px} .types{grid-template-columns:minmax(0,1fr)} .tcol{padding:0;border:0;margin-bottom:14px} .phead{flex-wrap:wrap} .pdet{grid-template-columns:minmax(0,1fr)} .seg .sy,.seg .gm{display:none} .seg{padding:0 3px}}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1 class="logo">project-hub</h1>
+  <a class="tab" id="tab-ov" href="#overview"><kbd>1</kbd>overview</a>
+  <a class="tab" id="tab-pr" href="#overview" hidden><kbd>2</kbd><span class="ell"></span></a>
+  <span class="sp"></span>
+  <span class="st" id="bar-att"></span>
+  <span class="st" id="bar-sync"><b>●</b> <span></span></span>
+</header>
+
+<main id="main"></main>
+
+<nav class="keys" aria-label="shortcuts">
+  <button type="button" data-k="1"><kbd>1</kbd>overview</button>
+  <button type="button" data-k="2"><kbd>2</kbd>project</button>
+  <button type="button" data-k="ArrowLeft" aria-label="previous phase"><kbd>←</kbd>prev phase</button>
+  <button type="button" data-k="ArrowRight" aria-label="next phase"><kbd>→</kbd>next phase</button>
+  <button type="button" data-k="c" aria-label="back to current phase"><kbd>c</kbd>current phase</button>
+  <span class="note">proposal A · cockpit rail · static data</span>
+</nav>
+
+<script src="redesign/data.js"></script>
+<script>
+"use strict";
+const HUB = window.HUB;
+const $ = (s) => document.querySelector(s);
+const h = (tag, props, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v);
+  }
+  e.append(...kids.flat(Infinity).filter((x) => x != null && x !== false)); // text nodes only, never HTML
+  return e;
+};
+const NOW = new Date(HUB.snapshot).getTime(); // static mockup: "now" is the snapshot time
+function ago(iso) {
+  const m = (NOW - new Date(iso).getTime()) / 60000;
+  if (!(m >= 1)) return "now";
+  if (m < 60) return Math.floor(m) + "m";
+  if (m < 1440) return Math.floor(m / 60) + "h";
+  return Math.floor(m / 1440) + "d";
+}
+const pad = (n) => String(n).padStart(2, "0");
+const ST_WORD = { done: "done", in_progress: "in progress", todo: "to do" };
+const ST_SYM = { done: "✓", in_progress: "▶", todo: "○" };
+const GATE_WORD = { review: "review", manual_test: "manual test" };
+const TYPES = [
+  ["bug", "Bugs", "broken things to fix"],
+  ["idea", "Ideas", "worth trying, not committed"],
+  ["future_request", "Requests", "features asked for later"],
+];
+const ITEM_ORDER = { planned: 0, open: 1, done: 2 };
+
+/* ---------- rules ---------- */
+const curIdx = (p) => { const i = p.phases.findIndex((x) => x.status === "in_progress"); return i >= 0 ? i : p.phases.findIndex((x) => x.status === "todo"); };
+const waits = (ph) => ph.gate === "manual_test" || (ph.gate === "review" && !ph.gate_approved);
+const gateCls = (ph) => (ph.gate === "review" && ph.gate_approved ? "g-ok" : "g-" + ph.gate);
+const gateWord = (ph) => GATE_WORD[ph.gate] + (ph.gate === "review" ? (ph.gate_approved ? " · approved" : " · not approved") : "");
+const unreadReports = (id) => HUB.messages.filter((m) => m.kind === "report" && m.status === "unread" && (m.to_project === id || m.to_project === "all"));
+const waitingGates = (p) => p.phases.map((ph, i) => ({ ph, i })).filter((x) => x.ph.gate && waits(x.ph));
+const byId = (id) => HUB.projects.find((p) => p.id === id);
+
+/* ---------- state + routing ---------- */
+const S = { pid: null, last: null, pin: null, show: null, open: new Set() };
+function route() {
+  const m = /^#p\/(.+)$/.exec(location.hash);
+  const id = m ? decodeURIComponent(m[1]) : null;
+  if (id && !byId(id)) { location.replace("#overview"); return; }
+  if (id !== S.pid) { S.pin = null; S.show = null; }
+  S.pid = id;
+  if (id) S.last = id;
+  render();
+}
+
+function render() {
+  const p = S.pid && byId(S.pid);
+  $("#tab-ov").classList.toggle("on", !p);
+  const tp = $("#tab-pr"), lp = S.last && byId(S.last);
+  tp.hidden = !lp; tp.classList.toggle("on", !!p);
+  if (lp) { tp.href = "#p/" + encodeURIComponent(lp.id); tp.querySelector("span").textContent = lp.name; }
+  const gates = HUB.projects.reduce((n, x) => n + waitingGates(x).length, 0);
+  const reps = HUB.messages.filter((m) => m.kind === "report" && m.status === "unread").length;
+  const ba = $("#bar-att");
+  ba.textContent = `◆ ${gates} gate${gates === 1 ? "" : "s"} · ${reps} unread report${reps === 1 ? "" : "s"}`;
+  ba.classList.toggle("hot", gates + reps > 0);
+  $("#bar-sync span").textContent = "snapshot " + new Date(HUB.snapshot).toTimeString().slice(0, 5);
+  document.querySelectorAll('.keys [data-k^="Arrow"], .keys [data-k="c"]').forEach((b) => (b.hidden = !p));
+  const fk = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
+  $("#main").replaceChildren(p ? projectView(p) : overview());
+  const back = fk && document.querySelector(`[data-fk="${CSS.escape(fk)}"]`);
+  if (back) back.focus();
+  document.title = (p ? p.name : "overview") + " · project-hub";
+}
+
+/* ---------- overview ---------- */
+function overview() {
+  const rows = [];
+  for (const p of HUB.projects) for (const { ph, i } of waitingGates(p)) rows.push(
+    h("tr", {},
+      h("td", {}, h("span", { class: "gt " + gateCls(ph) }, GATE_WORD[ph.gate])),
+      h("td", {}, h("a", { class: "pn", href: "#p/" + encodeURIComponent(p.id) }, p.name)),
+      h("td", {}, h("div", { class: "c1" }, h("span", { class: "mfrac" }, pad(i + 1) + " "), ph.name)),
+      h("td", { class: "wrap" }, h("div", { class: "c1", style: "color:var(--dim)" }, ph.gate_reason || "—")),
+      h("td", { style: "color:var(--faint)" }, "set by " + (ph.gate_set_by || "?"))));
+  for (const m of HUB.messages.filter((x) => x.kind === "report" && x.status === "unread")) {
+    const t = byId(m.to_project);
+    rows.push(h("tr", {},
+      h("td", {}, h("span", { class: "rep-k" }, "REPORT")),
+      h("td", {}, t ? h("a", { class: "pn", href: "#p/" + encodeURIComponent(t.id) }, t.name) : h("b", {}, m.to_project)),
+      h("td", {}, h("div", { class: "c1" }, m.title)),
+      h("td", { class: "wrap" }, h("div", { class: "c1", style: "color:var(--dim)" }, (m.body || "").replace(/\s+/g, " "))),
+      h("td", { style: "color:var(--faint)" }, h("div", { class: "c1" }, "from " + m.from_project + " · " + ago(m.created_at)))));
+  }
+  const wt = h("section", { class: "pane" + (rows.length ? " hot" : "") },
+    h("h2", { class: "lbl" }, "waiting for you ", h("span", {}, rows.length + "")),
+    h("span", { class: "rt" }, "gates block the next phase · reports to read"),
+    rows.length ? h("table", { id: "wt" }, h("thead", {}, h("tr", {}, ["what", "project", "phase / title", "reason / summary", "from"].map((x) => h("th", {}, x)))), h("tbody", {}, rows))
+      : h("div", { class: "empty" }, "Nothing is waiting for you."));
+
+  const pr = HUB.projects.map((p) => {
+    const ci = curIdx(p), cp = p.phases[ci], done = p.phases.filter((x) => x.status === "done").length;
+    const g = waitingGates(p).length, r = unreadReports(p.id).length;
+    const href = "#p/" + encodeURIComponent(p.id);
+    return h("tr", {},
+      h("td", {}, h("span", { class: "tag s-" + p.status }, p.status)),
+      h("td", {}, h("a", { class: "pn", href }, p.name), h("small", { title: p.description || "" }, p.description || "")),
+      h("td", {}, h("div", { class: "mfrac" }, `${done}/${p.phases.length} done`),
+        h("div", { class: "mini", role: "img", "aria-label": `${done} of ${p.phases.length} phases done` + (cp ? `, current ${ci + 1}` : "") },
+          p.phases.map((ph, i) => h("i", { class: [ph.status, i === ci ? "cur" : "", ph.gate && waits(ph) ? "gate " + gateCls(ph) : ""].join(" "), title: pad(i + 1) + " " + ph.name })))),
+      h("td", { class: "cphase" }, cp ? h("div", { class: "c2" }, h("b", {}, `${pad(ci + 1)}/${pad(p.phases.length)}`), cp.name) : h("span", { class: "empty" }, "all phases done")),
+      h("td", {}, h("div", { class: "c2" }, p.next_step || "—")),
+      h("td", {}, h("div", { class: "att" },
+        g ? h("a", { class: "a", href }, `◆ ${g} gate${g === 1 ? "" : "s"} waiting`) : null,
+        r ? h("a", { class: "a", href }, `■ ${r} unread report${r === 1 ? "" : "s"}`) : null,
+        !g && !r ? h("span", { class: "no" }, "nothing waiting") : null)),
+      h("td", { style: "color:var(--dim)" }, ago(p.updated_at)));
+  });
+  const counts = {};
+  HUB.projects.forEach((p) => (counts[p.status] = (counts[p.status] || 0) + 1));
+  const pt = h("section", { class: "pane" },
+    h("h2", { class: "lbl" }, "projects ", h("span", {}, HUB.projects.length + " · " + Object.entries(counts).map(([k, v]) => v + " " + k).join(" · "))),
+    h("span", { class: "rt" }, h("span", { style: "color:var(--green)" }, "█"), "done", h("span", { style: "color:var(--amber)" }, "█"), "current", h("span", { style: "color:#3A404B" }, "█"), "to do", h("span", { style: "color:var(--violet)" }, "▁"), "gate waiting"),
+    h("table", { id: "pt" }, h("thead", {}, h("tr", {}, ["status", "project", "phases", "current phase", "next step", "attention", "updated"].map((x) => h("th", {}, x)))), h("tbody", {}, pr)));
+
+  const leases = HUB.leases || [];
+  const rs = h("section", { class: "pane" },
+    h("h2", { class: "lbl" }, "resources ", h("span", {}, leases.length + "")),
+    leases.length ? h("table", { id: "rs" }, h("thead", {}, h("tr", {}, ["resource", "project", "purpose", "expires"].map((x) => h("th", {}, x)))),
+      h("tbody", {}, leases.map((l) => h("tr", {}, h("td", { class: "wrap" }, l.resource), h("td", {}, byId(l.project_id) ? h("a", { class: "pn", href: "#p/" + encodeURIComponent(l.project_id) }, byId(l.project_id).name) : l.project_id),
+        h("td", { class: "wrap", style: "color:var(--dim)" }, l.purpose || ""), h("td", { style: "color:var(--dim)" }, new Date(l.expires_at).toTimeString().slice(0, 5))))))
+      : h("div", { class: "empty" }, "No active resources."));
+
+  return h("div", {}, h("div", { class: "prompt" }, h("b", {}, "danny@hub"), " ~ $ ", h("i", {}, "list_projects"), " ", h("span", { class: "caret" })), wt, pt, rs);
+}
+
+/* ---------- project ---------- */
+function toggle(key) { S.open.has(key) ? S.open.delete(key) : S.open.add(key); }
+function projectView(p) {
+  const ci = curIdx(p), cp = p.phases[ci], n = p.phases.length;
+  if (S.show == null) S.show = S.pin != null ? S.pin : Math.max(ci, 0);
+  const gates = waitingGates(p), reps = unreadReports(p.id);
+  const head = h("div", { class: "phead" },
+    h("h2", { tabindex: "-1" }, p.name), h("span", { class: "tag s-" + p.status }, p.status),
+    h("span", { class: "desc ell", title: p.description || "" }, p.description || ""),
+    h("span", { class: "upd" }, "updated " + ago(p.updated_at)));
+
+  /* cockpit */
+  const now = h("div", { class: "cell now" }, h("div", { class: "k" }, "now"),
+    cp ? [h("div", { class: "pos" }, h("b", {}, pad(ci + 1) + "/" + pad(n)), h("span", {}, ST_SYM[cp.status] + " " + ST_WORD[cp.status])), h("div", { class: "nm", title: cp.name }, cp.name)]
+      : h("div", { class: "empty" }, n ? "All phases done." : "No phases yet."));
+  const nxt = h("div", { class: "cell" }, h("div", { class: "k" }, "next step"),
+    p.next_step ? h("div", { class: "nxt", title: p.next_step }, p.next_step) : h("div", { class: "empty" }, "No next step set."));
+  const MAXG = 3;
+  const wait = h("div", { class: "cell" + (gates.length ? " hot" : "") },
+    h("div", { class: "k" }, "waiting for you", gates.length ? h("span", { class: "badge" }, gates.length + "") : null),
+    gates.length ? h("ul", { class: "wl" }, gates.slice(0, MAXG).map(({ ph, i }) => h("li", {},
+      h("div", { class: "row1" }, h("span", { class: "gt " + gateCls(ph) }, GATE_WORD[ph.gate]),
+        h("button", { type: "button", "data-fk": "g:" + i, title: ph.name, onclick: () => { S.pin = S.show = i; render(); } }, pad(i + 1) + " " + ph.name)),
+      h("div", { class: "why", title: ph.gate_reason || "" }, ph.gate_reason || "no reason given"))),
+      gates.length > MAXG ? h("li", { class: "more" }, `+${gates.length - MAXG} more on the rail (◆)`) : null)
+      : h("div", { class: "empty" }, "No gates waiting."));
+  const rep = h("div", { class: "cell" + (reps.length ? " hot" : "") },
+    h("div", { class: "k" }, "unread reports", reps.length ? h("span", { class: "badge" }, reps.length + "") : null),
+    reps.length ? h("ul", { class: "wl rp" }, reps.slice(0, 4).map((m) => {
+      const key = "r:" + m.id, open = S.open.has(key);
+      return h("li", {},
+        h("div", { class: "row1" }, h("span", { class: "tw", "aria-hidden": "true" }, open ? "▾" : "▸"),
+          h("button", { type: "button", "data-fk": key, "aria-expanded": String(open), title: m.title, onclick: () => { toggle(key); render(); } }, m.title),
+          h("time", {}, ago(m.created_at))),
+        open ? h("pre", {}, m.body || "") : null);
+    }), reps.length > 4 ? h("li", { class: "more" }, `+${reps.length - 4} more in the inbox`) : null)
+      : h("div", { class: "empty" }, "No unread reports."));
+  const cockpit = h("section", { class: "cockpit", "aria-label": "status" }, now, nxt, wait, rep);
+
+  /* rail */
+  const doneN = p.phases.filter((x) => x.status === "done").length;
+  const rail = h("div", { class: "rail", role: "group", "aria-label": "phases",
+    onmouseleave: () => setShow(S.pin != null ? S.pin : ci),
+    onfocusout: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setShow(S.pin != null ? S.pin : ci); } },
+    p.phases.map((ph, i) => h("button", {
+      type: "button", "data-i": i,
+      class: ["seg", ph.status, i === ci ? "cur" : "", ph.gate ? "gate " + gateCls(ph) : "", i === S.show ? "sel" : ""].join(" "),
+      "aria-label": `phase ${i + 1} of ${n}: ${ph.name}, ${ST_WORD[ph.status]}` + (ph.gate ? `, gate ${gateWord(ph)}` : "") + (i === ci ? ", current" : ""),
+      "aria-pressed": String(S.pin === i),
+      onmouseenter: () => setShow(i), onfocus: () => setShow(i),
+      onclick: () => { S.pin = i; setShow(i); },
+    }, h("span", { class: "sy", "aria-hidden": "true" }, ST_SYM[ph.status]), h("span", {}, pad(i + 1)),
+      i === ci ? h("span", { class: "nm" }, ph.name) : null,
+      ph.gate ? h("span", { class: "gm", "aria-hidden": "true" }, "◆") : null)));
+  const det = h("div", { class: "pdet", id: "pdet" });
+  const phases = h("section", { class: "pane" },
+    h("h3", { class: "lbl" }, "phases ", h("span", {}, `${doneN}/${n} done`)),
+    h("span", { class: "rt rlegend" }, h("span", {}, h("span", { class: "c" }, "█"), " current"), h("span", {}, h("span", { class: "d" }, "✓"), " done"), h("span", {}, h("span", { class: "c" }, "▶"), " in progress"), h("span", {}, h("span", { class: "t" }, "○"), " to do"),
+      h("span", {}, "gate:"), h("span", {}, h("span", { style: "color:var(--violet)" }, "◆"), " review"), h("span", {}, h("span", { style: "color:var(--amber)" }, "◆"), " manual test"), h("span", {}, h("span", { style: "color:var(--green)" }, "◆"), " approved")),
+    n ? rail : h("div", { class: "empty" }, "No phases yet."), n ? det : null);
+  if (n) fillDetail(det, p, ci);
+
+  /* items by type */
+  const live = p.items.filter((x) => x.status !== "discarded");
+  const types = h("div", { class: "types" }, TYPES.map(([t, word, cap]) => {
+    const all = p.items.filter((x) => x.type === t), list = all.filter((x) => x.status !== "discarded").sort((a, b) => (ITEM_ORDER[a.status] ?? 3) - (ITEM_ORDER[b.status] ?? 3));
+    const disc = all.length - list.length;
+    return h("div", { class: "tcol ty-" + t },
+      h("h4", {}, word, h("span", {}, list.length + "")),
+      h("div", { class: "cap" }, cap),
+      list.length ? list.map((it) => {
+        const key = "i:" + it.id, open = S.open.has(key);
+        return h("div", { class: "irow st-" + it.status + (open ? " open" : "") },
+          h("button", { type: "button", "data-fk": key, "aria-expanded": String(open), title: it.title, onclick: () => { toggle(key); render(); } },
+            h("span", { class: "ti" }, it.title), h("span", { class: "is " + it.status }, it.status === "open" ? "" : it.status), h("span", { class: "tw", "aria-hidden": "true" }, open ? "▾" : "▸")),
+          open ? h("div", { class: "det" }, h("span", { class: "full" }, it.title), it.details || "No details.", h("small", {}, `${word.slice(0, -1).toLowerCase()} · ${it.id} · added ${ago(it.created_at)}`)) : null);
+      }) : h("div", { class: "empty" }, "None."),
+      disc ? h("div", { class: "disc" }, `+${disc} discarded`) : null);
+  }));
+  const items = h("section", { class: "pane" },
+    h("h3", { class: "lbl" }, "items ", h("span", {}, `${live.length} · click a row for details`)),
+    h("span", { class: "rt" }, "rows are open unless marked", h("span", { style: "color:var(--amber)" }, "planned"), h("span", { style: "color:var(--green)" }, "done")),
+    types);
+
+  const decs = h("section", { class: "pane" }, h("h3", { class: "lbl" }, "decisions ", h("span", {}, p.decisions.length + "")),
+    p.decisions.length ? h("div", { class: "dl" }, p.decisions.slice().reverse().slice(0, S.open.has("d:all") ? undefined : 5).map((d) => [h("time", {}, (d.date || "").slice(0, 10)), h("div", { class: "d" }, d.decision), d.reason ? h("div", { class: "r" }, d.reason) : h("div", { class: "r", style: "visibility:hidden" }, "")]))
+      : h("div", { class: "empty" }, "No decisions logged yet."),
+    p.decisions.length > 5 ? h("button", { type: "button", class: "more-b", "data-fk": "d:all", "aria-expanded": String(S.open.has("d:all")), onclick: () => { toggle("d:all"); render(); } }, S.open.has("d:all") ? "show latest 5" : `show all ${p.decisions.length}`) : null);
+
+  const msgs = HUB.messages.filter((m) => m.to_project === p.id || m.to_project === "all")
+    .sort((a, b) => (a.status === "unread" ? 0 : 1) - (b.status === "unread" ? 0 : 1) || b.created_at.localeCompare(a.created_at));
+  const unreadN = msgs.filter((m) => m.status === "unread").length;
+  const inbox = h("section", { class: "pane feed" }, h("h3", { class: "lbl" }, "inbox ", h("span", {}, `${unreadN} unread / ${msgs.length}`)),
+    msgs.length ? msgs.map((m) => {
+      const key = "m:" + m.id, open = S.open.has(key) || S.open.has("r:" + m.id);
+      return h("div", { class: `m ${m.kind} ${m.status}` + (open ? " open" : "") },
+        h("div", { class: "h" }, h("span", { class: "kd" }, m.kind.toUpperCase()), h("span", {}, `${m.from_project} → ${m.to_project}`), h("span", {}, ago(m.created_at)), h("span", { class: m.status === "unread" ? "u" : "" }, m.status === "unread" ? "" : m.status)),
+        h("button", { type: "button", "data-fk": key, "aria-expanded": String(open), onclick: () => { toggle(key); S.open.delete("r:" + m.id); render(); } }, (m.kind === "task" ? (m.status === "done" ? "[x] " : "[ ] ") : "") + m.title),
+        h("pre", { class: "bd" }, m.body || ""));
+    }) : h("div", { class: "empty" }, "No messages."));
+
+  return h("div", {}, head, cockpit, phases, items, h("div", { class: "cols" }, decs, inbox));
+}
+
+function setShow(i) {
+  const p = byId(S.pid);
+  if (!p || i == null || i < 0 || i >= p.phases.length) return;
+  S.show = i;
+  document.querySelectorAll(".seg").forEach((b) => { b.classList.toggle("sel", +b.dataset.i === i); b.setAttribute("aria-pressed", String(S.pin === +b.dataset.i)); });
+  fillDetail($("#pdet"), p, curIdx(p));
+}
+function fillDetail(det, p, ci) {
+  if (!det) return;
+  const i = S.show, ph = p.phases[i];
+  if (!ph) { det.replaceChildren(); return; }
+  det.replaceChildren(
+    h("div", { class: "meta" }, h("span", {}, "phase"), h("b", {}, `${pad(i + 1)} / ${pad(p.phases.length)}`),
+      h("span", { class: "stw " + ph.status }, ST_SYM[ph.status] + " " + ST_WORD[ph.status]),
+      i !== ci && ci >= 0 ? h("button", { type: "button", onclick: () => { S.pin = null; setShow(ci); } }, "← back to current") : null),
+    h("div", { style: "min-width:0" },
+      h("h4", {}, ph.name, i === ci ? h("span", { class: "cur-tag" }, "CURRENT") : null),
+      h("p", {}, ph.notes ? ph.notes : h("span", { class: "empty" }, "No notes.")),
+      ph.gate ? h("div", { class: "gline" }, h("span", { class: "gt " + gateCls(ph) }, gateWord(ph)),
+        waits(ph) ? h("span", { style: "color:var(--amber)" }, " · waiting for you") : null,
+        ` · set by ${ph.gate_set_by || "?"}`, ph.gate_reason ? " · " + ph.gate_reason : "") : null));
+}
+
+/* ---------- keys ---------- */
+function key(k) {
+  if (k === "1") location.hash = "#overview";
+  else if (k === "2" && S.last) location.hash = "#p/" + encodeURIComponent(S.last);
+  else if (S.pid && (k === "ArrowLeft" || k === "ArrowRight")) { const p = byId(S.pid); const i = Math.min(p.phases.length - 1, Math.max(0, S.show + (k === "ArrowLeft" ? -1 : 1))); S.pin = i; setShow(i); }
+  else if (S.pid && k === "c") { S.pin = null; setShow(curIdx(byId(S.pid))); }
+  else return false;
+  return true;
+}
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if (key(e.key)) e.preventDefault();
+});
+document.querySelectorAll(".keys [data-k]").forEach((b) => b.addEventListener("click", () => key(b.dataset.k)));
+window.addEventListener("hashchange", route);
+route();
+</script>
+</body>
+</html>

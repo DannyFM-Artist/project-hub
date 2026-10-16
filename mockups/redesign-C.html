@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>project-hub · Briefing</title>
+<!-- Proposal C "Briefing". Departs from Console: proportional system sans for reading text (mono only for ids, numbers, dates),
+     15px body, more whitespace, 6px radii. Keeps the Console dark palette and every colour meaning. -->
+<style>
+:root{
+  --bg:#0E1013;--p:#13161B;--p2:#1A1E25;--line:#2A2F38;--line2:#3A404B;
+  --text:#D7DBE2;--dim:#A0A8B5;--faint:#7A8190;
+  --amber:#FFB547;--green:#8BD47C;--violet:#C29BFF;--blue:#7AB6FF;--cyan:#6CD3E8;--red:#FF7A7A;
+  --sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --mono:"Cascadia Mono","Cascadia Code",Consolas,"SF Mono",Menlo,ui-monospace,monospace;
+  --amberbg:#1C1912;--r:6px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:15px/1.55 var(--sans);overflow-x:hidden}
+a{color:inherit}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px;border-radius:3px}
+summary{cursor:pointer;list-style:none}
+summary::-webkit-details-marker{display:none}
+.mono{font-family:var(--mono);font-size:.88em}
+.dim{color:var(--dim)} .faint{color:var(--faint)}
+.wrap{overflow-wrap:anywhere;min-width:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);height:46px;display:flex;align-items:center;gap:4px;padding:0 32px}
+.brand{font-family:var(--mono);font-size:13px;color:var(--amber);font-weight:700;margin-right:18px;text-decoration:none}
+.nav{display:flex;gap:2px;min-width:0;overflow:hidden}
+.nav a{padding:6px 12px;border-radius:var(--r);text-decoration:none;color:var(--dim);white-space:nowrap;font-size:14px}
+.nav a:hover{color:var(--text);background:var(--p)}
+.nav a[aria-current="page"]{color:var(--text);background:var(--p2);box-shadow:inset 0 -2px 0 var(--amber)}
+.nav .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);margin-left:6px;vertical-align:1px}
+.top .right{margin-left:auto;font-size:13px;color:var(--dim);white-space:nowrap}
+.top .right b{color:var(--amber);font-weight:600}
+
+main{max-width:1380px;margin:0 auto;padding:26px 32px 64px}
+
+/* shared pieces */
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;margin:0 0 10px}
+.status{font-size:13px;white-space:nowrap}
+.status::before{content:"●";margin-right:5px}
+.s-active{color:var(--green)} .s-paused{color:var(--amber)} .s-parked{color:var(--violet)} .s-done{color:var(--blue)}
+.track{display:flex;gap:2px;height:6px;margin:0;width:100%;max-width:420px}
+.track i{flex:1;border-radius:2px;background:#262B33}
+.track i.d{background:var(--green)} .track i.c{background:var(--amber)}
+
+/* attention callouts */
+.att{display:grid;gap:8px;margin:0}
+.call{border:1px solid var(--line);border-left:3px solid var(--c);border-radius:var(--r);background:var(--p);padding:9px 14px;min-width:0}
+.call .k{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--c);margin-right:10px;white-space:nowrap}
+.call .t{font-weight:600}
+.call .why{color:var(--dim);font-size:14px;margin-top:1px}
+.call.gate-review{--c:var(--violet)} .call.gate-manual_test{--c:var(--amber)} .call.rep{--c:var(--amber)}
+.call details summary{display:flex;gap:4px 10px;align-items:baseline;flex-wrap:wrap}
+.call details summary .more{margin-left:auto;font-size:13px;color:var(--dim);white-space:nowrap}
+.call details[open] summary .more::after{content:" ▴"} .call details:not([open]) summary .more::after{content:" ▾"}
+.call .body{white-space:pre-wrap;color:var(--text);font-size:14px;margin:8px 0 2px;padding-top:8px;border-top:1px solid var(--line);max-height:320px;overflow:auto}
+.calm{color:var(--green);font-size:14px}
+
+/* ---------- overview ---------- */
+.lead{font-size:20px;line-height:1.45;margin:0 0 6px;max-width:980px}
+.lead b{font-weight:600}
+.ovsub{color:var(--dim);margin:0 0 18px;font-size:14px}
+.projs{display:grid;gap:12px}
+.proj{border:1px solid var(--line);border-radius:var(--r);padding:14px 20px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,460px);gap:6px 36px}
+.proj.hot{border-color:var(--line2)}
+.proj h2{margin:0;font-size:19px;font-weight:600;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.proj h2 a{text-decoration:none} .proj h2 a:hover{text-decoration:underline;text-decoration-color:var(--amber)}
+.proj .sum{margin:6px 0 0;font-size:15px}
+.proj .sum b{font-weight:600}
+.proj .nxt{margin:4px 0 0;color:var(--dim);font-size:14.5px}
+.proj .nxt span{color:var(--text)}
+.proj .meta{display:flex;gap:16px;align-items:center;margin-top:12px;font-size:13px;color:var(--faint)}
+.proj .meta .track{flex:1}
+.proj .side{display:grid;gap:8px;align-content:start}
+.proj .side .call{padding:6px 12px}
+.proj .chips{margin-top:10px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-size:13px;border:1px solid var(--line2);border-radius:999px;padding:2px 10px;color:var(--dim);white-space:nowrap}
+.chip.hot{border-color:var(--amber);color:var(--amber)}
+.res{margin-top:26px;color:var(--dim);font-size:14px}
+.res ul{margin:6px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+
+/* ---------- project ---------- */
+.ph-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 4px}
+.ph-head h1{margin:0;font-size:26px;font-weight:650;letter-spacing:-.01em}
+.ph-head .back{font-size:13px;color:var(--dim);text-decoration:none;margin-left:auto}
+.ph-head .back:hover{color:var(--text)}
+.desc{color:var(--dim);font-size:14px;margin:0 0 14px;max-width:900px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,440px);gap:40px;align-items:start}
+.brief{margin:0 0 12px;font-size:18px;line-height:1.45}
+.brief p{margin:0 0 4px}
+.brief b{font-weight:600}
+.brief .k{color:var(--dim)}
+.brief .att-line{font-weight:600;margin-top:6px}
+.sec{margin-top:26px}
+
+/* timeline */
+.tl{position:relative;margin:0;padding:0;list-style:none}
+.tl::before{content:"";position:absolute;left:7px;top:10px;bottom:10px;width:2px;background:var(--line)}
+.tl>li{position:relative;padding-left:32px;min-width:0}
+.tl>li::before{content:"";position:absolute;left:2px;top:8px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--line2)}
+.tl>li.done::before{background:var(--green);border-color:var(--green)}
+.tl>li.cur::before{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 4px var(--bg),0 0 0 5px var(--amber)}
+.tl .donesum{padding:2px 0 12px}
+.tl .donesum summary{color:var(--green);font-size:14.5px;display:inline-block}
+.tl .donesum summary .ar{color:var(--dim);margin-left:4px}
+.tl .donesum[open] summary .ar{display:inline-block;transform:rotate(90deg)}
+.tl .donelist{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:3px}
+.tl .donelist li{display:grid;grid-template-columns:30px minmax(0,1fr);gap:0 8px;font-size:14px;color:var(--dim);margin-bottom:4px}
+.tl .donelist li small{grid-column:2;color:var(--faint);font-size:13px;line-height:1.4}
+.n{font-family:var(--mono);font-size:12.5px;color:var(--faint)}
+.curblock{background:var(--amberbg);border:1px solid #4A3B22;border-radius:var(--r);padding:12px 18px 14px;margin:0 0 16px}
+.curblock .lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);font-weight:700}
+.curblock .lbl .n{color:var(--dim);letter-spacing:0;margin-left:6px}
+.curblock h3{margin:2px 0 4px;font-size:21px;font-weight:600;line-height:1.3}
+.curblock p{margin:0;color:var(--text);font-size:15px;white-space:pre-wrap}
+.curblock p.none{color:var(--dim)}
+.up{padding-bottom:12px}
+.up .nm{font-size:15px;color:var(--text)}
+.up .nm .n{margin-right:8px}
+.up .nt{font-size:13.5px;color:var(--dim);margin-top:1px;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.g{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--c);color:var(--c);border-radius:4px;padding:0 6px;margin-left:8px;vertical-align:2px;white-space:nowrap}
+.g.review{--c:var(--violet)} .g.manual_test{--c:var(--amber)} .g.ok{--c:var(--green)}
+.gr{font-size:13.5px;color:var(--dim);margin-top:2px}
+.gr::before{content:"gate · ";color:var(--faint)}
+
+/* items */
+.grp{margin:0 0 20px}
+.grp h3{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:15px;font-weight:600;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.grp h3 .gl{color:var(--c);font-size:13px;width:16px;text-align:center}
+.grp h3 .cnt{font-family:var(--mono);font-size:13px;color:var(--dim);font-weight:400}
+.grp h3 .hint{margin-left:auto;font-size:12.5px;color:var(--faint);font-weight:400}
+.grp.bug{--c:var(--red)} .grp.idea{--c:var(--cyan)} .grp.future_request{--c:var(--violet)}
+.chk{list-style:none;margin:0;padding:0}
+.chk li{border-radius:4px}
+.chk li:hover{background:var(--p)}
+.chk details summary{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;padding:4px 6px;align-items:start}
+.chk .box{width:13px;height:13px;border:1.5px solid var(--line2);border-radius:3px;margin-top:5px}
+.chk .planned .box{border-color:var(--c);background:var(--c);box-shadow:inset 0 0 0 2.5px var(--bg)}
+.chk .ti{font-size:14.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.chk details[open] .ti{-webkit-line-clamp:unset;display:block}
+.chk .tag{font-size:12px;color:var(--c);white-space:nowrap;margin-top:2px}
+.chk .det{grid-column:2/-1;margin:0 6px 8px 32px;font-size:13.5px;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere}
+.chk .det .mono{color:var(--faint);display:block;margin-top:4px;font-size:12px}
+.grp .closed{font-size:13px;color:var(--faint);margin:4px 0 0 6px}
+.grp .closed summary{display:inline}
+.grp .closed .chk{margin-top:4px}
+.grp .closed .chk .ti{color:var(--dim);text-decoration:line-through;text-decoration-color:var(--line2)}
+
+/* decisions and inbox */
+.dec{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.dec li{display:grid;grid-template-columns:92px minmax(0,1fr);gap:0 14px;font-size:14.5px}
+.dec time{font-family:var(--mono);font-size:12.5px;color:var(--faint);padding-top:2px}
+.dec .r{grid-column:2;color:var(--dim);font-size:13.5px}
+.msgs{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.msgs li{font-size:14px;min-width:0}
+.msgs .h{font-size:12.5px;color:var(--faint)}
+.msgs .h .kind{text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-right:6px}
+.kind.task{color:var(--violet)} .kind.message{color:var(--cyan)} .kind.report{color:var(--amber)}
+.msgs details summary{display:block}
+.msgs .ti{color:var(--dim)}
+.msgs .unread .ti{color:var(--text);font-weight:600}
+.msgs .body{white-space:pre-wrap;color:var(--dim);font-size:13.5px;margin-top:6px;max-height:260px;overflow:auto;padding-left:10px;border-left:2px solid var(--line)}
+.empty{color:var(--faint);font-size:14px}
+.more-link{font-size:13px;color:var(--dim)}
+
+@media (max-width:1000px){
+  .grid,.proj{grid-template-columns:minmax(0,1fr)}
+  main{padding:20px 16px 48px} .top{padding:0 16px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#overview">project-hub</a>
+  <nav class="nav" id="nav" aria-label="views"></nav>
+  <span class="right" id="topright"></span>
+</header>
+<main id="app" tabindex="-1"></main>
+
+<script src="redesign/data.js"></script>
+<script>
+"use strict";
+const H = window.HUB;
+const NOW = new Date(H.snapshot).getTime();
+const TYPES = [
+  { t: "bug", glyph: "●", word: "Bugs", one: "bug", hint: "something broken" },
+  { t: "idea", glyph: "◆", word: "Ideas", one: "idea", hint: "worth trying" },
+  { t: "future_request", glyph: "▲", word: "Requests", one: "request", hint: "for later versions" },
+];
+const GATE = { review: "Review", manual_test: "Manual test" };
+
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat(Infinity)) if (k != null && k !== false) e.append(k.nodeType ? k : String(k));
+  return e;
+}
+const plural = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
+function ago(iso) {
+  const s = Math.max(0, (NOW - new Date(iso).getTime()) / 1000);
+  if (s < 90) return "just now";
+  if (s < 3600) return Math.round(s / 60) + " min ago";
+  if (s < 86400) return Math.round(s / 3600) + " h ago";
+  return Math.round(s / 86400) + " d ago";
+}
+
+// The rules from the brief, in one place.
+const waitingGate = (ph) => ph.gate === "manual_test" || (ph.gate === "review" && !ph.gate_approved);
+function facts(p) {
+  const phases = p.phases || [];
+  let ci = phases.findIndex((x) => x.status === "in_progress");
+  if (ci < 0) ci = phases.findIndex((x) => x.status === "todo");
+  const msgs = H.messages.filter((m) => m.to_project === p.id || m.to_project === "all");
+  return {
+    phases, ci, cur: ci >= 0 ? phases[ci] : null,
+    done: phases.filter((x) => x.status === "done").length,
+    gates: phases.map((x, i) => ({ ...x, n: i + 1 })).filter(waitingGate),
+    reports: msgs.filter((m) => m.kind === "report" && m.status === "unread"),
+    msgs,
+  };
+}
+
+function track(f) {
+  return h("div", { class: "track", role: "img", "aria-label": `${f.done} of ${f.phases.length} phases done` },
+    f.phases.map((x, i) => h("i", { class: x.status === "done" ? "d" : i === f.ci ? "c" : "" })));
+}
+
+// Plain-sentence summary. Returns nodes so key facts can be bold.
+function phaseSentence(p, f) {
+  const total = f.phases.length;
+  if (!total) return [h("b", {}, "No phases yet.")];
+  if (!f.cur) return [h("b", {}, `All ${total} phases done.`)];
+  const state = f.cur.status === "in_progress" ? "in progress" : "not started yet";
+  return [h("b", {}, `Phase ${f.ci + 1} of ${total}: `), h("span", { class: "wrap" }, f.cur.name), `, ${state}.`];
+}
+function attentionSentence(f) {
+  const parts = [];
+  if (f.gates.length) parts.push(plural(f.gates.length, "gate") + (f.gates.length === 1 ? " is" : " are") + " waiting for you");
+  if (f.reports.length) parts.push(plural(f.reports.length, "unread report"));
+  return parts.length ? parts.join(", ") + "." : "Nothing is waiting for you.";
+}
+
+function gateCall(p, g, withProject) {
+  return h("div", { class: "call gate-" + g.gate },
+    h("div", {}, h("span", { class: "k" }, GATE[g.gate] + " gate"),
+      h("span", { class: "t wrap" }, withProject ? "" : h("span", { class: "n" }, String(g.n).padStart(2, "0") + " "), g.name)),
+    h("div", { class: "why wrap" }, g.gate_reason || (g.gate === "manual_test" ? "Needs a test by you before it can close." : "Needs your approval before it starts."),
+      g.gate_set_by ? h("span", { class: "faint" }, " · set by " + g.gate_set_by) : null));
+}
+function reportCall(m) {
+  return h("div", { class: "call rep" },
+    h("details", {},
+      h("summary", {}, h("span", { class: "k" }, "Unread report"), h("span", { class: "t wrap" }, m.title),
+        h("span", { class: "more" }, h("span", { class: "mono" }, ago(m.created_at)), " · show")),
+      h("div", { class: "body wrap" }, m.body)));
+}
+
+/* ---------------- overview ---------------- */
+function overview() {
+  const rows = H.projects.map((p) => ({ p, f: facts(p) }));
+  const urg = (r) => r.f.gates.length + r.f.reports.length;
+  rows.sort((a, b) => urg(b) - urg(a) || (b.p.updated_at || "").localeCompare(a.p.updated_at || ""));
+  const tg = rows.reduce((s, r) => s + r.f.gates.length, 0), tr = rows.reduce((s, r) => s + r.f.reports.length, 0);
+  const active = rows.filter((r) => r.p.status === "active").length;
+  const hot = rows.filter((r) => urg(r) > 0).map((r) => r.p.name);
+
+  const lead = tg + tr
+    ? [h("b", {}, [tg ? plural(tg, "gate") : null, tr ? plural(tr, "unread report") : null].filter(Boolean).join(" and ")),
+       ` ${tg + tr === 1 ? "is" : "are"} waiting for you, in ${hot.join(" and ")}.`]
+    : [h("b", {}, "Nothing is waiting for you.")];
+
+  const app = document.getElementById("app");
+  app.replaceChildren(
+    h("p", { class: "eyebrow" }, "Briefing · " + new Date(H.snapshot).toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })),
+    h("p", { class: "lead" }, lead),
+    h("p", { class: "ovsub" }, `${plural(rows.length, "project")}, ${active} active. Most urgent first.`),
+    h("div", { class: "projs" }, rows.map(({ p, f }) => projBlock(p, f))),
+    resources());
+}
+function projBlock(p, f) {
+  const side = [...f.gates.map((g) => gateCall(p, g, false)), ...f.reports.map((m) =>
+    h("div", { class: "call rep" }, h("div", {}, h("span", { class: "k" }, "Unread report"), h("span", { class: "mono faint" }, ago(m.created_at))),
+      h("div", { class: "t wrap" }, m.title)))];
+  const open = (p.items || []).filter((i) => i.status !== "done" && i.status !== "discarded");
+  const chips = TYPES.map((T) => [T, open.filter((i) => i.type === T.t).length]).filter(([, n]) => n)
+    .map(([T, n]) => h("span", { class: "chip" }, h("span", { style: `color:var(--${T.t === "bug" ? "red" : T.t === "idea" ? "cyan" : "violet"})` }, T.glyph), ` ${n} ${n === 1 ? T.one : T.word.toLowerCase()}`));
+  return h("article", { class: "proj" + (side.length ? " hot" : "") },
+    h("div", { class: "wrap" },
+      h("h2", {}, h("a", { href: "#p/" + encodeURIComponent(p.id) }, p.name), h("span", { class: "status s-" + p.status }, p.status)),
+      h("p", { class: "sum" }, phaseSentence(p, f)),
+      h("p", { class: "nxt" }, "Next step: ", h("span", { class: "wrap" }, p.next_step || "not set")),
+      h("div", { class: "meta" }, track(f), h("span", { class: "mono" }, `${f.done}/${f.phases.length}`), h("span", {}, "updated ", h("span", { class: "mono" }, ago(p.updated_at)))),
+      chips.length ? h("div", { class: "chips", "aria-label": "open items" }, chips) : null),
+    h("div", { class: "side" },
+      side.length ? side : h("p", { class: "calm", style: "margin:0" }, "✓ Nothing waiting for you")));
+}
+function resources() {
+  const L = H.leases || [];
+  return h("section", { class: "res", "aria-label": "resources" },
+    h("p", { class: "eyebrow" }, "Resources in use · " + L.length),
+    L.length ? h("ul", {}, L.map((l) => h("li", { class: "wrap" }, h("span", { class: "mono" }, l.resource), " held by ",
+      h("a", { href: "#p/" + encodeURIComponent(l.project_id) }, nameOf(l.project_id)), ` for “${l.purpose}”, expires `,
+      h("span", { class: "mono" }, new Date(l.expires_at).toISOString().slice(11, 16) + " UTC"))))
+      : h("p", { class: "empty" }, "No resources are claimed."));
+}
+const nameOf = (id) => (H.projects.find((p) => p.id === id) || { name: id }).name;
+
+/* ---------------- project ---------------- */
+function project(p) {
+  const f = facts(p);
+  const app = document.getElementById("app");
+  const atts = [...f.gates.map((g) => gateCall(p, g, false)), ...f.reports.map(reportCall)];
+  app.replaceChildren(
+    h("div", { class: "ph-head" }, h("h1", {}, p.name), h("span", { class: "status s-" + p.status }, p.status),
+      h("span", { class: "dim", style: "font-size:13px" }, "updated ", h("span", { class: "mono" }, ago(p.updated_at))),
+      h("a", { class: "back", href: "#overview" }, "← All projects")),
+    p.description ? h("p", { class: "desc wrap" }, p.description) : null,
+    h("div", { class: "grid" },
+      h("div", { class: "wrap" },
+        h("div", { class: "brief" }, h("p", {}, phaseSentence(p, f)),
+          h("p", { class: "wrap" }, h("span", { class: "k" }, "Next step: "), p.next_step || "not set."),
+          h("p", { class: "att-line", style: `color:var(--${f.gates.length + f.reports.length ? "amber" : "green"})` }, f.gates.length + f.reports.length ? "" : "✓ ", attentionSentence(f))),
+        h("div", { style: "display:flex;align-items:center;gap:12px;margin:0 0 16px" }, track(f), h("span", { class: "mono dim" }, `${f.done}/${f.phases.length} done`)),
+        atts.length ? h("section", { class: "att", "aria-label": "waiting for you" }, atts) : null,
+        timeline(f),
+        decisions(p)),
+      h("div", { class: "wrap" }, items(p), inbox(p, f))));
+}
+
+function timeline(f) {
+  const ph = f.phases;
+  const li = [];
+  const doneIdx = ph.map((x, i) => i).filter((i) => ph[i].status === "done" && (f.ci < 0 || i < f.ci));
+  if (doneIdx.length) li.push(h("li", { class: "done" }, h("details", { class: "donesum" },
+    h("summary", {}, `✓ ${plural(doneIdx.length, "phase")} done`, h("span", { class: "ar", "aria-hidden": "true" }, "▸")),
+    h("ol", { class: "donelist" }, doneIdx.map((i) => h("li", {}, h("span", { class: "n" }, String(i + 1).padStart(2, "0")),
+      h("span", { class: "wrap" }, ph[i].name, gateTag(ph[i])), ph[i].notes ? h("small", { class: "wrap" }, ph[i].notes) : null))))));
+  ph.forEach((x, i) => {
+    if (doneIdx.includes(i)) return;
+    if (i === f.ci) {
+      li.push(h("li", { class: "cur" }, h("div", { class: "curblock" },
+        h("div", { class: "lbl" }, x.status === "in_progress" ? "Now · in progress" : "Now · next to start", h("span", { class: "n" }, `${i + 1}/${ph.length}`)),
+        h("h3", { class: "wrap" }, x.name, gateTag(x)),
+        x.gate && x.gate_reason ? h("div", { class: "gr wrap" }, x.gate_reason) : null,
+        h("p", { class: "wrap" + (x.notes ? "" : " none") }, x.notes || "No notes for this phase."))));
+    } else {
+      li.push(h("li", { class: x.status === "done" ? "done up" : "up" },
+        h("div", { class: "nm wrap" }, h("span", { class: "n" }, String(i + 1).padStart(2, "0")), x.name, gateTag(x)),
+        x.gate && x.gate_reason && waitingGate(x) ? h("div", { class: "gr wrap" }, x.gate_reason) : null,
+        x.notes ? h("div", { class: "nt wrap", title: x.notes }, x.notes) : null));
+    }
+  });
+  return h("section", { class: "sec", "aria-label": "phases" },
+    h("p", { class: "eyebrow" }, `Phases · ${f.done} of ${ph.length} done`),
+    ph.length ? h("ol", { class: "tl" }, li) : h("p", { class: "empty" }, "No phases yet."));
+}
+function gateTag(x) {
+  if (!x.gate || x.gate === "none") return null;
+  const ok = x.gate === "review" && x.gate_approved;
+  return h("span", { class: "g " + (ok ? "ok" : x.gate) }, GATE[x.gate] + (ok ? " ✓ approved" : x.status === "done" ? "" : " · waiting for you"));
+}
+
+function items(p) {
+  const all = p.items || [];
+  const isOpen = (i) => i.status !== "done" && i.status !== "discarded";
+  const groups = TYPES.map((T) => {
+    const its = all.filter((i) => i.type === T.t);
+    const open = its.filter(isOpen).sort((a, b) => (b.status === "planned") - (a.status === "planned"));
+    const closed = its.filter((i) => !isOpen(i));
+    if (!its.length) return null;
+    return h("section", { class: "grp " + T.t, "aria-label": T.word },
+      h("h3", {}, h("span", { class: "gl", "aria-hidden": "true" }, T.glyph), T.word, h("span", { class: "cnt" }, "· " + open.length), h("span", { class: "hint" }, T.hint)),
+      open.length ? h("ul", { class: "chk" }, open.map(itemRow)) : h("p", { class: "empty", style: "margin:4px 6px" }, `No open ${T.word.toLowerCase()}.`),
+      closed.length ? h("details", { class: "closed" }, h("summary", {}, `${closed.length} closed ▸`), h("ul", { class: "chk" }, closed.map(itemRow))) : null);
+  }).filter(Boolean);
+  return h("section", { "aria-label": "items" },
+    h("p", { class: "eyebrow" }, `Items · ${all.filter(isOpen).length} open`),
+    groups.length ? groups : h("p", { class: "empty" }, "No items yet."));
+}
+function itemRow(i) {
+  return h("li", { class: i.status },
+    h("details", {},
+      h("summary", {}, h("span", { class: "box", "aria-hidden": "true" }), h("span", { class: "ti" }, i.title),
+        i.status === "planned" ? h("span", { class: "tag" }, "planned") : i.status === "open" ? h("span", { class: "sr" }, "open") : h("span", { class: "tag", style: "color:var(--faint)" }, i.status)),
+      h("div", { class: "det" }, i.details || "No details.", h("span", { class: "mono" }, `#${i.id.slice(0, 8)} · ${i.status} · added ${(i.created_at || "").slice(0, 10)}`))));
+}
+
+function decisions(p) {
+  const d = [...(p.decisions || [])].reverse();
+  return h("section", { class: "sec", "aria-label": "decisions" },
+    h("p", { class: "eyebrow" }, "Decisions · " + d.length),
+    d.length ? h("ol", { class: "dec" }, d.map((x) => h("li", {}, h("time", { datetime: x.date }, x.date.slice(0, 10)),
+      h("span", { class: "wrap" }, x.decision), x.reason ? h("span", { class: "r wrap" }, "because " + x.reason) : null)))
+      : h("p", { class: "empty" }, "No decisions logged yet."));
+}
+function inbox(p, f) {
+  // Unread reports are already shown as callouts above; the inbox lists everything else.
+  const rest = f.msgs.filter((m) => !f.reports.includes(m)).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return h("section", { class: "sec", "aria-label": "inbox" },
+    h("p", { class: "eyebrow" }, `Inbox · ${f.msgs.filter((m) => m.status === "unread").length} unread of ${f.msgs.length}`),
+    rest.length ? h("ul", { class: "msgs" }, rest.map((m) => h("li", { class: m.status },
+      h("details", {}, h("summary", {},
+        h("div", { class: "h" }, h("span", { class: "kind " + m.kind }, m.kind), `${m.from_project} → ${m.to_project} · `, h("span", { class: "mono" }, ago(m.created_at)), ` · ${m.status}`),
+        h("div", { class: "ti wrap" }, m.title)),
+        h("div", { class: "body wrap" }, m.body)))))
+      : h("p", { class: "empty" }, f.reports.length ? "Nothing else in the inbox." : "Inbox is empty."));
+}
+
+/* ---------------- routing ---------------- */
+function route() {
+  const m = location.hash.match(/^#p\/(.+)$/);
+  const p = m && H.projects.find((x) => x.id === decodeURIComponent(m[1]));
+  const nav = document.getElementById("nav");
+  nav.replaceChildren(h("a", { href: "#overview", "aria-current": p ? null : "page" }, "Overview"),
+    ...H.projects.map((x) => { const f = facts(x); return h("a", { href: "#p/" + encodeURIComponent(x.id), "aria-current": p === x ? "page" : null },
+      x.name, f.gates.length + f.reports.length ? h("span", { class: "dot", role: "img", "aria-label": "needs attention" }) : null); }));
+  const unread = H.messages.filter((x) => x.status === "unread").length;
+  document.getElementById("topright").replaceChildren(h("b", {}, unread), " unread · snapshot ", h("span", { class: "mono" }, H.snapshot.slice(11, 16)));
+  if (p) { project(p); document.title = p.name + " · project-hub"; } else { overview(); document.title = "Overview · project-hub"; }
+  window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+route();
+</script>
+</body>
+</html>
