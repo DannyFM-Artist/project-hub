@@ -177,8 +177,11 @@ def _migrate_phase(ph):
     hecho = gate == "manual_test" and via_chat and ph["status"] == "done"
     if state is None:
         new_state = "continue" if (gate == "review" and approved) or hecho else "waiting"
-    else:  # already migrated: a legacy approval that disagrees was written by a session still on the old code, and wins
-        new_state = state if approved == (state == "continue") else ("continue" if approved else "waiting")
+    elif "gate_approved" in ph and approved != (state == "continue"):
+        # shortcut: a legacy approval that disagrees was written by a session still on the old code, and wins; drop with _sync_legacy
+        new_state = "continue" if approved else "waiting"
+    else:
+        new_state = state
     if new_state != state:
         ph.update(NO_RESOLUTION)
         if new_state == "continue":
