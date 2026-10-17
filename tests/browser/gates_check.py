@@ -112,7 +112,11 @@ try:
         # bell: waiting gates + messages to user, not reports
         pg.goto(BASE + "/#p/framegrade"); pg.wait_for_function("document.querySelector('#phead h1') && document.querySelector('#phead h1').textContent === 'framegrade'")
         check("project 'Para ti' hidden when nothing waits", pg.is_hidden("#pr-act"))
-        pg.goto(BASE + "/#overview"); pg.wait_for_selector("#ov-body .card")
+        pg.goto(BASE + "/#overview")
+        # wait for the cards checked below to be fully rendered (state and badges), not just the first card
+        pg.wait_for_selector('#ov-body .card[data-pid="gatedemo"] .pstate[data-kind="waiting"]')
+        pg.wait_for_selector('#ov-body .card[data-pid="gatedemo"] .ctop .badge >> nth=1')
+        pg.wait_for_selector('#ov-body .card[data-pid="framegrade"] .badges')
         # one card per project: state, name, phase with its track, next step, badges; nothing repeated from "Para ti"
         card = '#ov-body .card[data-pid="gatedemo"]'
         parts = pg.eval_on_selector(card, "c => [...c.children].map(e => e.className)")

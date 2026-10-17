@@ -10,16 +10,33 @@ NAMES = {"list_projects", "get_project", "create_project", "update_project", "ad
          "claim_resource", "release_resource", "list_resources", "set_gate", "get_activity"}
 
 
-def run_session(tmp_path, steps):
-    async def go():
-        params = StdioServerParameters(command=sys.executable, args=["-m", "project_hub.mcp_server"],
-                                       env={"PROJECT_HUB_DATA": str(tmp_path)})
-        async with stdio_client(params) as (r, w):
-            async with ClientSession(r, w) as s:
-                await s.initialize()
-                return await steps(s)
+def run_session(tmp_path, steps, role=None):
+    """Run steps(session) against a real stdio server. Under load on Windows the server's stdout sometimes closes
+    right after start, with nothing on stderr, and the mcp client then waits forever: cap each try at 60 s and retry
+    with a fresh server while no tool call has been sent (so nothing can be applied twice)."""
+    env = {"PROJECT_HUB_DATA": str(tmp_path), **({"PROJECT_HUB_ROLE": role} if role else {})}
+    params = StdioServerParameters(command=sys.executable, args=["-m", "project_hub.mcp_server"], env=env)
+    sent = []
 
-    return anyio.run(go)
+    async def go():
+        with anyio.fail_after(60):
+            async with stdio_client(params) as (r, w):
+                async with ClientSession(r, w) as s:
+                    await s.initialize()
+                    call_tool = s.call_tool
+
+                    async def tracked(*a, **k):
+                        sent.append(a[0])
+                        return await call_tool(*a, **k)
+                    s.call_tool = tracked
+                    return await steps(s)
+
+    for attempt in range(3):
+        try:
+            return anyio.run(go)
+        except TimeoutError:
+            if sent or attempt == 2:
+                raise
 
 
 def test_round_trip(tmp_path):

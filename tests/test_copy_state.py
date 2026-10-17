@@ -124,6 +124,22 @@ def test_stagetrack_real_case(hub, clock):
     assert s["detail"].endswith(" +2") and s["detail"].removesuffix(" +2") in purposes
 
 
+def test_task_title_with_waiting_words_is_not_waiting(hub, clock):
+    """hub-sync claims with the task title as purpose: «espera» in the title must not turn a working session red."""
+    hub.create_project("p", "P", "")
+    title = "Estado: tarea que espera a Danny no cuenta como trabajando"
+    mid = hub.post_message("p", "task", title, "b")["id"]
+    hub.claim_resource(f"task:{mid}", "p", title, ttl_minutes=60)
+    assert state(hub)["kind"] == "working"
+    hub.claim_resource(f"task:{mid}", "p", title[:30] + "…", ttl_minutes=60)  # a shortened title is still the title
+    assert state(hub)["kind"] == "working"
+    clock[0] += timedelta(minutes=1)
+    hub.post_message("p", "report", "Avance", f"Sigo con «{title}»", from_project="p")  # quoting the title
+    assert state(hub)["kind"] == "working"
+    hub.claim_resource(f"task:{mid}", "p", "esperando tu prueba en el móvil", ttl_minutes=60)  # the session's own words
+    assert state(hub) == {"kind": "waiting", "label": "Te espera", "detail": "esperando tu prueba en el móvil"}
+
+
 def test_api_projects_rows_carry_state_and_red_first(tmp_path, monkeypatch, clock):
     from project_hub.hub import Hub
     h = Hub(tmp_path)

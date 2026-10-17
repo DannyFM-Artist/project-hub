@@ -854,13 +854,24 @@ class Hub:
             last = max(stops, key=lambda m: m["created_at"]) if stops else None
             return {"kind": "stopped", "label": "Parado", "detail": None, "report_id": last["id"] if last else None}
 
+        by_id = {m["id"]: m for m in messages}
+        tasks = [l for l in leases if l["project_id"] == pid and l["resource"].startswith("task:")]
+        titles = [by_id[l["resource"][5:]]["title"] for l in tasks if l["resource"][5:] in by_id]
+
         def says_waiting(text):
+            # only the session's own words count: a task title quoted back ("…que espera a Danny") says nothing
+            for t in titles:
+                text = text.replace(t, "")
             return any(w in text.lower() for w in WAITING_WORDS)
 
-        tasks = [l for l in leases if l["project_id"] == pid and l["resource"].startswith("task:")]
+        def own_purpose(lease):  # hub-sync claims with the task title (maybe shortened) as the purpose
+            m = by_id.get(lease["resource"][5:])
+            mine = lease["purpose"].strip().rstrip("…").strip()
+            return "" if m and mine and mine in m["title"] else lease["purpose"]
+
         reasons = [ph.get("gate_reason") or ph["name"] for ph in stopping_gates(p)]
         reasons += [m["title"] for m in user_messages]
-        reasons += [l["purpose"] for l in tasks if says_waiting(l["purpose"])]
+        reasons += [l["purpose"] for l in tasks if says_waiting(own_purpose(l))]
         if tasks:
             since = min(l["acquired_at"] for l in tasks)
             reasons += [m["title"] for m in messages if m["kind"] == "report" and m["from_project"] == pid
@@ -869,7 +880,6 @@ class Hub:
             more = f" +{len(reasons) - 1}" if len(reasons) > 1 else ""
             return {"kind": "waiting", "label": "Te espera", "detail": _short(reasons[0], 80) + more}
         # work: task leases held by this project (none waits, or we returned above), and read-not-done tasks sent to it
-        by_id = {m["id"]: m for m in messages}
         work = [by_id[l["resource"][5:]]["title"] if l["resource"][5:] in by_id else l["purpose"] for l in tasks]
         leased = {l["resource"][5:] for l in tasks}
         work += [m["title"] for m in messages

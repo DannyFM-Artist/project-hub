@@ -50,7 +50,10 @@ def test_free_port_is_not_running():
     assert not tray.is_running(free_port())
 
 
-def test_second_launch_only_opens_browser(opened):
+def test_second_launch_only_opens_browser(opened, monkeypatch):
+    def started():  # without this, a missed is_running would start a real tray icon and hang the suite
+        raise AssertionError("launch did not see the running server and went on to start the tray")
+    monkeypatch.setattr(tray, "setup_logging", started)
     srv = http.server.HTTPServer(("127.0.0.1", 0), http.server.BaseHTTPRequestHandler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]

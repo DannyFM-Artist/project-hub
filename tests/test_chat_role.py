@@ -1,26 +1,17 @@
-import sys
-
-import anyio
 import pytest
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
 
 from project_hub.hub import Hub
+from test_mcp_server import run_session
 
 GONE = {"approve_gate", "complete_manual_phase"}
 
 
 def tools_and_calls(tmp_path, role, calls=()):
-    async def go():
-        env = {"PROJECT_HUB_DATA": str(tmp_path), **({"PROJECT_HUB_ROLE": role} if role else {})}
-        params = StdioServerParameters(command=sys.executable, args=["-m", "project_hub.mcp_server"], env=env)
-        async with stdio_client(params) as (r, w):
-            async with ClientSession(r, w) as s:
-                await s.initialize()
-                tools = {t.name: t for t in (await s.list_tools()).tools}
-                return tools, [(await s.call_tool(n, a)).content[0].text for n, a in calls]
+    async def steps(s):
+        tools = {t.name: t for t in (await s.list_tools()).tools}
+        return tools, [(await s.call_tool(n, a)).content[0].text for n, a in calls]
 
-    return anyio.run(go)
+    return run_session(tmp_path, steps, role)
 
 
 @pytest.fixture

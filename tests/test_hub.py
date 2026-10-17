@@ -316,3 +316,17 @@ def test_find_case_insensitive_on_windows(hub, tmp_path):
     repo.mkdir(parents=True)
     hub.create_project("mixed", "Mixed", "", repo_path=str(repo).upper())
     assert hub.find_project_for_path(Path(str(repo).lower()) / "sub")["id"] == "mixed"
+
+
+def test_real_data_guard_flags_own_writes_only():
+    """The conftest guard: writes into the real data folder are caught, reads and other folders are not."""
+    import os
+    from conftest import REAL_DEFAULT, _touches_real
+    real = str(REAL_DEFAULT / "projects" / "x.json")
+    assert _touches_real("open", (real, "w", 0)) and _touches_real("open", (real, "a", 0))
+    assert _touches_real("open", (real, None, os.O_CREAT | os.O_RDWR))  # tempfile.mkstemp
+    assert _touches_real("os.rename", (str(REAL_DEFAULT / "a.tmp"), real, None, None))  # os.replace
+    assert _touches_real("os.remove", (real, None)) and _touches_real("os.mkdir", (str(REAL_DEFAULT), 0o777, None))
+    assert not _touches_real("open", (real, "r", 0)) and not _touches_real("open", (real, None, os.O_RDONLY))
+    assert not _touches_real("open", (str(REAL_DEFAULT) + "-other/x.json", "w", 0))  # a sibling folder
+    assert not _touches_real("open", (3, "w", 0))  # a file descriptor

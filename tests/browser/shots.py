@@ -76,7 +76,10 @@ try:
         pg.mouse.move(0, 0); pg.screenshot(path=str(D / "project.png"))
         pg.goto(BASE + "/#p/led-mapper"); pg.wait_for_function("document.querySelector('#phead h1').textContent === 'led-mapper'"); time.sleep(.4)
         pg.click('[data-fk="fold-det"]'); pg.wait_for_selector("#phead .pdet")
-        if pg.query_selector("#phead .repo"): fails.append("repo shown for project without repo_path")
+        try:  # the header can still hold the previous project's Detalles for a moment: give it time to settle
+            pg.wait_for_function("!document.querySelector('#phead .repo')", timeout=4000)
+        except Exception:
+            fails.append("repo shown for project without repo_path")
         if errors: fails.append(f"console errors {errors}")
         print("screenshots in", D)
         b.close()

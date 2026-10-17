@@ -10,27 +10,51 @@ def _free_port():
         return s.getsockname()[1]
 
 
-PORT = _free_port()  # shortcut: the port is released before uvicorn binds it again; a tiny race, fine for local test runs
+PORT = _free_port()  # placeholder until serve() runs; shutdown_check.py uses it for its own in-process server
 BASE = f"http://127.0.0.1:{PORT}"
+# the server binds its port itself (0 = any free one) and prints it: no gap in which another process can take it
 SERVE = [sys.executable, "-c",
-         f"import uvicorn; from project_hub.web import app; uvicorn.run(app, host='127.0.0.1', port={PORT}, log_level='warning')"]
+         "import socket, sys, uvicorn; from project_hub.web import app; s = socket.socket(); "
+         "s.bind(('127.0.0.1', int(sys.argv[1]))); print(s.getsockname()[1], flush=True); "
+         "uvicorn.Server(uvicorn.Config(app, log_level='warning')).run(sockets=[s])"]
+_served = False
 
 
 def serve(data):
-    """Start the dashboard on PORT against the data folder and wait until it answers; fail loudly instead of
-    letting the first page load time out (a slow start used to show up as ERR_CONNECTION_TIMED_OUT)."""
+    """Start the dashboard against the data folder and wait until it answers. The first call takes any free port
+    and updates PORT and BASE here and in the running check script; later calls (a restart) reuse that port.
+    A server that never answers is replaced: on this laptop a loopback handshake is sometimes dropped under load,
+    which can leave a new event loop stuck before it serves anything."""
+    for _ in range(3):
+        srv = _start(data)
+        if srv:
+            return srv
+    raise SystemExit(f"dashboard did not start on port {PORT} (3 tries)")
+
+
+def _start(data):
+    global PORT, BASE, _served
     import os, subprocess, urllib.request
-    srv = subprocess.Popen(SERVE, env=dict(os.environ, PROJECT_HUB_DATA=str(data)), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    end = time.time() + 30
-    while time.time() < end:
+    srv = subprocess.Popen(SERVE + [str(PORT if _served else 0)], env=dict(os.environ, PROJECT_HUB_DATA=str(data)),
+                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    line = srv.stdout.readline()  # the bound port, or "" if the process died first
+    if not line.strip().isdigit():
+        srv.terminate(); srv.wait()
+        return None
+    PORT, _served = int(line), True
+    BASE = f"http://127.0.0.1:{PORT}"
+    main = sys.modules["__main__"]  # the checks did "from hubserver import BASE, PORT" before calling serve()
+    for name in ("PORT", "BASE"):
+        if hasattr(main, name):
+            setattr(main, name, globals()[name])
+    end = time.time() + 20
+    while time.time() < end and srv.poll() is None:
         try:
             urllib.request.urlopen(BASE + "/api/projects", timeout=5); return srv
         except Exception:
-            if srv.poll() is not None:
-                break
             time.sleep(.2)
-    srv.terminate()
-    raise SystemExit(f"dashboard did not start on port {PORT}")
+    srv.terminate(); srv.wait()
+    return None
 
 
 def until(fn, timeout=6.0):

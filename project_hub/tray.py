@@ -1,5 +1,6 @@
 """Windows tray app: runs the dashboard (uvicorn in a thread of this process) behind a notification-area icon."""
 
+import errno
 import logging
 import logging.handlers
 import os
@@ -30,9 +31,17 @@ def tooltip(port=PORT) -> str:
 
 
 def is_running(port=PORT) -> bool:
-    with socket.socket() as s:
-        s.settimeout(0.5)
-        return s.connect_ex((HOST, port)) == 0
+    """A refused connection means nothing listens. A timeout does not: on this laptop a loopback handshake is
+    sometimes delayed or dropped under load, so try again before deciding (a miss starts a second tray app)."""
+    for _ in range(3):
+        with socket.socket() as s:
+            s.settimeout(3)  # Windows takes about 2 s to report a refused loopback connection
+            rc = s.connect_ex((HOST, port))
+        if rc == 0:
+            return True
+        if rc in (errno.ECONNREFUSED, getattr(errno, "WSAECONNREFUSED", errno.ECONNREFUSED)):
+            return False
+    return False
 
 
 def setup_logging(folder=None) -> Path:
