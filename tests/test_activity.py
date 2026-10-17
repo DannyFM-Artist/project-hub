@@ -200,8 +200,9 @@ def test_chat_text(hub, clock):
     a = hub.summary()["projects"][0]
     lines = a["chat_text"].split("\n")
     assert lines[0].startswith("Periodo: ")
-    assert lines[1:] == ["Espera a Danny: Two — look at the API", "Reports nuevos: Session report", "1 fase terminada: One",
-                         "1 decisión de los agentes", LAST.format("alpha")]
+    assert lines[1:] == ["Espera a Danny: Two — look at the API", "Mensaje para Danny: Need a decision", "Reports nuevos: Session report",
+                         "1 fase terminada: One · 1 otro cambio de fase", "1 decisión de los agentes", "Ítems: 2 nuevos · 1 cerrado",
+                         LAST.format("alpha")]
     assert "Long body" not in a["chat_text"]
     for i in range(7):
         clock[0] += timedelta(minutes=1)
@@ -212,7 +213,7 @@ def test_chat_text(hub, clock):
     lines = hub.summary()["projects"][0]["chat_text"].split("\n")
     assert lines[1:3] == ["Espera a Danny: Three — " + "y" * 69 + "…", "Espera a Danny: Two — look at the API"]
     # 9 reports, newest first: the 70-char shortening, then R6..R2, and 3 more
-    assert lines[3] == "Reports nuevos: " + "x" * 69 + "… · R6 · R5 · R4 · R3 · R2 y 3 más"
+    assert lines[4] == "Reports nuevos: " + "x" * 69 + "… · R6 · R5 · R4 · R3 · R2 y 3 más"
     assert len(lines) <= 10 and lines[-1] == LAST.format("alpha")
 
 

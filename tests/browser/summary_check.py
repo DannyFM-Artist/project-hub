@@ -1,4 +1,5 @@
-"""Resumen view: folded boxes per project, fold/expand, per-project copy marker, "nothing new" state, period, mark as seen."""
+"""Resumen view: a folded box only for projects with news since their last copy, fold/expand, per-project copy marker,
+"Sin novedades" line, period, mark as seen."""
 import json, os, subprocess, sys, tempfile, time, urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -48,7 +49,7 @@ try:
         pg.click("#tab-su"); pg.wait_for_selector(".su-proj")
         check("button opens the view", pg.url.endswith("#resumen") and pg.is_visible("#summary"), pg.url)
         api_d = api("GET", "/api/summary")
-        want = [x["id"] for x in api_d["projects"] if x["has_activity"] and x["copy"]["new"]]
+        want = [x["id"] for x in api_d["projects"] if x["copy"]["new"]]
         quiet = [x["name"] for x in api_d["projects"] if x["id"] not in want]
         got = pg.eval_on_selector_all(".su-proj", "e => e.map(x => x.dataset.id)")
         line = pg.inner_text(".su-quiet") if pg.query_selector(".su-quiet") else ""
@@ -111,20 +112,19 @@ try:
         check("copy puts the project's chat text on the clipboard", clip() == exp and len(exp) > 20, (clip(), exp))
         check("copy stores the project's marker at the until on screen", c1["copied_at"] and c1["copied_at"].startswith(until[:19]) and c1["copy"]["new"] == 0, c1["copied_at"])
         check("copy confirmed in aria-live", "Copiado" in pg.inner_text("#toasts"))
-        st = pg.inner_text(box("cuedeck") + " .su-cs"); btn = pg.locator(box("cuedeck") + " [data-copy]")
-        check("after copying: 'copiado', button says nothing new and is disabled", st.startswith("copiado") and btn.inner_text() == "Nada nuevo desde la última copia" and btn.is_disabled(), (st, btn.inner_text()))
-        check("state 'quiet' after the copy: Sin novedades", badge("cuedeck").get_attribute("data-kind") == "quiet" and "Sin novedades" in badge("cuedeck").inner_text()
-              and pg.eval_on_selector(box("cuedeck") + " .pstate .dot", "e => getComputedStyle(e).backgroundColor") == "rgb(108, 113, 115)", badge("cuedeck").inner_text())
-        pg.evaluate("navigator.clipboard.writeText('untouched')")
-        btn.click(force=True); time.sleep(.3)
-        check("nothing new copies nothing", clip() == "untouched" and proj("cuedeck")["copied_at"] == c1["copied_at"])
+        pg.wait_for_function("!document.querySelector('.su-proj[data-id=\"cuedeck\"]')")
+        check("after copying: no box and no copy button, listed under 'Sin novedades'",
+              pg.locator(box("cuedeck")).count() == 0 and pg.locator('[data-copy="cuedeck"]').count() == 0 and "cuedeck" in pg.inner_text(".su-quiet"))
+        check("state 'quiet' after the copy", proj("cuedeck")["state"]["kind"] == "quiet", proj("cuedeck")["state"])
         others = [x for x in want if x != "cuedeck"]
         check("other projects keep their own marker", all(proj(x)["copied_at"] is None for x in others), others)
         hub.log_decision("cuedeck", "Second decision", "new after the copy")
         time.sleep(1.1)  # markers and timestamps have 1 s resolution and the copy window starts inclusive at the marker
-        pg.click('[data-p="24"]'); pg.click('[data-p="0"]'); pg.wait_for_function("S.sumD.projects.find(p => p.id === 'cuedeck').copy.new === 1")
+        pg.click('[data-p="24"]'); pg.click('[data-p="0"]'); pg.wait_for_function("S.sumHours === 0 && S.sumD.projects.find(p => p.id === 'cuedeck').copy.new === 1")
+        pg.wait_for_selector(box("cuedeck"))
         st = pg.inner_text(box("cuedeck") + " .su-cs")
-        check("new activity shows 'N novedades desde la última copia'", st == "1 novedad desde la última copia" and not pg.is_disabled(box("cuedeck") + " [data-copy]"), st)
+        check("news after the copy brings the box back: 'N novedades desde la última copia'", st == "1 novedad desde la última copia"
+              and pg.inner_text(box("cuedeck") + " [data-copy]") == "Copiar para el chat" and "cuedeck" not in pg.inner_text(".su-quiet"), st)
         exp2 = pg.evaluate("S.sumD.projects.find(p => p.id === 'cuedeck').copy.chat_text")
         pg.click('[data-copy="cuedeck"]'); pg.wait_for_function("S.sumD.projects.find(p => p.id === 'cuedeck').copy.new === 0")
         check("second copy holds only what is new since the first", clip() == exp2 and exp2 != exp and "1 decisión" in exp2, exp2)
@@ -133,9 +133,10 @@ try:
         pg.goto(BASE + "/#resumen"); pg.wait_for_function("S.sumD")
         check("a copied project with nothing new folds into 'Sin novedades'", pg.locator(box("cuedeck")).count() == 0 and "cuedeck" in pg.inner_text(".su-quiet"))
         since1 = pg.inner_text("#su-since")
-        pg.click('[data-p="24"]'); pg.wait_for_function("S.sumHours === 24 && S.sumD && document.querySelector('.su-proj[data-id=cuedeck]')")
-        check("últimas 24 h shows every active project again, without touching markers", pg.inner_text("#su-since") != since1 and proj("cuedeck")["copied_at"] != c1["copied_at"]
-              and all(proj(x)["copied_at"] is None for x in others))
+        pg.click('[data-p="24"]'); pg.wait_for_function("S.sumHours === 24 && S.sumD && document.querySelector('#su-since').textContent !== " + json.dumps(since1))
+        check("últimas 24 h widens the period but boxes only news since each copy; markers untouched",
+              pg.locator(box("cuedeck")).count() == 0 and "cuedeck" in pg.inner_text(".su-quiet")
+              and proj("cuedeck")["copied_at"] != c1["copied_at"] and all(proj(x)["copied_at"] is None for x in others))
         pg.click('[data-p="0"]'); pg.wait_for_function("S.sumHours === 0 && S.sumD")
         until = pg.evaluate("S.sumD.until")
         pg.click("#su-seen"); time.sleep(.7)

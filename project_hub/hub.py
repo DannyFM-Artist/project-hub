@@ -803,6 +803,7 @@ class Hub:
             if count_waiting:
                 gate_phases |= {g["phase"] for g in waiting}
             w["gates"] = len(gate_phases)
+            w["user_messages"] = [m for m in user_messages if count_waiting or in_period(m["created_at"])]
             # the reason is the phase's current one; a renamed phase has none
             reasons = {ph["name"]: ph.get("gate_reason", "") for ph in p["phases"]}
             w["gate_lines"] = [(name, reasons.get(name, "")) for name in sorted(gate_phases, key=str)]
@@ -823,7 +824,7 @@ class Hub:
         copy_since = datetime.fromisoformat(copied_at) if copied_at else start
         c = window(copy_since, copied_at is None)
         new = (len(c["reports"]) + len(c["decisions"]) + len(c["items_opened"]) + len(c["items_closed"])
-               + len(c["phase_changes"]) + c["gates"])
+               + len(c["phase_changes"]) + c["gates"] + len(c["user_messages"]))
 
         return {
             "id": pid, "name": p["name"], "status": p["status"],
@@ -893,17 +894,27 @@ class Hub:
     @staticmethod
     def _chat_text(pid, period_line, w):
         done = [c["phase"] for c in w["phase_changes"] if c["text"].endswith("→ done")]
+        other_changes = len(w["phase_changes"]) - len(done)
         reports, decisions = w["reports"], w["decisions"]
         lines = [period_line]
         lines += [f"Espera a Danny: {_short(name, 70)} — {_short(reason, 70)}" if reason else f"Espera a Danny: {_short(name, 70)}"
                   for name, reason in w["gate_lines"]]
+        lines += [f"Mensaje para Danny: {_short(m['title'], 70)}" for m in w["user_messages"][:3]]
         if reports:
             titles = [_short(r["title"], 70) for r in reversed(reports)]  # newest first
             lines.append("Reports nuevos: " + " · ".join(titles[:6]) + (f" y {len(titles) - 6} más" if len(titles) > 6 else ""))
-        if done:
-            lines.append(_plural(len(done), "fase terminada", "fases terminadas") + (": " + ", ".join(done) if len(done) <= 2 else ""))
+        # every kind counted as new appears in the text, so a copy never says "nothing new"; one line per kind keeps it short
+        phases = [_plural(len(done), "fase terminada", "fases terminadas") + (": " + ", ".join(done) if len(done) <= 2 else "")] if done else []
+        if other_changes:
+            phases.append(_plural(other_changes, "otro cambio de fase", "otros cambios de fase") if done else _plural(other_changes, "cambio de fase", "cambios de fase"))
+        if phases:
+            lines.append(" · ".join(phases))
         if decisions:
             lines.append(_plural(len(decisions), "decisión de los agentes", "decisiones de los agentes"))
+        items = [x for x in (_plural(len(w["items_opened"]), "nuevo", "nuevos") if w["items_opened"] else "",
+                             _plural(len(w["items_closed"]), "cerrado", "cerrados") if w["items_closed"] else "") if x]
+        if items:
+            lines.append("Ítems: " + " · ".join(items))
         if len(lines) == 1:
             lines.append("Sin actividad nueva en este periodo.")
         lines.append(f"Revisa el proyecto {pid} en project-hub (get_project y read_inbox) y prepara los siguientes pasos.")

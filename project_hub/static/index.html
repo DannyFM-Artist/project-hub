@@ -518,7 +518,7 @@ const PSTATE = { todo: "pendiente", in_progress: "en curso", done: "hecha" };
 const KIND = { task: "tarea", message: "mensaje", report: "report" };
 const MSG_ST = { unread: "sin leer", read: "leído", done: "hecho" };
 const S = { projects: [], d: null, pid: null, last: null, res: [], filter: "all", ovSel: 0, sel: null, phSel: {}, tf: "all", closed: false,
-  ovMark: false, offline: false, sum: false, suOpen: new Set(), copiedNow: new Set(), key: "", confirm: new Set(), repOpen: new Set(), msgOpen: new Set(), doneOpen: {}, fold: {}, bell: false, focusNext: false };
+  ovMark: false, offline: false, sum: false, suOpen: new Set(), key: "", confirm: new Set(), repOpen: new Set(), msgOpen: new Set(), doneOpen: {}, fold: {}, bell: false, focusNext: false };
 
 const pl = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
 const nn = (i) => String(i + 1).padStart(2, "0");
@@ -990,8 +990,7 @@ function stateOf(id) { // the polled projects list is the freshest source; the s
   const r = S.projects.find((p) => p.id === id) || (S.sumD && S.sumD.projects.find((p) => p.id === id)) || {};
   return r.state;
 }
-const copyLabel = (p, st) => !(p.copy && p.copy.new) ? (p.copied_at ? "Nada nuevo desde la última copia" : "Nada nuevo que copiar")
-  : st && st.kind === "working" ? "Copiar igualmente" : "Copiar para el chat";
+const copyLabel = (p, st) => st && st.kind === "working" ? "Copiar igualmente" : "Copiar para el chat";
 // polling updates only the state badges and button texts, in place: boxes, expansion and focus stay as they are
 function syncSumStates() {
   if (!S.sum || !S.sumD) return;
@@ -1003,23 +1002,18 @@ function syncSumStates() {
     if (btn.textContent !== label) btn.textContent = label;
   }
 }
-function copyState(p) {
-  const cp = p.copy || { new: 0 };
-  if (cp.new) return p.copied_at ? pl(cp.new, "novedad", "novedades") + " desde la última copia" : pl(cp.new, "novedad", "novedades");
-  if (!p.copied_at) return "";
-  return (Date.now() - new Date(p.copied_at).getTime()) < 90000 ? "copiado ahora" : "copiado hace " + ago(p.copied_at);
-}
+const copyState = (p) => pl(p.copy.new, "novedad", "novedades") + (p.copied_at ? " desde la última copia" : "");
 // copies only what is new since this project's last copy, then stores the copy marker at the until of the summary on screen
 async function copyProject(p) {
   if (!await copyText(p.copy.chat_text)) { toast("No se pudo copiar", "err"); return; }
   try {
     await api("POST", "/api/summary/copied", { project_id: p.id, at: S.sumD.until });
-    S.copiedNow.add(p.id); toast(`Copiado para el chat: ${p.name}`, "ok");
+    toast(`Copiado para el chat: ${p.name}`, "ok");
     await refresh(true); loadSummary(); // fresh project states first, so the box re-renders with its new state
   } catch (e) { toast(e.message, "err"); }
 }
 function sumProject(p) {
-  const c = p.current || {}, a = p.action || { gates: [], user_messages: [] }, n = p.counts || {}, cp = p.copy || { new: 0 };
+  const c = p.current || {}, a = p.action || { gates: [], user_messages: [] }, n = p.counts || {};
   const L = (...k) => h("div", { class: "su-l" }, ...k);
   const tog = (k, kids) => h("button", { class: "tog", type: "button", "aria-expanded": String(S.suOpen.has(k)), "data-fk": "su|" + k,
     onclick: () => { S.suOpen.has(k) ? S.suOpen.delete(k) : S.suOpen.add(k); paint(renderSummary, "su|" + k); } }, chev(), kids);
@@ -1031,9 +1025,9 @@ function sumProject(p) {
   return h("section", { class: "panel su-proj", "data-id": p.id },
     h("div", { class: "rlh su-head" },
       tog(p.id, [h("b", {}, p.name), c.phase ? ` · ${c.n}/${c.total} ${c.phase}` : null, counts.flatMap((x) => [" · ", x])]),
-      h("span", { class: "su-cs" + (cp.new && p.copied_at ? " new" : "") }, copyState(p)),
+      h("span", { class: "su-cs" + (p.copied_at ? " new" : "") }, copyState(p)),
       stateBadge(stateOf(p.id), "", p.id),
-      h("button", { class: "btn small", type: "button", "data-copy": p.id, "data-fk": "cp" + p.id, disabled: !cp.new, onclick: () => copyProject(p) }, copyLabel(p, stateOf(p.id)))),
+      h("button", { class: "btn small", type: "button", "data-copy": p.id, "data-fk": "cp" + p.id, onclick: () => copyProject(p) }, copyLabel(p, stateOf(p.id)))),
     S.suOpen.has(p.id) ? h("div", { class: "su-in" },
       h("p", { class: "su-n" }, c.phase ? `${c.phase} · ` : "", "siguiente paso: ", c.next_step || "—"),
       sec("wait", "Esperan a Danny", [...a.gates.map((g) => L(h("span", { class: "su-k" }, "espera a Danny"), ` ${g.phase} `, h("small", {}, (g.reason || "") + (g.set_by ? " · puesto por " + g.set_by : "")))),
@@ -1047,8 +1041,9 @@ function sumProject(p) {
 function renderSummary() {
   renderSummaryHead();
   if (!S.sumD) return;
-  // a box per project with something new since its last copy (or copied in this visit, to show "copiado"); "últimas 24 h" shows every active one
-  const d = S.sumD, boxed = (p) => p.has_activity && (S.sumHours || (p.copy && p.copy.new > 0) || S.copiedNow.has(p.id));
+  // a box and a copy button only for projects with something new since their last copy (never copied: since the period
+  // start), whatever the period; the period only widens what a box lists. The rest share one "Sin novedades" line.
+  const d = S.sumD, boxed = (p) => p.copy.new > 0;
   const quiet = d.projects.filter((p) => !boxed(p));
   fill($("#su-body"), d.projects.filter(boxed).map(sumProject),
     quiet.length ? h("section", { class: "panel su-quiet" }, h("p", { class: "calm" }, h("span", { class: "st done" }, "✓"), "Sin novedades: ", quiet.map((p) => p.name).join(", "))) : null);
@@ -1166,7 +1161,7 @@ function route() {
   const wasSum = S.sum;
   S.bell = false;
   S.sum = location.hash === "#resumen";
-  if (S.sum) { if (!wasSum) { S.sumD = null; S.sumHours = 0; S.pid = null; S.focusNext = true; S.suOpen = new Set(); S.copiedNow = new Set(); fill($("#su-body")); } showSummary(); return; } // no stale boxes from the last visit
+  if (S.sum) { if (!wasSum) { S.sumD = null; S.sumHours = 0; S.pid = null; S.focusNext = true; S.suOpen = new Set(); fill($("#su-body")); } showSummary(); return; } // no stale boxes from the last visit
   const pid = m ? decodeURIComponent(m[1]) : null;
   if (pid !== S.pid || wasSum) {
     S.pid = pid; S.sel = null; S.d = null; S.key = ""; S.confirm.clear(); S.fold.det = S.fold.dec = S.fold.inbox = false; // a project opens with its details, decisions and inbox folded

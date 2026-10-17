@@ -40,8 +40,9 @@ def test_copy_before_any_copy(hub, clock):
     make_world(hub, clock)
     a, g, b = (proj(hub, x) for x in ("alpha", "gamma", "beta"))
     assert a["copied_at"] is None and a["copy"]["since"] == hub.summary()["since"]
-    # reports 1, decisions 1, items opened 2, closed 1, phase changes 2, gate 1 (set in window and waiting: one phase)
-    assert a["copy"]["new"] == 8
+    # reports 1, decisions 1, items opened 2, closed 1, phase changes 2, gate 1 (set in window and waiting: one phase),
+    # message to Danny 1
+    assert a["copy"]["new"] == 9
     assert a["copy"]["chat_text"] == a["chat_text"] and a["copy"]["chat_text"].endswith(LAST.format("alpha"))
     # gamma: its gate was set before the window but waits now
     assert g["copy"]["new"] == 1 and "Espera a Danny: One — on device" in g["copy"]["chat_text"]
@@ -112,3 +113,27 @@ def test_copied_api(tmp_path, monkeypatch, clock):
         "alpha": until, "beta": "2030-01-01T20:01:00+00:00", "gamma": None}
     assert c.post("/api/summary/copied", json={"project_id": "nope"}).status_code in (400, 404)
     assert c.post("/api/summary/copied", json={"project_id": "alpha", "at": "bad"}).status_code == 400
+
+
+def test_every_kind_of_news_is_named_in_the_copy(hub, clock):
+    """Danny copied a text that said «Sin actividad nueva» while the box counted news: anything counted is named."""
+    make_world(hub, clock)
+    hub.mark_copied("alpha", hub.summary()["until"])
+    clock[0] += timedelta(minutes=5)
+    assert proj(hub)["copy"]["new"] == 0  # nothing new since the copy: no box, no button on the page
+    hub.add_item("alpha", "idea", "Later")
+    hub.post_message("user", "message", "Pick a licence", "MIT?", from_project="alpha")
+    phase = hub.get_project("alpha")["phases"][2]["id"]
+    hub.set_phase_status("alpha", phase, "in_progress")
+    c = proj(hub)["copy"]
+    assert c["new"] == 3
+    assert "Sin actividad nueva" not in c["chat_text"]
+    assert "Mensaje para Danny: Pick a licence" in c["chat_text"] and "Ítems: 1 nuevo" in c["chat_text"]
+    assert "1 cambio de fase" in c["chat_text"]
+
+
+def test_a_message_to_danny_before_the_copy_is_not_new(hub, clock):
+    make_world(hub, clock)  # alpha has an open message to Danny from before
+    hub.mark_copied("alpha", hub.summary()["until"])
+    clock[0] += timedelta(minutes=5)
+    assert proj(hub)["copy"]["new"] == 0 and proj(hub)["action"]["user_messages"]  # still in Para ti, not news to copy
