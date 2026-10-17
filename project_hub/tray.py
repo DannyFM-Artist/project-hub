@@ -149,13 +149,34 @@ def quit_app(server, icon, confirm=None):
     icon.stop()
 
 
+_busy = threading.Lock()  # one quit dialog or restart at a time
+
+
+def in_background(fn, *args):
+    """Run a menu action off the tray thread. pystray calls actions inside its window procedure while it handles
+    the icon's click; a modal dialog and a 6-16 s shutdown there froze the Salir dialog (Danny had to kill
+    pythonw). A second Salir or Reiniciar while one runs is ignored instead of stacking dialogs."""
+    def run():
+        if not _busy.acquire(blocking=False):
+            return
+        try:
+            fn(*args)
+        except Exception:
+            logging.exception("tray action failed")
+        finally:
+            _busy.release()
+    t = threading.Thread(target=run, daemon=True, name="tray-action")
+    t.start()
+    return t
+
+
 def build_menu(server, port=PORT):
     import pystray as p
     return p.Menu(
         p.MenuItem(LABELS[0], lambda icon, item: open_dashboard(port), default=True),
-        p.MenuItem(LABELS[1], lambda icon, item: restart_server(server)),
+        p.MenuItem(LABELS[1], lambda icon, item: in_background(restart_server, server)),
         p.MenuItem(LABELS[2], lambda icon, item: open_data_folder()),
-        p.MenuItem(LABELS[3], lambda icon, item: quit_app(server, icon)),
+        p.MenuItem(LABELS[3], lambda icon, item: in_background(quit_app, server, icon)),
     )
 
 

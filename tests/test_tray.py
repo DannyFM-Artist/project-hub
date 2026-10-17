@@ -1,6 +1,7 @@
 import http.server
 import socket
 import threading
+import time
 
 import pytest
 
@@ -165,3 +166,47 @@ def test_real_server_start_stop_restart():
     finally:
         s.stop()
     assert not tray.is_running(port)
+
+
+def test_menu_actions_return_at_once_and_run_off_the_tray_thread(status, monkeypatch):
+    """pystray runs menu actions inside its window procedure: the dialog and the shutdown must not block it."""
+    pytest.importorskip("pystray")
+    release, seen = threading.Event(), []
+
+    def dialog():  # stands in for the real dialog, which must never appear in tests
+        seen.append(threading.current_thread())
+        release.wait(5)
+        return True
+    monkeypatch.setattr(tray, "confirm_quit", dialog)
+    s, i = FakeServer(), FakeIcon()
+    salir = tray.build_menu(s).items[3]
+    t0 = time.monotonic()
+    worker = salir(i)
+    assert time.monotonic() - t0 < 0.5 and worker.is_alive()  # the menu click returned while the dialog is open
+    for _ in range(50):
+        if seen:
+            break
+        time.sleep(.05)
+    assert seen and seen[0] is not threading.current_thread() and not i.stopped
+    assert salir(i) is not None and len(seen) == 1  # a second Salir while the dialog is open opens nothing
+    release.set()
+    worker.join(5)
+    assert s.calls == ["stop"] and i.stopped and status["state"] == "stopping"
+
+
+def test_restart_from_the_menu_runs_off_the_tray_thread(status):
+    pytest.importorskip("pystray")
+    s = FakeServer()
+    worker = tray.build_menu(s).items[1](FakeIcon())
+    worker.join(5)
+    assert s.calls == ["stop", "start"] and worker is not threading.current_thread()
+
+
+def test_a_failing_action_is_logged_and_frees_the_menu(caplog):
+    def boom():
+        raise RuntimeError("boom")
+    tray.in_background(boom).join(5)
+    assert "tray action failed" in caplog.text
+    done = []
+    tray.in_background(done.append, 1).join(5)
+    assert done == [1]  # the lock was released
