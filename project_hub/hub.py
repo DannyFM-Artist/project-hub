@@ -471,6 +471,23 @@ class Hub:
 
         return self._modify(project_id, change, by)
 
+    def move_phase(self, project_id, phase_id, position) -> dict:
+        """Move a phase to 0-based position; everything on it (gate and its history included) is kept.
+        Chat only (PROJECT_HUB_ROLE=chat): moving a waiting phase later would let an agent skip its gate."""
+
+        def change(p, log):
+            phase = _find(p["phases"], phase_id, "phase")
+            last = len(p["phases"]) - 1
+            if not (type(position) is int and 0 <= position <= last):
+                raise HubError(f"position must be an integer from 0 to {last}, got {position!r}")
+            old = p["phases"].index(phase)
+            if old != position:
+                p["phases"].insert(position, p["phases"].pop(old))
+                log("phase_moved", f"position {old} → {position}", phase=phase["name"])
+            return phase
+
+        return self._modify(project_id, change, "chat")
+
     def set_gate(self, project_id, phase_id, reason, *, by="agent") -> dict:
         """Add a waiting gate, or put a continued gate back to waiting, with what Danny must review or do.
         On a waiting gate only the reason changes. Nobody removes a gate; only Danny resolves it (resolve_gate).

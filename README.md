@@ -60,9 +60,9 @@ Edit `claude_desktop_config.json`:
 
 ### Letting Danny resolve gates from the Desktop chat (`PROJECT_HUB_ROLE=chat`)
 
-With the env var `PROJECT_HUB_ROLE=chat` the MCP server registers one extra tool, `resolve_gate(project_id, phase_id, action, danny_words)`, and gates it sets are stored with `gate_set_by: "chat"`. See Phase gates for the actions.
+With the env var `PROJECT_HUB_ROLE=chat` the MCP server registers two extra tools, `resolve_gate(project_id, phase_id, action, danny_words)` and `move_phase(project_id, phase_id, position)`, and gates it sets are stored with `gate_set_by: "chat"`. See Phase gates for the actions. `move_phase` is chat-only too because moving a waiting phase later would let an agent skip its gate.
 
-Only the Claude Desktop entry gets this variable. The Claude Code registration must never have it; without it the tool does not exist and agents stay refused on phases whose gate waits for Danny.
+Only the Claude Desktop entry gets this variable. The Claude Code registration must never have it; without it these tools do not exist and agents stay refused on phases whose gate waits for Danny.
 
 ```json
 "project-hub": {
@@ -194,6 +194,7 @@ The dashboard's look is described in `design-system/MASTER.md`.
 - `delete_phase(project_id, phase_id)` - remove a phase (refused for a phase with a gate).
 - `set_gate(project_id, phase_id, reason)` - make a phase wait for Danny, with what he must review or do (max 160 characters); agents can never resolve or remove a gate.
 - `resolve_gate(project_id, phase_id, action, danny_words)` - only with `PROJECT_HUB_ROLE=chat`: Danny's "sigue", "hecho" or "vuelve a cerrar", with his exact words.
+- `move_phase(project_id, phase_id, position)` - only with `PROJECT_HUB_ROLE=chat`: move a phase to a 0-based position; name, notes, status, gate and gate history are kept. Logged as `phase_moved`. The dashboard shows the new order but has no reorder controls.
 - `add_item(project_id, type, title, details?)` - idea / future_request / bug.
 - `update_item(project_id, item_id, status?, type?, title?, details?)` - edit or move an item.
 - `log_decision(project_id, decision, reason)` - append to the decision log.

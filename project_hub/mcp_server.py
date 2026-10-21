@@ -224,10 +224,19 @@ def resolve_gate(project_id: str, phase_id: str, action: str, danny_words: str) 
     return f"Phase {ph['id']} ({ph['name']}, {ph['status']}) {gate_label(ph)}"
 
 
+def move_phase(project_id: str, phase_id: str, position: int) -> str:
+    """Move a phase to a 0-based position (like add_phase). Name, notes, status and gate are kept.
+    Use it when Danny asks to reorder phases."""
+    ph = hub.move_phase(project_id, phase_id, position)
+    return f"Moved phase {ph['id']} ({ph['name']}) to position {position}"
+
+
 def register_chat_tools():
-    """Only PROJECT_HUB_ROLE=chat (the Claude Desktop entry) gets resolve_gate; Claude Code never does."""
+    """Only PROJECT_HUB_ROLE=chat (the Claude Desktop entry) gets resolve_gate and move_phase; Claude Code never
+    does: moving a waiting phase later would let an agent skip its gate."""
     if CHAT:
         tool(resolve_gate)
+        tool(move_phase)
 
 
 register_chat_tools()
